@@ -1,11 +1,10 @@
-// Slice 1: users + roles + ctx.sender checks.
-import { newIdentity, call, sql, ownerSql, record, expectDenied, runTag } from '../lib.mjs';
+// Slice 1: users + roles + ctx.sender checks. (Users are created through slice 2 invites.)
+import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, runTag } from '../lib.mjs';
 
 export const slice = 1;
 export const title = 'Users, roles, ctx.sender checks';
 
 export async function run() {
-  // Precondition probe: if `register` doesn't exist, the slice hasn't been published.
   const anon = await newIdentity();
   const probe = await call(anon, 'add_ping', ['probe']);
   if (probe.status === 404) return record('R0', 'slice 1 not published', 'SKIP');
@@ -23,60 +22,52 @@ export async function run() {
   record('R4', 'unregistered caller reads `team` view', teamAnon.rows.length ? 'VULN' : 'PASS',
     teamAnon.rows.length ? `${teamAnon.rows.length} members leaked` : 'empty for unregistered');
 
-  // --- Bootstrap: whoever registers first on an empty DB becomes commander ---
-  const empty = (ownerSql('SELECT * FROM user').out.match(/^\s*0x/gm) ?? []).length === 0;
-  const first = await newIdentity();
-  await call(first, 'register', [`atk-first-${runTag}`]);
-  if (empty) {
-    const v = await sql(first, `SELECT role FROM team WHERE display_name = 'atk-first-${runTag}'`);
-    record('R5', 'anonymous stranger registers first → commander', v.rows[0]?.role === 'commander' ? 'VULN' : 'PASS',
-      `role=${v.rows[0]?.role ?? '?'} (slice 2 invite codes should close this)`);
-  } else {
-    record('R5', 'first-registrant-becomes-commander', 'SKIP', 'DB not empty; republish with --delete-data to test');
-  }
+  // R5 (first registrant becomes commander) was fixed in slice 2: `register` no longer exists.
+  const reg = await call(await newIdentity(), 'register', ['atk-first']);
+  record('R5', 'stranger self-registers (old `register` reducer)', reg.ok ? 'VULN' : 'PASS',
+    reg.ok ? 'register still exists' : 'reducer removed');
 
-  // --- Registered observer --------------------------------------------------
-  const obs = await newIdentity();
-  await call(obs, 'register', [`atk-obs-${runTag}`]);
+  // --- Signed-in observer ---------------------------------------------------
+  const cmd = await getCommander();
+  const obs = await signIn('observer');
   expectDenied('R6', 'observer writes (add_ping)', await call(obs, 'add_ping', ['observer write']));
   expectDenied('R7', 'observer self-promotes to commander',
     await call(obs, 'set_role', [{ __identity__: obs.identity }, 'commander']));
-  expectDenied('R8', 'observer demotes another user',
-    await call(obs, 'set_role', [{ __identity__: first.identity }, 'observer']));
+  expectDenied('R8', 'observer demotes the commander',
+    await call(obs, 'set_role', [{ __identity__: cmd.identity }, 'observer']));
   expectDenied('R9', 'bogus role string',
-    await call(obs, 'set_role', [{ __identity__: first.identity }, 'superadmin']));
-  expectDenied('R10', 'register twice with same identity', await call(obs, 'register', ['again']));
+    await call(cmd, 'set_role', [{ __identity__: obs.identity }, 'superadmin']));
+  expectDenied('R10', 'commander changes own role',
+    await call(cmd, 'set_role', [{ __identity__: cmd.identity }, 'observer']));
 
   // --- Display-name impersonation ------------------------------------------
-  const dupe = await newIdentity();
-  const d = await call(dupe, 'register', [`atk-obs-${runTag}`]);
-  record('R11', 'duplicate display name (impersonation)', d.ok ? 'VULN' : 'PASS',
-    d.ok ? 'two users now share one name' : 'rejected');
+  let dupe = null;
+  try { dupe = await signIn('observer', obs.name); } catch { /* rejected */ }
+  record('R11', 'duplicate display name (impersonation)', dupe ? 'VULN' : 'PASS',
+    dupe ? 'two users now share one name' : 'rejected');
 
-  const bidi = await newIdentity();
-  const b = await call(bidi, 'register', [`atk-‮redna​mmoc-${runTag}`]);
-  record('R12', 'bidi-override / zero-width chars in name', b.ok ? 'VULN' : 'PASS',
-    b.ok ? 'U+202E / U+200B stored; can render as a fake name' : 'rejected');
+  let bidi = null;
+  try { bidi = await signIn('observer', `atk-‮redna​mmoc-${runTag}`); } catch { /* rejected */ }
+  record('R12', 'bidi-override / zero-width chars in name', bidi ? 'VULN' : 'PASS',
+    bidi ? 'U+202E / U+200B stored; can render as a fake name' : 'rejected');
 
   // --- Duress flag visibility -----------------------------------------------
   // Owner flips a victim's duress flag, then we check who can see it. Always restored after.
-  const victim = await newIdentity();
-  const vname = `atk-victim-${runTag}`;
-  await call(victim, 'register', [vname]);
-  const set = ownerSql(`UPDATE user SET is_duressed = true WHERE display_name = '${vname}'`);
+  const victim = await signIn('responder');
+  const set = ownerSql(`UPDATE user SET is_duressed = true WHERE display_name = '${victim.name}'`);
   if (!set.ok) {
-    record('R13', 'duress flag hidden from victim', 'SKIP', 'owner SQL unavailable');
+    record('R13', 'duress flag hidden from the coerced user', 'SKIP', 'owner SQL unavailable');
     record('R14', 'duress flag hidden from observers', 'SKIP', 'owner SQL unavailable');
     return;
   }
   try {
-    const own = await sql(victim, `SELECT flagged FROM team WHERE display_name = '${vname}'`);
+    const own = await sql(victim, `SELECT flagged FROM team WHERE display_name = '${victim.name}'`);
     record('R13', 'duress flag hidden from the coerced user', own.rows[0]?.flagged === false ? 'PASS' : 'VULN',
       `victim sees flagged=${own.rows[0]?.flagged}`);
-    const seen = await sql(obs, `SELECT flagged FROM team WHERE display_name = '${vname}'`);
+    const seen = await sql(obs, `SELECT flagged FROM team WHERE display_name = '${victim.name}'`);
     record('R14', 'duress flag hidden from observers', seen.rows[0]?.flagged ? 'VULN' : 'PASS',
-      seen.rows[0]?.flagged ? 'any registered observer (incl. self-registered strangers) sees FLAGGED' : 'hidden');
+      seen.rows[0]?.flagged ? 'any observer sees FLAGGED' : 'hidden');
   } finally {
-    ownerSql(`UPDATE user SET is_duressed = false WHERE display_name = '${vname}'`);
+    ownerSql(`UPDATE user SET is_duressed = false WHERE display_name = '${victim.name}'`);
   }
 }

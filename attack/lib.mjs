@@ -59,6 +59,47 @@ export function ownerSql(query) {
   return { ok: r.status === 0, out: (r.stdout ?? '') + (r.stderr ?? '') };
 }
 
+// Reducer call as the database OWNER (the identity that published) via the spacetime CLI.
+export function ownerCall(reducer, ...args) {
+  const local = TARGET.includes('127.0.0.1') || TARGET.includes('localhost');
+  const cli = ['call', ...(local ? ['--server', 'local'] : []), '--no-config', DB, reducer, ...args.map(a => JSON.stringify(a))];
+  const r = spawnSync('spacetime', cli, { encoding: 'utf8' });
+  if (r.error) throw new Error(`spacetime CLI not found on PATH: ${r.error.message}`);
+  return { ok: r.status === 0, out: (r.stdout ?? '') + (r.stderr ?? '') };
+}
+
+// Random invite code in the module's format (8 chars, no I/L/O/0/1).
+export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export function randomCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return [...bytes].map(b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+}
+
+// One commander per run, made via the owner-only bootstrap invite.
+let commander;
+export async function getCommander() {
+  if (commander) return commander;
+  const code = randomCode();
+  const b = ownerCall('issue_bootstrap_invite', code);
+  if (!b.ok) throw new Error(`bootstrap failed (are you the owner?): ${b.out.trim().split('\n').pop()}`);
+  const who = await newIdentity();
+  const r = await call(who, 'redeem_invite', [code, `atk-cmd-${runTag}`]);
+  if (!r.ok) throw new Error(`redeem bootstrap failed: ${r.error}`);
+  return (commander = who);
+}
+
+// A fresh signed-in user with `role`, invited by the run's commander.
+export async function signIn(role, name = `atk-${role}-${runTag}-${Math.random().toString(36).slice(2, 6)}`) {
+  const cmd = await getCommander();
+  const code = randomCode();
+  const c = await call(cmd, 'create_invite', [code, role]);
+  if (!c.ok) throw new Error(`create_invite failed: ${c.error}`);
+  const who = await newIdentity();
+  const r = await call(who, 'redeem_invite', [code, name]);
+  if (!r.ok) throw new Error(`redeem failed: ${r.error}`);
+  return { ...who, name };
+}
+
 // Results: PASS = defense held, VULN = attack succeeded, SKIP = slice not landed / precondition missing.
 export const results = [];
 export function record(id, title, outcome, detail = '') {
