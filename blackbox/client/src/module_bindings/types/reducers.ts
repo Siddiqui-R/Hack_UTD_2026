@@ -7,10 +7,16 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import AddPingReducer from "../add_ping_reducer";
-import RegisterReducer from "../register_reducer";
+import CreateInviteReducer from "../create_invite_reducer";
+import IssueBootstrapInviteReducer from "../issue_bootstrap_invite_reducer";
+import RedeemInviteReducer from "../redeem_invite_reducer";
 import SetRoleReducer from "../set_role_reducer";
+import TouchSessionReducer from "../touch_session_reducer";
 
 export type AddPingParams = __Infer<typeof AddPingReducer>;
-export type RegisterParams = __Infer<typeof RegisterReducer>;
+export type CreateInviteParams = __Infer<typeof CreateInviteReducer>;
+export type IssueBootstrapInviteParams = __Infer<typeof IssueBootstrapInviteReducer>;
+export type RedeemInviteParams = __Infer<typeof RedeemInviteReducer>;
 export type SetRoleParams = __Infer<typeof SetRoleReducer>;
+export type TouchSessionParams = __Infer<typeof TouchSessionReducer>;
 

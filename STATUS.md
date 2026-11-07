@@ -9,8 +9,12 @@ spacetime start                                            # terminal 1, leave r
 cd blackbox
 spacetime publish blackbox --server local --module-path ./spacetimedb --no-config --yes
 spacetime generate --lang typescript --out-dir client/src/module_bindings --module-path ./spacetimedb --no-config --yes
-cd client && npm install && npm run dev                    # http://localhost:5173
+cd spacetimedb && npm install && cd ..                      # module deps (@noble/hashes)
+spacetime call --server local --no-config blackbox issue_bootstrap_invite '"ABCD-2345"'   # first commander code
+cd client && npm install && npm run dev                    # http://localhost:5173, enter ABCD-2345
 ```
+`issue_bootstrap_invite` only works from the CLI identity that published the database (the owner).
+Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 `--no-config` is needed because `spacetime.json` defaults to Maincloud. Inspect data with
 `spacetime sql --server local --no-config blackbox "SELECT * FROM ping"`.
 
@@ -20,7 +24,7 @@ cd client && npm install && npm run dev                    # http://localhost:51
 |---|---|---|---|
 | 0 | Ping table syncing two tabs | — (Gate 0) | [x] |
 | 1 | Users + roles + `ctx.sender` checks on one write | acting as the wrong role | [x] |
-| 2 | Invite codes → real session identity → role | replay, reuse, expiry, forged code | [ ] |
+| 2 | Invite codes → real session identity → role | replay, reuse, expiry, forged code | [x] |
 | 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [ ] |
 | 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [ ] |
 | 5 | Real-time chat | cross-incident message leakage | [ ] |
@@ -62,5 +66,23 @@ cd client && npm install && npm run dev                    # http://localhost:51
     (auth call with max_tokens 16 returned empty content, finish=length). Agent must use generous max_tokens.
   Caveat: single short prompt, one tool. Real 5-tool multi-step runs will be slower; re-measure in slice 7.
   Attack this: nothing yet — agent service is slice 7.
+[17:42] SLICE 2 — invite codes → session identity → role. DONE.
+  Works: first-registrant-becomes-commander REMOVED (no `register` reducer exists). First commander comes only from
+    `issue_bootstrap_invite`, callable solely by the database owner identity captured in `init`.
+    `create_invite` commander-only; only SHA-256(code) stored (private `invite_code`); single use; 30-min expiry;
+    every redeem failure returns the same "invalid or expired code". Redeem binds ctx.sender -> user row + role and
+    starts a 15-min session (private `session`). Every role check also requires a live session and extends it;
+    client calls `touch_session` on keydown/pointerdown (max 1/min). Scheduled `sweep_sessions` (60 s) deletes
+    expired sessions so the `team` view stops serving them. Client generates codes with crypto.getRandomValues.
+  Verified: used-code replay, forged well-formed code, malformed code, expired invite -> all "invalid or expired code";
+    non-owner bootstrap -> "owner only"; responder create_invite -> denied; anon create_invite/add_ping/touch_session
+    -> "not registered"; sweep_sessions not externally callable; module SHA-256 == Node SHA-256.
+    Expiry tested for real with temporary 20 s / 30 s TTLs (restored): expired session -> "session expired" on write,
+    then signed out and team data withdrawn after the sweep.
+  Limits (honest): a token stolen while its session is LIVE works until the session expires (≤15 min idle) — there is
+    no revoke yet. Reads can lag expiry by up to 60 s (sweep interval). No redeem rate-limit (a throw rolls back any
+    counter); we rely on ~40 bits of entropy + 30-min expiry instead. `incident_id` on invites is 0 until slice 3.
+  Attack this: brute-force redeem_invite; replay a used/expired code; call issue_bootstrap_invite as non-owner; copy a
+    tab's sessionStorage token to another browser before and after expiry; race two redeems of the same code.
 
 ## Known, not fixing

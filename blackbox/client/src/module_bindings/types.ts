@@ -10,12 +10,43 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const InviteCode = __t.object("InviteCode", {
+  codeHash: __t.string(),
+  role: __t.string(),
+  incidentId: __t.u64(),
+  createdBy: __t.identity(),
+  createdAt: __t.timestamp(),
+  expiresAt: __t.timestamp(),
+  usedBy: __t.option(__t.identity()),
+  usedAt: __t.option(__t.timestamp()),
+});
+export type InviteCode = __Infer<typeof InviteCode>;
+
+export const Owner = __t.object("Owner", {
+  id: __t.u32(),
+  identity: __t.identity(),
+});
+export type Owner = __Infer<typeof Owner>;
+
 export const Ping = __t.object("Ping", {
   id: __t.u64(),
   text: __t.string(),
   author: __t.identity(),
 });
 export type Ping = __Infer<typeof Ping>;
+
+export const Session = __t.object("Session", {
+  identity: __t.identity(),
+  startedAt: __t.timestamp(),
+  expiresAt: __t.timestamp(),
+});
+export type Session = __Infer<typeof Session>;
+
+export const SessionSweep = __t.object("SessionSweep", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+});
+export type SessionSweep = __Infer<typeof SessionSweep>;
 
 export const Team = __t.object("Team", {});
 export type Team = __Infer<typeof Team>;
