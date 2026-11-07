@@ -1,0 +1,21 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { SpacetimeDBProvider } from 'spacetimedb/react';
+import { DbConnection } from './module_bindings';
+import { SPACETIMEDB_URI, MODULE_NAME } from './config';
+import App from './App.tsx';
+
+const connectionBuilder = DbConnection.builder()
+  .withUri(SPACETIMEDB_URI)
+  .withDatabaseName(MODULE_NAME)
+  .withAutomaticReconnect()
+  .onConnect((_conn, identity) => console.log('connected', identity.toHexString()))
+  .onConnectError((_ctx, err) => console.error('connect error', err));
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
+      <App />
+    </SpacetimeDBProvider>
+  </StrictMode>,
+);

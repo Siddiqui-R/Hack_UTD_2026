@@ -11,6 +11,12 @@ Source of truth for the build: `BLACKBOX_MASTER_PROMPTv2.md` (kept outside the r
 - Reducers that grant permissions, change roles, add users or approve reject the NEMOTRON actor server-side.
 - Do NOT use RLS (`clientVisibilityFilter`) — the official rules below mark it deprecated. Use private tables + views.
 - Reducers are deterministic: no network. External anchoring must go through a procedure (`ctx.http.fetch`, beta) or the agent service.
+- **Installed version is SpacetimeDB 2.14 (CLI 2.14.1, npm `spacetimedb` 2.14.0).** `blackbox/CLAUDE.md` holds the rules bundled with that CLI and
+  SUPERSEDES the web rules below wherever they differ (e.g. inline `.index('btree')`, `accessor:` on named indexes, `onSchedule` scheduling,
+  scheduled procedures). When both disagree with the installed `.d.ts` files, the `.d.ts` wins.
+- Verified against installed types: `const [rows, isReady] = useTable(tables.x)`; `const fn = useReducer(reducers.x)` returns `(args) => Promise<void>`;
+  `useSpacetimeDB()` returns `{ isActive, identity, token, connectionId, connectionError, getConnection() }`. The package README's `useTable` example is stale.
+- Reducer export `addPing` is stored as `add_ping` (use that name with `spacetime call`).
 
 ---
 
