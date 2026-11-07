@@ -68,6 +68,40 @@ export function ownerCall(reducer, ...args) {
   return { ok: r.status === 0, out: (r.stdout ?? '') + (r.stderr ?? '') };
 }
 
+// The owner as an HTTP caller (token from `spacetime login show --token`; never printed).
+let ownerWho;
+export function owner() {
+  if (ownerWho) return ownerWho;
+  const r = spawnSync('spacetime', ['login', 'show', '--token'], { encoding: 'utf8' });
+  const token = ((r.stdout ?? '') + (r.stderr ?? '')).match(/eyJ[\w-]+\.[\w-]+\.[\w-]+/)?.[0];
+  if (!token) throw new Error('could not read owner token from spacetime CLI');
+  return (ownerWho = { token });
+}
+
+// Independent re-implementation of the module's canonicalJson + chain formula, used to
+// verify the audit log from outside. Deliberately NOT imported from the module.
+import { createHash } from 'node:crypto';
+export function canonical(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'bigint') return JSON.stringify(v.toString());
+  if (typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  const keys = Object.keys(v).filter(k => v[k] !== undefined).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;
+}
+const micros = ts => BigInt(ts?.__timestamp_micros_since_unix_epoch__ ?? ts);
+export function auditHash(row) {
+  const body = canonical({
+    seq: BigInt(row.seq), incidentId: BigInt(row.incident_id), actor: row.actor, action: row.action,
+    payloadJson: row.payload_json, prevHash: row.prev_hash, createdAt: micros(row.created_at),
+  });
+  return createHash('sha256').update(body + row.prev_hash, 'utf8').digest('hex');
+}
+export async function auditRows() {
+  const r = await sql(owner(), 'SELECT * FROM audit');
+  return r.rows.sort((a, b) => Number(a.seq) - Number(b.seq));
+}
+
 // Random invite code in the module's format (8 chars, no I/L/O/0/1).
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function randomCode() {
