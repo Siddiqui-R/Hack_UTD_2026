@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react';
 import { tables, reducers } from './module_bindings';
 import { generateInviteCode } from './inviteCode';
+import { markMember, wasMember, discardIdentity } from './identity';
 
 const ROLES = ['commander', 'responder', 'observer'] as const;
 const TOUCH_EVERY_MS = 60_000;
 
-// Slice 2 harness. Unstyled on purpose: the design system lands in slice 3.
+// Slice 2 harness (+ revocation). Unstyled on purpose: the design system lands in slice 3.
 export default function App() {
   const { isActive, identity } = useSpacetimeDB();
   const [team, teamReady] = useTable(tables.team);
@@ -15,6 +16,7 @@ export default function App() {
   const createInvite = useReducer(reducers.createInvite);
   const touchSession = useReducer(reducers.touchSession);
   const setRole = useReducer(reducers.setRole);
+  const revokeSession = useReducer(reducers.revokeSession);
   const addPing = useReducer(reducers.addPing);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -25,6 +27,12 @@ export default function App() {
   const lastTouch = useRef(0);
 
   const me = identity ? team.find(m => m.identity.isEqual(identity)) : undefined;
+
+  // Signed in -> remember it. Signed in before but no session now (expired/revoked) -> fresh identity.
+  useEffect(() => {
+    if (me) markMember();
+    else if (isActive && teamReady && wasMember()) discardIdentity();
+  }, [me, isActive, teamReady]);
 
   // Refresh the 15-minute session on real user activity, at most once a minute.
   useEffect(() => {
@@ -94,6 +102,10 @@ export default function App() {
               <li key={m.identity.toHexString()}>
                 {m.displayName} [{m.role}] {m.identity.toHexString().slice(0, 8)}
                 {m.flagged && ' FLAGGED'}
+                {m.revoked ? ' REVOKED' : m.online ? ' online' : ' offline'}
+                {!m.revoked && (
+                  <button onClick={() => run(() => revokeSession({ target: m.identity }))}>revoke session</button>
+                )}
                 {ROLES.filter(r => r !== m.role).map(r => (
                   <button key={r} onClick={() => run(() => setRole({ target: m.identity, role: r }))}>make {r}</button>
                 ))}

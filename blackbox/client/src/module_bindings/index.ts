@@ -38,6 +38,7 @@ import AddPingReducer from "./add_ping_reducer";
 import CreateInviteReducer from "./create_invite_reducer";
 import IssueBootstrapInviteReducer from "./issue_bootstrap_invite_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
+import RevokeSessionReducer from "./revoke_session_reducer";
 import SetRoleReducer from "./set_role_reducer";
 import TouchSessionReducer from "./touch_session_reducer";
 
@@ -77,6 +78,7 @@ const reducersSchema = __reducers(
   __reducerSchema("create_invite", CreateInviteReducer),
   __reducerSchema("issue_bootstrap_invite", IssueBootstrapInviteReducer),
   __reducerSchema("redeem_invite", RedeemInviteReducer),
+  __reducerSchema("revoke_session", RevokeSessionReducer),
   __reducerSchema("set_role", SetRoleReducer),
   __reducerSchema("touch_session", TouchSessionReducer),
 );

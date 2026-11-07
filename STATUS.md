@@ -84,5 +84,26 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
     counter); we rely on ~40 bits of entropy + 30-min expiry instead. `incident_id` on invites is 0 until slice 3.
   Attack this: brute-force redeem_invite; replay a used/expired code; call issue_bootstrap_invite as non-owner; copy a
     tab's sessionStorage token to another browser before and after expiry; race two redeems of the same code.
+[17:52] SLICE 2b — session revocation + audit chain (early). DONE.
+  RABEET: RE-PULL. `requireRole` (role-check helper) changed in slice 2 and again here — it now also rejects revoked
+    identities and requires a live session. Republish with --delete-data=always (schema changed).
+  Works: commander-only `revoke_session(target)` — deletes the session immediately (view data withdrawn at once, no
+    sweep wait) and lists the identity in private `revoked_identity`: it can never act or redeem again, and
+    `set_role` refuses revoked targets (no un-revoke). Team list shows online/offline/REVOKED + revoke button.
+    Client: a tab whose identity was signed in and then lost its session drops that identity and reconnects fresh,
+    so the real person re-enters with a new invite while the stolen token stays dead.
+  Audit (pulled forward from slice 4 so revoke is audited): private `audit` + `chain_head`; one `canonicalJson` and
+    one `sha256Hex` (blackbox/spacetimedb/src/crypto.ts); event_hash = SHA256(canonicalJson(row w/o eventHash) +
+    prevHash), genesis 64 zeros, seq contiguous. Wired into every mutating reducer: invite.bootstrap, invite.create,
+    invite.redeem, user.set_role, user.revoke, ping.add. NOT audited by design: touch_session (keep-alive) and
+    sweep_sessions (housekeeping) — they would add a row per user per minute. verifyChain + UI + tamper tests = slice 4.
+  Verified: stolen token (copied sessionStorage) works BEFORE revoke; after revoke both tabs lose data instantly;
+    replaying the stolen token -> signed out; redeeming a valid fresh code with it -> "invalid or expired code" and the
+    code is NOT consumed; real user redeems that same code on a fresh identity; set_role on revoked -> "target is
+    revoked". Row-1 event_hash recomputed independently in Node from SQL output -> exact match. 8-row chain walk OK.
+  Note: SpacetimeDB tokens carry `iat` but no `exp` — they never expire on their own. Server-side session + revoke is
+    the only expiry we have.
+  Attack this: replay a revoked token; revoke yourself; responder calling revoke_session; un-revoke via set_role;
+    revoke then race a redeem; check every mutating reducer wrote exactly one audit row.
 
 ## Known, not fixing

@@ -10,6 +10,25 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const Audit = __t.object("Audit", {
+  seq: __t.u64(),
+  incidentId: __t.u64(),
+  actor: __t.string(),
+  action: __t.string(),
+  payloadJson: __t.string(),
+  prevHash: __t.string(),
+  eventHash: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type Audit = __Infer<typeof Audit>;
+
+export const ChainHead = __t.object("ChainHead", {
+  id: __t.u32(),
+  seq: __t.u64(),
+  headHash: __t.string(),
+});
+export type ChainHead = __Infer<typeof ChainHead>;
+
 export const InviteCode = __t.object("InviteCode", {
   codeHash: __t.string(),
   role: __t.string(),
@@ -35,6 +54,13 @@ export const Ping = __t.object("Ping", {
 });
 export type Ping = __Infer<typeof Ping>;
 
+export const RevokedIdentity = __t.object("RevokedIdentity", {
+  identity: __t.identity(),
+  revokedBy: __t.identity(),
+  revokedAt: __t.timestamp(),
+});
+export type RevokedIdentity = __Infer<typeof RevokedIdentity>;
+
 export const Session = __t.object("Session", {
   identity: __t.identity(),
   startedAt: __t.timestamp(),
@@ -57,6 +83,8 @@ export const TeamMember = __t.object("TeamMember", {
   role: __t.string(),
   joinedAt: __t.timestamp(),
   flagged: __t.bool(),
+  online: __t.bool(),
+  revoked: __t.bool(),
 });
 export type TeamMember = __Infer<typeof TeamMember>;
 

@@ -10,6 +10,7 @@ import AddPingReducer from "../add_ping_reducer";
 import CreateInviteReducer from "../create_invite_reducer";
 import IssueBootstrapInviteReducer from "../issue_bootstrap_invite_reducer";
 import RedeemInviteReducer from "../redeem_invite_reducer";
+import RevokeSessionReducer from "../revoke_session_reducer";
 import SetRoleReducer from "../set_role_reducer";
 import TouchSessionReducer from "../touch_session_reducer";
 
@@ -17,6 +18,7 @@ export type AddPingParams = __Infer<typeof AddPingReducer>;
 export type CreateInviteParams = __Infer<typeof CreateInviteReducer>;
 export type IssueBootstrapInviteParams = __Infer<typeof IssueBootstrapInviteReducer>;
 export type RedeemInviteParams = __Infer<typeof RedeemInviteReducer>;
+export type RevokeSessionParams = __Infer<typeof RevokeSessionReducer>;
 export type SetRoleParams = __Infer<typeof SetRoleReducer>;
 export type TouchSessionParams = __Infer<typeof TouchSessionReducer>;
 

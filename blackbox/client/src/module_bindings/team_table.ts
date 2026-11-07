@@ -16,4 +16,6 @@ export default __t.row({
   role: __t.string(),
   joinedAt: __t.timestamp().name("joined_at"),
   flagged: __t.bool(),
+  online: __t.bool(),
+  revoked: __t.bool(),
 });

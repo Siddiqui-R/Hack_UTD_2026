@@ -176,9 +176,12 @@ animation, no parallax, no scroll-jacking, no 3D.
 
 ### 6.1 Login / code entry
 The first five seconds a judge sees. Spend real effort.
-- Near-black. A single centered 6-digit code field in mono, large (32px),
-  character boxes, not a text input.
-- Each digit lands with a 60ms scale-in.
+- Near-black. A single centered 8-character code field in mono, large (32px),
+  character boxes in a `XXXX-XXXX` layout (4 boxes, a fixed dash, 4 boxes),
+  not a text input. Alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789`; input is
+  uppercased and characters outside the alphabet are refused. See References
+  for why this is not 6 digits.
+- Each character lands with a 60ms scale-in.
 - Behind it, a very slow, very low-contrast scanline or grain. Barely visible.
 - On success: the field locks green for 200ms, then a hard cut to COMMAND.
   No fade, no spinner, no "Welcome back!"
@@ -301,3 +304,13 @@ width and change the chrome height. The asymmetry is the point.
 ## References
 
 _To be filled with 4–6 real operations interfaces (one adaptable technique each) at the start of slice 3, before any CSS is written — per §0.1._
+
+### Decision log
+
+- **§6.1 login uses 8 characters (`XXXX-XXXX`), not 6 digits.** (2026-11-07, slice 2)
+  A 6-digit code is 10^6 possibilities. SpacetimeDB rolls back a reducer's writes when
+  it throws, so a failed-attempt counter cannot persist and redemption is not
+  rate-limited. 8 characters from a 31-symbol alphabet is 31^8 ≈ 8.5×10^11 (~40 bits);
+  with single use and a 30-minute expiry, online guessing is not practical. Answer to
+  give a judge: "~40 bits of entropy plus single-use, 30-minute expiry; we deliberately
+  did not rely on a rate limit."
