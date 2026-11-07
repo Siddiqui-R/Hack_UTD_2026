@@ -13,4 +13,5 @@ import {
 export default __t.row({
   id: __t.u64().primaryKey(),
   text: __t.string(),
+  author: __t.identity(),
 });

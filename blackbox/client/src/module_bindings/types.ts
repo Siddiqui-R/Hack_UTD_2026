@@ -13,6 +13,28 @@ import {
 export const Ping = __t.object("Ping", {
   id: __t.u64(),
   text: __t.string(),
+  author: __t.identity(),
 });
 export type Ping = __Infer<typeof Ping>;
+
+export const Team = __t.object("Team", {});
+export type Team = __Infer<typeof Team>;
+
+export const TeamMember = __t.object("TeamMember", {
+  identity: __t.identity(),
+  displayName: __t.string(),
+  role: __t.string(),
+  joinedAt: __t.timestamp(),
+  flagged: __t.bool(),
+});
+export type TeamMember = __Infer<typeof TeamMember>;
+
+export const User = __t.object("User", {
+  identity: __t.identity(),
+  displayName: __t.string(),
+  role: __t.string(),
+  joinedAt: __t.timestamp(),
+  isDuressed: __t.bool(),
+});
+export type User = __Infer<typeof User>;
 

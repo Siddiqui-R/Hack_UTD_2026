@@ -7,6 +7,10 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import AddPingReducer from "../add_ping_reducer";
+import RegisterReducer from "../register_reducer";
+import SetRoleReducer from "../set_role_reducer";
 
 export type AddPingParams = __Infer<typeof AddPingReducer>;
+export type RegisterParams = __Infer<typeof RegisterReducer>;
+export type SetRoleParams = __Infer<typeof SetRoleReducer>;
 

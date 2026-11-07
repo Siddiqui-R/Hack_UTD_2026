@@ -19,7 +19,7 @@ cd client && npm install && npm run dev                    # http://localhost:51
 | # | Slice (DB → reducer → UI) | Attack target | Status |
 |---|---|---|---|
 | 0 | Ping table syncing two tabs | — (Gate 0) | [x] |
-| 1 | Users + roles + `ctx.sender` checks on one write | acting as the wrong role | [ ] |
+| 1 | Users + roles + `ctx.sender` checks on one write | acting as the wrong role | [x] |
 | 2 | Invite codes → real session identity → role | replay, reuse, expiry, forged code | [ ] |
 | 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [ ] |
 | 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [ ] |
@@ -39,5 +39,15 @@ cd client && npm install && npm run dev                    # http://localhost:51
   Works: two tabs (two different identities) sync both directions live; CLI insert shows in browser; blank text rejected server-side
   Stack: SpacetimeDB 2.14 TS module (blackbox/spacetimedb), Vite + React 18.3.1 + TS 5.9 client (blackbox/client), local server only
   Attack this: nothing security-relevant yet — ping is public and unauthenticated by design. Sanity-check the run steps above work on your machine.
+[17:31] SLICE 1 — users + roles + ctx.sender checks. DONE.
+  Works: private `user` table (identity, displayName, role, joinedAt, isDuressed) exposed only via `team` view;
+    `register` (first registrant = commander, rest = observer); `set_role` commander-only, no self-change;
+    `add_ping` commander/responder only. Per-tab identity via sessionStorage token.
+  Verified: observer add_ping / set_role (self-promote, demote commander) denied; commander self-change denied;
+    anonymous SQL on `user` -> "no such table... private"; anonymous set_role -> "not registered".
+  Stubbed: bootstrap "first to register becomes commander" is TEMPORARY — slice 2 replaces it with invite codes.
+  Not yet: audit rows (slice 4), NEMOTRON actor rejection (slice 8).
+  Attack this: call set_role/add_ping as observer or unregistered via `spacetime call --anonymous`; try to read `user`
+    or `is_duressed` from a client; pass a bogus role string; race two tabs to register first.
 
 ## Known, not fixing

@@ -35,11 +35,14 @@ import {
 
 // Import all reducer arg schemas
 import AddPingReducer from "./add_ping_reducer";
+import RegisterReducer from "./register_reducer";
+import SetRoleReducer from "./set_role_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
 import PingRow from "./ping_table";
+import TeamRow from "./team_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -56,11 +59,20 @@ const tablesSchema = __schema({
       { name: 'ping_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PingRow),
+  team: __table({
+    name: 'team',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, TeamRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_ping", AddPingReducer),
+  __reducerSchema("register", RegisterReducer),
+  __reducerSchema("set_role", SetRoleReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
