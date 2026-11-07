@@ -1,0 +1,13 @@
+{
+  "name": "blackbox-attack",
+  "private": true,
+  "type": "module",
+  "description": "Live attack script + security regression checks for BLACKBOX. No dependencies.",
+  "scripts": {
+    "attack": "node run.mjs",
+    "attack:demo": "node run.mjs --demo"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
