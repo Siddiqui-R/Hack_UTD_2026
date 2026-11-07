@@ -49,5 +49,18 @@ cd client && npm install && npm run dev                    # http://localhost:51
   Not yet: audit rows (slice 4), NEMOTRON actor rejection (slice 8).
   Attack this: call set_role/add_ping as observer or unregistered via `spacetime call --anonymous`; try to read `user`
     or `is_duressed` from a client; pass a bogus role string; race two tabs to register first.
+[17:33] NVIDIA KEY + MODEL PROBE. DONE. 5/40 live calls used (counter: agent-logs/live-call-count.json, local only).
+  Auth: key authenticates (HTTP 200, 417 ms) against nemotron-3.5-lightning-30b-a3b.
+  Tool-call probe (1 call each, 1 flat tool `getScope(incidentId)`, temp 1.0 / top_p 0.95, script: agent/probe-models.mjs):
+    | model                                   | HTTP | latency | tool call             | finish     | reasoning tok |
+    | nvidia/nemotron-3.5-lightning-30b-a3b   | 200  | 598 ms  | getScope({incidentId:7}) OK | tool_calls | 12 |
+    | nvidia/nemotron-3-ultra-550b-a55b       | 200  | 801 ms  | getScope({incidentId:7}) OK | tool_calls | 30 |
+    | nvidia/nemotron-3.5-super-vl-120b-a12b  | 200  | 666 ms  | getScope({incidentId:7}) OK | tool_calls | 27 |
+    | nvidia/nemotron-3.5-bolt-e4b            | 200  | 474 ms  | getScope({incidentId:7}) OK | tool_calls | 0  |
+  Routing unchanged: MODEL_FAST=lightning, MODEL_DEEP=ultra. No fallback triggered (Ultra well under 15 s).
+  Note: lightning/ultra/super emit `reasoning_content` by default — a tight max_tokens is spent entirely on reasoning
+    (auth call with max_tokens 16 returned empty content, finish=length). Agent must use generous max_tokens.
+  Caveat: single short prompt, one tool. Real 5-tool multi-step runs will be slower; re-measure in slice 7.
+  Attack this: nothing yet — agent service is slice 7.
 
 ## Known, not fixing
