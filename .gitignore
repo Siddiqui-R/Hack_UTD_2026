@@ -1,0 +1,20 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# deps / build
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# agent run logs (may contain evidence text)
+agent-logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
