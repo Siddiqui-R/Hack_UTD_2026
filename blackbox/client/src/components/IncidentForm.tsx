@@ -47,7 +47,7 @@ export function IncidentForm({ onDone }: { onDone: (created: boolean) => void })
   const [containment, setContainment] = useState<string>('none');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => titleRef.current?.focus(), []);
+  useEffect(() => { titleRef.current?.focus(); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onDone(false);
     window.addEventListener('keydown', onKey);

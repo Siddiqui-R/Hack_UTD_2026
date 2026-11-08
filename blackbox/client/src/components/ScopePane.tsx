@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useReducer, useTable } from 'spacetimedb/react';
 import { tables, reducers } from '../module_bindings';
 import { useRun } from './Toast';
-const STATES=['unknown','compromised','exfiltrated','unaffected'],CONFIDENCE=['unconfirmed','likely','confirmed'];
+const STATES=['unknown','compromised','encrypted','exfiltrated','unaffected'],CONFIDENCE=['unconfirmed','likely','confirmed'];
 export function ScopePane({incidentId,canWrite}:{incidentId:bigint;canWrite:boolean}){
  const[items]=useTable(tables.scopeItems.where(r=>r.incidentId.eq(incidentId)));
  const add=useReducer(reducers.addScopeItem),update=useReducer(reducers.updateScopeItem),run=useRun();

@@ -22,7 +22,7 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
   const codeRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => codeRef.current?.focus(), []);
+  useEffect(() => { codeRef.current?.focus(); }, []);
 
   const onCodeChange = (raw: string) => {
     const next = [...raw.toUpperCase()].filter(c => ALPHABET.includes(c)).join('').slice(0, LENGTH);

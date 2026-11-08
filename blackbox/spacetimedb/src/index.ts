@@ -12,6 +12,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 8;
 const BAD_CODE = 'invalid or expired code';
 const GENESIS_HASH = '0'.repeat(64);
+const SCOPE_STATES = ['unknown', 'compromised', 'encrypted', 'exfiltrated', 'unaffected'] as const;
 
 // Private. Clients read it only through the `team` view below,
 // so fields like isDuressed are never shipped to the user they describe.
@@ -708,6 +709,13 @@ const AnchorVerification = t.object('AnchorVerification', {
   anchorOk: t.option(t.bool()), status: t.string(), reason: t.string(),
   lastAnchorSeq: t.option(t.u64()), lastAnchorAt: t.option(t.timestamp()), lastAnchorHash: t.string(), externalRef: t.string(),
 });
+// The module runtime has no global URL (verified: `new URL()` throws ReferenceError there),
+// so parse the host by hand. Unparseable URLs return undefined and are treated as local.
+function urlHost(url: string): string | undefined {
+  const m = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@\/?#]*@)?(\[[^\]]+\]|[^\/:?#]+)/i.exec(url);
+  return m ? m[1].toLowerCase() : undefined;
+}
+
 // Fetch outside a transaction; return a comparison that the caller must run
 // inside the same transaction as its chain verification and snapshot reads.
 function loadAnchorComparison(ctx: ProcCtx) {
@@ -729,7 +737,8 @@ function loadAnchorComparison(ctx: ProcCtx) {
     }).sort((a,b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0);
     const latest = checkpoints[checkpoints.length - 1];
     const meta = { lastAnchorSeq: latest.seq, lastAnchorAt: latest.at, lastAnchorHash: latest.hash, externalRef: latest.ref };
-    const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname);
+    const host = urlHost(url);
+    const local = host === undefined || ['localhost','127.0.0.1','[::1]'].includes(host);
     const independent = !local && ctx.env.ANCHOR_INDEPENDENT === '1';
     return (tx: Ctx) => {
       const mismatch = checkpoints.find(c => c.seq === 0n ? c.hash !== GENESIS_HASH : tx.db.audit.seq.find(c.seq)?.eventHash !== c.hash);
@@ -894,7 +903,7 @@ export const addScopeItem = spacetimedb.reducer({incidentId:t.u64(),asset:t.stri
   requireRole(ctx,['commander','responder']);
   if(!ctx.db.incident.id.find(args.incidentId))throw new SenderError('incident not found');
   const asset=cleanText('asset',args.asset,1,160),dataType=cleanText('data type',args.dataType,1,160);
-  const state=oneOf('state',args.state,['unknown','compromised','exfiltrated','unaffected']);
+  const state=oneOf('state',args.state,SCOPE_STATES);
   const confidence=oneOf('confidence',args.confidence,['unconfirmed','likely','confirmed']);
   const note=cleanText('note',args.note,0,2000);
   const row=ctx.db.scopeItem.insert({id:0n,incidentId:args.incidentId,asset,dataType,state,confidence,records:args.records,note,updatedAt:ctx.timestamp});
@@ -905,7 +914,7 @@ export const updateScopeItem = spacetimedb.reducer({scopeId:t.u64(),state:t.stri
   const row=ctx.db.scopeItem.id.find(args.scopeId);
   if(!row)throw new SenderError('scope item not found');
   if(row.updatedAt.microsSinceUnixEpoch!==args.expectedUpdatedAt.microsSinceUnixEpoch)throw new SenderError('scope item changed; review latest values');
-  const state=oneOf('state',args.state,['unknown','compromised','exfiltrated','unaffected']);
+  const state=oneOf('state',args.state,SCOPE_STATES);
   const confidence=oneOf('confidence',args.confidence,['unconfirmed','likely','confirmed']);
   ctx.db.scopeItem.id.update({...row,state,confidence,records:args.records,updatedAt:ctx.timestamp});
   appendAudit(ctx,'scope.update',{id:row.id,from:{state:row.state,confidence:row.confidence,records:row.records},to:{state,confidence,records:args.records}},row.incidentId);
@@ -931,20 +940,24 @@ export const approveClosure = spacetimedb.reducer({requestId:t.u64()},(ctx,args)
   requireRole(ctx,['commander','responder']);
   const request=ctx.db.closureRequest.id.find(args.requestId);
   if(!request||request.status!=='pending'||isExpired(ctx,request.expiresAt))throw new SenderError('live pending closure request required');
-  if(request.requestedBy.isEqual(ctx.sender))throw new SenderError('requester cannot approve');
+  if(request.requestedBy.isEqual(ctx.sender))throw new SenderError('requester already counts as the first approval');
   const row=ctx.db.incident.id.find(request.incidentId);
   if(!row||row.status==='closed'||row.updatedAt.microsSinceUnixEpoch!==request.expectedUpdatedAt.microsSinceUnixEpoch)throw new SenderError('incident changed; cancel and request fresh approval');
   const approvals=[...ctx.db.closureApproval.requestId.filter(request.id)];
   if(approvals.some(a=>a.approver.isEqual(ctx.sender)))throw new SenderError('already approved by this identity');
-  // Revoked/expired reviewers do not count toward execution.
-  const valid=approvals.filter(a=>['commander','responder'].includes(ctx.db.user.identity.find(a.approver)?.role ?? '')&&!isRevoked(ctx,a.approver)&&!!ctx.db.session.identity.find(a.approver)&&!isExpired(ctx,ctx.db.session.identity.find(a.approver)!.expiresAt));
+  // Two distinct humans: the requester (a commander, counted by the request itself) plus one other
+  // commander/responder. Revoked/expired identities, including the requester, do not count.
+  const live=(who:Identity,roles:readonly string[])=>roles.includes(ctx.db.user.identity.find(who)?.role ?? '')&&!isRevoked(ctx,who)&&!!ctx.db.session.identity.find(who)&&!isExpired(ctx,ctx.db.session.identity.find(who)!.expiresAt);
+  const valid=approvals.filter(a=>live(a.approver,['commander','responder']));
+  const requesterCounts=live(request.requestedBy,['commander']);
   ctx.db.closureApproval.insert({id:0n,requestId:request.id,approver:ctx.sender,approvedAt:ctx.timestamp});
-  const executed=valid.length+1>=2;
+  const total=(requesterCounts?1:0)+valid.length+1;
+  const executed=total>=2;
   if(executed){
     ctx.db.incident.id.update({...row,status:'closed',updatedAt:ctx.timestamp});
     ctx.db.closureRequest.id.update({...request,status:'approved',completedAt:ctx.timestamp});
   }
-  appendAudit(ctx,'closure.approve',{requestId:request.id,approvals:valid.length+1,executed},row.id);
+  appendAudit(ctx,'closure.approve',{requestId:request.id,approvals:total,requesterCounted:requesterCounts,executed},row.id);
   requestAnchor(ctx);
 });
 export const cancelClosure = spacetimedb.reducer({requestId:t.u64()},(ctx,args)=>{

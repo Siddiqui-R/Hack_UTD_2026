@@ -339,3 +339,19 @@ MAINCLOUD DEPLOY — module live as `blackbox-utd2026-abbas9x` (owner = hackatho
   Still blocked: client hosting on Vercel (no Vercel CLI/login on this machine); PDF renderer URL + credential.
   Attack this: the deployed cloud module — invite brute force over the public endpoint, unauthenticated reads of
     private tables, owner-only bootstrap from a non-owner Maincloud identity, checkpoint provenance on cloud.
+
+LIVE-WALK FIXES (owner-requested, four items) — module + client only; agent/attack/pdf untouched. No NVIDIA calls.
+  1 Chat crash: newer Chrome returns a Promise from scrollIntoView; Chat's expression-bodied useEffect handed it to
+    React as a cleanup ("destroy is not a function"), blanking every subscribed browser on message arrival. Block
+    bodies now (all such effects hardened). Enter sends, Shift+Enter newline. Reproduced with React dev build first.
+  2 Anchor read: verified in a throwaway module on the real runtime that `URL` is undefined (`new URL()` ->
+    ReferenceError), which sent every verify to the catch ("could not be checked"). Replaced with a hostname parser
+    that fails safe to LOCAL (never independent) on unparseable URLs. Local now shows ANCHORED #107.
+  3 Closure: requester counts as approval 1 (if still a live unrevoked commander); one other commander/responder
+    closes. Requester can't vote twice; agents still denied; version/expiry checks unchanged.
+  4 Scope: `encrypted` state added (module SCOPE_STATES + UI).
+  Published local + Maincloud with --delete-data=never; test data kept. Bindings unchanged (no signature changes).
+  Checks: module tsc, client tsc + Vite build.
+  Attack this: closure with requester + 1 (revoked/expired requester must not count), requester self-approve,
+    anchor label with malformed/local ANCHOR_URL, chat render with many messages.
+

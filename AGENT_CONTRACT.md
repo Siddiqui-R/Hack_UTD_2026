@@ -142,8 +142,12 @@ Human workspace incident-access policy remains unchanged; no cross-workspace mem
 
 ## Closure approval endpoints (slice 10)
 requestClosure({incidentId,reason,expectedUpdatedAt}) human commander only. approveClosure({requestId}) requires
-commander/responder, rejects requester and repeated identity. Two distinct non-requester eligible humans are
-required (requester + two reviewers). Expiry 30min; unchanged incident version required. Invalid/revoked/expired
+commander/responder, rejects the requester (already counted) and repeated identities. CHANGED 2026-11-08: two
+distinct humans close an incident — the requester (counted by the request while still a live, unrevoked commander)
+plus ONE other eligible commander/responder. Audit payload gains requesterCounted. Expiry 30min; unchanged incident version required. Invalid/revoked/expired
 reviewers do not count. Second valid approval atomically closes and appends one approval audit row; anchor job
 is queued on every approval. cancelClosure({requestId}) commander-only. Closure views require live human session.
 No agent can request/approve/cancel; direct closure/reopening remains blocked. Snapshot.closures includes provenance.
+
+## Scope states (2026-11-08)
+State is one of unknown/compromised/encrypted/exfiltrated/unaffected (`encrypted` added). getScope returns it unchanged.

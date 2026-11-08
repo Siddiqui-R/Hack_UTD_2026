@@ -43,7 +43,7 @@ export function IncidentDetail({ incident, team, canWrite, me }: { incident: Inc
   const updateIncident = useReducer(reducers.updateIncident);
   const run = useRun();
   const [systems, setSystems] = useState(incident.systemsAffected);
-  useEffect(() => setSystems(incident.systemsAffected), [incident.id, incident.systemsAffected]);
+  useEffect(() => { setSystems(incident.systemsAffected); }, [incident.id, incident.systemsAffected]);
 
   const reporter = team.find(m => m.identity.isEqual(incident.reportedBy));
   const sev = SEVERITY_TONE[incident.severity];
