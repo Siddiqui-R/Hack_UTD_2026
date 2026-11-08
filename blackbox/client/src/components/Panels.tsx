@@ -94,6 +94,9 @@ export function TeamPanel({ team, me }: { team: readonly TeamMember[]; me: TeamM
         {issued && <div className="callout invite-code" data-testid="issued-code-box">
           <span className="mono" data-testid="issued-code">{issued.code}</span>
           <small className="dim">{displayValue(issued.role).toUpperCase()} · SINGLE USE · EXPIRES IN 30 MIN · SHOWN ONCE</small>
+          <button className="btn" onClick={() => window.open(`${location.origin}/?invite=${encodeURIComponent(issued.code)}&name=${encodeURIComponent(`Demo ${displayValue(issued.role).toLowerCase()}`)}`, '_blank', 'noopener')}>
+            Open sign-in window (demo) ↗
+          </button>
         </div>}
       </div>
     ) : <p className="section-note" style={{ marginTop: 22 }}>Only commanders can invite teammates or remove access.</p>}

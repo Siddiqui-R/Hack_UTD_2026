@@ -93,6 +93,7 @@ console.log(`
   ATTACK SEGMENT — everything local, database ${DB} on ${SERVER}
   BLACKBOX (judges' window)  http://127.0.0.1:${CLIENT_PORT}
   COMMANDER CODE             ${code.slice(0, 4)}-${code.slice(4)}   (single use, 30 min)
+  ONE-CLICK SIGN-IN          http://127.0.0.1:${CLIENT_PORT}/?invite=${code}&name=Commander
   ATTACKER CONSOLE           http://127.0.0.1:4400
   TAMPER TARGET              INC-${stage.id} ${STAGE_TITLE}: open it in BLACKBOX, RECORD tab, before attack 2
   Ctrl+C stops both.
