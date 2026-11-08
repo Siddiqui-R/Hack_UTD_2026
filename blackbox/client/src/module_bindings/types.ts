@@ -18,6 +18,32 @@ export const AgentIdentity = __t.object("AgentIdentity", {
 });
 export type AgentIdentity = __Infer<typeof AgentIdentity>;
 
+export const Anchor = __t.object("Anchor", {
+  id: __t.u32(),
+  seq: __t.u64(),
+  headHash: __t.string(),
+  externalRef: __t.string(),
+  anchoredAt: __t.timestamp(),
+  status: __t.string(),
+});
+export type Anchor = __Infer<typeof Anchor>;
+
+export const AnchorJob = __t.object("AnchorJob", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+});
+export type AnchorJob = __Infer<typeof AnchorJob>;
+
+export const AnchorVerification = __t.object("AnchorVerification", {
+  anchorOk: __t.option(__t.bool()),
+  status: __t.string(),
+  reason: __t.string(),
+  lastAnchorSeq: __t.option(__t.u64()),
+  lastAnchorAt: __t.option(__t.timestamp()),
+  externalRef: __t.string(),
+});
+export type AnchorVerification = __Infer<typeof AnchorVerification>;
+
 export const Audit = __t.object("Audit", {
   seq: __t.u64(),
   incidentId: __t.u64(),
@@ -82,6 +108,16 @@ export type Incident = __Infer<typeof Incident>;
 
 export const Incidents = __t.object("Incidents", {});
 export type Incidents = __Infer<typeof Incidents>;
+
+export const IntegrityVerification = __t.object("IntegrityVerification", {
+  get chain() {
+    return ChainVerification;
+  },
+  get anchor() {
+    return AnchorVerification;
+  },
+});
+export type IntegrityVerification = __Infer<typeof IntegrityVerification>;
 
 export const InviteCode = __t.object("InviteCode", {
   codeHash: __t.string(),

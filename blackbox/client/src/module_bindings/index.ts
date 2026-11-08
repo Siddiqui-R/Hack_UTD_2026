@@ -43,6 +43,7 @@ import IssueBootstrapInviteReducer from "./issue_bootstrap_invite_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
 import RevokeSessionReducer from "./revoke_session_reducer";
 import SetRoleReducer from "./set_role_reducer";
+import StartAnchoringReducer from "./start_anchoring_reducer";
 import SubmitEvidenceReducer from "./submit_evidence_reducer";
 import TouchSessionReducer from "./touch_session_reducer";
 import UnrevokeSessionReducer from "./unrevoke_session_reducer";
@@ -54,6 +55,7 @@ import * as EvidenceRecordsProcedure from "./evidence_records_procedure";
 import * as GetScopeProcedure from "./get_scope_procedure";
 import * as SearchIncidentsProcedure from "./search_incidents_procedure";
 import * as VerifyChainProcedure from "./verify_chain_procedure";
+import * as VerifyIntegrityProcedure from "./verify_integrity_procedure";
 
 // Import all table schema definitions
 import IncidentsRow from "./incidents_table";
@@ -98,6 +100,7 @@ const reducersSchema = __reducers(
   __reducerSchema("redeem_invite", RedeemInviteReducer),
   __reducerSchema("revoke_session", RevokeSessionReducer),
   __reducerSchema("set_role", SetRoleReducer),
+  __reducerSchema("start_anchoring", StartAnchoringReducer),
   __reducerSchema("submit_evidence", SubmitEvidenceReducer),
   __reducerSchema("touch_session", TouchSessionReducer),
   __reducerSchema("unrevoke_session", UnrevokeSessionReducer),
@@ -111,6 +114,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_scope", GetScopeProcedure.params, GetScopeProcedure.returnType),
   __procedureSchema("search_incidents", SearchIncidentsProcedure.params, SearchIncidentsProcedure.returnType),
   __procedureSchema("verify_chain", VerifyChainProcedure.params, VerifyChainProcedure.returnType),
+  __procedureSchema("verify_integrity", VerifyIntegrityProcedure.params, VerifyIntegrityProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

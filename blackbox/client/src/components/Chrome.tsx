@@ -17,9 +17,10 @@ const Sep = () => <span className="h-4 w-px bg-line" aria-hidden />;
 
 // DESIGN §5: persistent 44px chrome — wordmark · active incident · chain status · agent · responders · UTC clock.
 export function Chrome({ active, me, team, linkUp }: { active?: Incident; me: TeamMember; team: readonly TeamMember[]; linkUp: boolean }) {
-  const { result, error } = useChainVerification();
-  const broken = linkUp && !error && result && !result.ok;
-  const verified = linkUp && !error && result?.ok;
+  const { result, error, anchor } = useChainVerification();
+  const anchorMismatch = linkUp && !error && anchor?.anchorOk === false;
+  const broken = linkUp && !error && result && (!result.ok || anchorMismatch);
+  const verified = linkUp && !error && result?.ok && !anchorMismatch;
   const online = team.filter(m => m.online && !m.revoked).length;
   return (
     <>
@@ -39,9 +40,9 @@ export function Chrome({ active, me, team, linkUp }: { active?: Incident; me: Te
           <span className="text-[13px] text-text-2">No incident selected</span>
         )}
       </div>
-      <span data-testid="chain-status" className="shrink-0 font-mono text-[11px]" style={{ color: broken ? 'var(--color-critical)' : verified ? 'var(--color-ok)' : 'var(--color-text-2)' }} title={error || 'Internal hash-chain consistency only. Independent anchoring is not implemented.'}>
-        {!linkUp ? '○ VERIFICATION OFFLINE' : error ? '○ VERIFICATION UNAVAILABLE' : !result ? '○ CHECKING CHAIN' : broken ? '▲ INTEGRITY BROKEN' : `● CHAIN VERIFIED · ${result.checked.toString()} records`}
-        {verified && <span className="ml-2 text-text-2">· UNANCHORED</span>}
+      <span data-testid="chain-status" className="shrink-0 font-mono text-[11px]" style={{ color: broken ? 'var(--color-critical)' : verified ? 'var(--color-ok)' : 'var(--color-text-2)' }} title={error || 'Internal hash-chain consistency only. Independent anchoring requires a separately hosted checkpoint store.'}>
+        {!linkUp ? '○ VERIFICATION OFFLINE' : error ? '○ VERIFICATION UNAVAILABLE' : !result ? '○ CHECKING CHAIN' : broken ? (anchorMismatch ? '▲ ANCHOR MISMATCH' : '▲ INTEGRITY BROKEN') : `● CHAIN VERIFIED · ${result.checked.toString()} records`}
+        {verified && <span className="ml-2 text-text-2">· {anchor?.anchorOk === true ? `ANCHORED #${anchor.lastAnchorSeq?.toString()}` : anchor?.status === 'local' ? 'LOCAL CHECKPOINT ONLY' : anchor?.status === 'unavailable' ? 'ANCHOR UNAVAILABLE' : 'UNANCHORED'}</span>}
       </span>
       <Sep />
       <span className="font-mono text-[11px] text-text-2">AGENT OFFLINE</span>
@@ -62,9 +63,9 @@ export function Chrome({ active, me, team, linkUp }: { active?: Incident; me: Te
     {broken && (
       <div role="alert" data-testid="integrity-band" className="integrity-band relative shrink-0 overflow-hidden border-b border-critical bg-bg-1 px-4 py-3 font-mono text-critical">
         <div className="integrity-wash" aria-hidden />
-        <div className="relative text-[16px] font-semibold">▲ INTEGRITY BROKEN · RECORD #{result.brokenAt?.toString() ?? '?'}</div>
-        <div className="relative mt-1 text-[13px]">{result.reason} · {result.checked.toString()} records verified before failure</div>
-        <div className="relative mt-1 text-[11px] text-text-1">INTERNAL CHAIN CHECK · INDEPENDENT ANCHOR NOT IMPLEMENTED</div>
+        <div className="relative text-[16px] font-semibold">{anchorMismatch ? `▲ ANCHOR MISMATCH · CHECKPOINT #${anchor?.lastAnchorSeq?.toString()}` : `▲ INTEGRITY BROKEN · RECORD #${result?.brokenAt?.toString() ?? '?'}`}</div>
+        <div className="relative mt-1 text-[13px]">{anchorMismatch ? anchor?.reason : result?.reason} · {result?.checked.toString()} records checked</div>
+        <div className="relative mt-1 text-[11px] text-text-1">{anchor?.anchorOk === true ? 'MATCHES INDEPENDENT CHECKPOINT' : anchorMismatch ? 'DATABASE DOES NOT MATCH EXTERNAL CHECKPOINT HISTORY' : 'INTERNAL CHAIN CHECK · NO INDEPENDENT CHECKPOINT CONFIRMED'}</div>
       </div>
     )}
     </>

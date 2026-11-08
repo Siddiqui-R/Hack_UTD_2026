@@ -1,5 +1,5 @@
-import { schema, table, t, SenderError, type InferSchema, type ReducerCtx } from 'spacetimedb/server';
-import { ScheduleAt, Timestamp, type Identity } from 'spacetimedb';
+import { schema, table, t, SenderError, type InferSchema, type ReducerCtx, type ProcedureCtx } from 'spacetimedb/server';
+import { ScheduleAt, Timestamp, TimeDuration, type Identity } from 'spacetimedb';
 import { sha256Hex, canonicalJson, type Canonical } from './crypto';
 
 const ROLES = ['commander', 'responder', 'observer'] as const;
@@ -142,10 +142,21 @@ const conflict = table({ name: 'conflict' }, {
   id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'),
   evidenceIdA: t.u64(), evidenceIdB: t.u64(), reason: t.string(), createdBy: t.string(), createdAt: t.timestamp(),
 });
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict });
+const anchorJob = table({ name: 'anchor_job' }, {
+  scheduledId: t.u64().primaryKey().autoInc(), scheduledAt: t.scheduleAt(),
+});
+const anchor = table({ name: 'anchor' }, {
+  id: t.u32().primaryKey(), seq: t.u64(), headHash: t.string(), externalRef: t.string(),
+  anchoredAt: t.timestamp(), status: t.string(),
+});
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor }, { env: {
+  ANCHOR_URL: t.option(t.string()), ANCHOR_WRITE_TOKEN: t.option(t.string()),
+  ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
+} });
 export default spacetimedb;
 
 type Ctx = ReducerCtx<InferSchema<typeof spacetimedb>>;
+type ProcCtx = ProcedureCtx<InferSchema<typeof spacetimedb>>;
 
 function inFuture(ctx: Ctx, micros: bigint) {
   return new Timestamp(ctx.timestamp.microsSinceUnixEpoch + micros);
@@ -484,6 +495,7 @@ export const updateIncident = spacetimedb.reducer(
     if (Object.keys(changes).length === 0) throw new SenderError('no changes');
     ctx.db.incident.id.update({ ...row, ...next, updatedAt: ctx.timestamp });
     appendAudit(ctx, 'incident.update', changes, row.id);
+    if (row.severity !== next.severity) requestAnchor(ctx);
   }
 );
 
@@ -519,6 +531,7 @@ export const updateSeverity = spacetimedb.reducer({ incidentId: t.u64(), severit
   if (SEVERITIES.indexOf(severity) < SEVERITIES.indexOf(row.severity as typeof severity)) throw new SenderError('agent cannot lower severity; human review required');
   ctx.db.incident.id.update({ ...row, severity, updatedAt: ctx.timestamp });
   appendAudit(ctx, 'incident.severity', { from: row.severity, to: severity, reason, sender: ctx.sender.toHexString() }, row.id, 'NEMOTRON');
+  requestAnchor(ctx);
 });
 
 export const submitEvidence = spacetimedb.reducer({ incidentId: t.u64(), text: t.string() }, (ctx, args) => {
@@ -584,8 +597,7 @@ const ChainVerification = t.object('ChainVerification', {
 
 // Callable from SDK, HTTP and module tests. Read-only; hash formula matches appendAudit exactly.
 // This proves internal consistency only. Independent checkpoints are slice 9.
-export const verifyChain = spacetimedb.procedure(ChainVerification, ctx => ctx.withTx(tx => {
-  requireReader(tx);
+function checkChain(tx: Ctx) {
   const rows = [...tx.db.audit.iter()].sort((a, b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0);
   let previous = GENESIS_HASH;
   let expected = 1n;
@@ -608,4 +620,95 @@ export const verifyChain = spacetimedb.procedure(ChainVerification, ctx => ctx.w
   if (head && head.seq !== checked) return broken(head.seq > checked ? expected : head.seq, 'chain head sequence mismatch');
   if (head && head.headHash !== previous) return broken(head.seq, 'chain head hash mismatch');
   return { ok: true, checked, brokenAt: undefined, reason: 'internally consistent; no independent anchor' };
+}
+export const verifyChain = spacetimedb.procedure(ChainVerification, ctx => ctx.withTx(tx => {
+  requireReader(tx);
+  return checkChain(tx);
 }));
+
+function requestAnchor(ctx: Ctx) {
+  if (ctx.env.ANCHOR_URL) ctx.db.anchorJob.insert({ scheduledId: 0n, scheduledAt: ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch + 1n) });
+}
+export const startAnchoring = spacetimedb.reducer(ctx => {
+  rejectAgent(ctx);
+  if (!isOwner(ctx)) throw new SenderError('owner only');
+  if (!ctx.env.ANCHOR_URL || !ctx.env.ANCHOR_WRITE_TOKEN || !ctx.env.ANCHOR_READ_TOKEN) throw new SenderError('anchor environment not configured');
+  if ([...ctx.db.anchorJob.iter()].some(j => j.scheduledAt.tag === 'Interval')) throw new SenderError('anchor scheduler already started');
+  ctx.db.anchorJob.insert({ scheduledId: 0n, scheduledAt: ScheduleAt.interval(60_000_000n) });
+  appendAudit(ctx, 'anchor.start', {});
+  requestAnchor(ctx);
+});
+
+// Infrastructure checkpoint, intentionally outside the audit chain to avoid recursive anchoring.
+export const writeAnchor = spacetimedb.procedure(
+  { onSchedule: anchorJob }, { timer: anchorJob.rowType }, t.unit(), ctx => {
+    if (!ctx.sender.isEqual(ctx.databaseIdentity)) throw new SenderError('scheduler only');
+    const url = ctx.env.ANCHOR_URL;
+    const token = ctx.env.ANCHOR_WRITE_TOKEN;
+    if (!url || !token) return {};
+    const snapshot = ctx.withTx(tx => {
+      if (!checkChain(tx).ok) return undefined;
+      return tx.db.chainHead.id.find(0);
+    });
+    if (!snapshot) return {};
+    try {
+      const response = ctx.http.fetch(`${url.replace(/\/$/, '')}/checkpoint`, {
+        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ database: ctx.databaseIdentity.toHexString(), seq: snapshot.seq.toString(), headHash: snapshot.headHash }),
+        timeout: TimeDuration.fromMillis(4000),
+      });
+      if (response.status !== 200 && response.status !== 201) return {};
+      const result = JSON.parse(response.text());
+      if (typeof result.ref !== 'string' || typeof result.at !== 'string') return {};
+      ctx.withTx(tx => {
+        const row = { id: 0, seq: snapshot.seq, headHash: snapshot.headHash, externalRef: result.ref,
+          anchoredAt: new Timestamp(BigInt(result.at)), status: 'stored' };
+        const old = tx.db.anchor.id.find(0);
+        if (old && old.seq > row.seq) return;
+        if (old) tx.db.anchor.id.update(row); else tx.db.anchor.insert(row);
+      });
+    } catch { console.warn('external checkpoint unavailable'); }
+    return {};
+  }
+);
+
+const AnchorVerification = t.object('AnchorVerification', {
+  anchorOk: t.option(t.bool()), status: t.string(), reason: t.string(),
+  lastAnchorSeq: t.option(t.u64()), lastAnchorAt: t.option(t.timestamp()), externalRef: t.string(),
+});
+function checkExternalAnchor(ctx: ProcCtx) {
+  const base = { anchorOk: undefined as boolean | undefined, status: 'unconfigured', reason: 'Independent anchoring not configured',
+    lastAnchorSeq: undefined as bigint | undefined, lastAnchorAt: undefined as Timestamp | undefined, externalRef: '' };
+  const url = ctx.env.ANCHOR_URL;
+  const token = ctx.env.ANCHOR_READ_TOKEN;
+  if (!url || !token) return base;
+  try {
+    const response = ctx.http.fetch(`${url.replace(/\/$/, '')}/checkpoints?database=${ctx.databaseIdentity.toHexString()}`, {
+      headers: { authorization: `Bearer ${token}` }, timeout: TimeDuration.fromMillis(4000),
+    });
+    if (response.status !== 200) return { ...base, status: 'unavailable', reason: 'External checkpoint store unavailable' };
+    const records: unknown = JSON.parse(response.text());
+    if (!Array.isArray(records) || records.length === 0) return { ...base, status: 'pending', reason: 'No external checkpoint yet' };
+    const checkpoints = records.map((r: { seq: string; headHash: string; at: string; ref: string }) => {
+      if (!/^\d+$/.test(r.seq) || !/^[0-9a-f]{64}$/.test(r.headHash) || !/^\d+$/.test(r.at) || typeof r.ref !== 'string') throw new Error('invalid checkpoint');
+      return { seq: BigInt(r.seq), hash: r.headHash, at: new Timestamp(BigInt(r.at)), ref: r.ref };
+    }).sort((a,b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0);
+    const latest = checkpoints[checkpoints.length - 1];
+    const mismatch = ctx.withTx(tx => checkpoints.find(c => {
+      if (c.seq === 0n) return c.hash !== GENESIS_HASH;
+      return tx.db.audit.seq.find(c.seq)?.eventHash !== c.hash;
+    }));
+    const meta = { lastAnchorSeq: latest.seq, lastAnchorAt: latest.at, externalRef: latest.ref };
+    if (mismatch) return { ...base, ...meta, anchorOk: false, status: 'mismatch', reason: `Checkpoint #${mismatch.seq} does not match the database` };
+    const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname);
+    if (local || ctx.env.ANCHOR_INDEPENDENT !== '1') return { ...base, ...meta, status: 'local', reason: 'Checkpoint matches; deployment is not marked independent' };
+    return { ...base, ...meta, anchorOk: true, status: 'verified', reason: 'Matches independent external checkpoints' };
+  } catch { return { ...base, status: 'unavailable', reason: 'External checkpoint could not be checked' }; }
+}
+const IntegrityVerification = t.object('IntegrityVerification', { chain: ChainVerification, anchor: AnchorVerification });
+export const verifyIntegrity = spacetimedb.procedure(IntegrityVerification, ctx => {
+  const chain = ctx.withTx(tx => { requireReader(tx); return checkChain(tx); });
+  const anchor = checkExternalAnchor(ctx);
+  // Re-authorize and recheck after network I/O: never return data after a concurrent revoke.
+  return ctx.withTx(tx => { requireReader(tx); return { chain: chain.ok ? checkChain(tx) : chain, anchor }; });
+});

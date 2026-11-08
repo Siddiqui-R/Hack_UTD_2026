@@ -10,6 +10,7 @@ import * as EvidenceRecordsProcedure from "../evidence_records_procedure";
 import * as GetScopeProcedure from "../get_scope_procedure";
 import * as SearchIncidentsProcedure from "../search_incidents_procedure";
 import * as VerifyChainProcedure from "../verify_chain_procedure";
+import * as VerifyIntegrityProcedure from "../verify_integrity_procedure";
 
 export type EvidenceRecordsArgs = __Infer<typeof EvidenceRecordsProcedure.params>;
 export type EvidenceRecordsResult = __Infer<typeof EvidenceRecordsProcedure.returnType>;
@@ -19,4 +20,6 @@ export type SearchIncidentsArgs = __Infer<typeof SearchIncidentsProcedure.params
 export type SearchIncidentsResult = __Infer<typeof SearchIncidentsProcedure.returnType>;
 export type VerifyChainArgs = __Infer<typeof VerifyChainProcedure.params>;
 export type VerifyChainResult = __Infer<typeof VerifyChainProcedure.returnType>;
+export type VerifyIntegrityArgs = __Infer<typeof VerifyIntegrityProcedure.params>;
+export type VerifyIntegrityResult = __Infer<typeof VerifyIntegrityProcedure.returnType>;
 

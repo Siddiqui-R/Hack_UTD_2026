@@ -86,3 +86,12 @@ UI polls every 2 seconds without overlap; green is cleared on disconnect or veri
 Green label explicitly says UNANCHORED; failures show record number/reason in a full-width red band.
 Independent external anchor and anchor mismatch remain slice 9. Detailed RECORD timeline remains slice 12.
 Live tamper/repair script: node blackbox/spacetimedb/scripts/live-chain.mjs (local only; finally restores edits).
+
+## Slice 9 anchoring endpoints
+verifyChain remains the same four-field API/hash formula. verifyIntegrity() returns {chain,anchor}; anchor has
+anchorOk (undefined until independently checked), status, reason, lastAnchorSeq, lastAnchorAt, externalRef.
+Only anchorOk===true means independent verification. LOCAL does not. Full external history is compared.
+Owner startAnchoring starts 60-second scheduled HTTP checkpoints; immediate jobs on severity changes.
+Configure optional module env ANCHOR_URL/ANCHOR_WRITE_TOKEN/ANCHOR_READ_TOKEN/ANCHOR_INDEPENDENT via publishing.
+The standalone append-only store is in blackbox/spacetimedb/anchor-store, to deploy under independent credentials.
+No external deployment/key supplied yet; UI stays honestly UNANCHORED. No NVIDIA calls.

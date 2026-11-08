@@ -15,6 +15,7 @@ import IssueBootstrapInviteReducer from "../issue_bootstrap_invite_reducer";
 import RedeemInviteReducer from "../redeem_invite_reducer";
 import RevokeSessionReducer from "../revoke_session_reducer";
 import SetRoleReducer from "../set_role_reducer";
+import StartAnchoringReducer from "../start_anchoring_reducer";
 import SubmitEvidenceReducer from "../submit_evidence_reducer";
 import TouchSessionReducer from "../touch_session_reducer";
 import UnrevokeSessionReducer from "../unrevoke_session_reducer";
@@ -30,6 +31,7 @@ export type IssueBootstrapInviteParams = __Infer<typeof IssueBootstrapInviteRedu
 export type RedeemInviteParams = __Infer<typeof RedeemInviteReducer>;
 export type RevokeSessionParams = __Infer<typeof RevokeSessionReducer>;
 export type SetRoleParams = __Infer<typeof SetRoleReducer>;
+export type StartAnchoringParams = __Infer<typeof StartAnchoringReducer>;
 export type SubmitEvidenceParams = __Infer<typeof SubmitEvidenceReducer>;
 export type TouchSessionParams = __Infer<typeof TouchSessionReducer>;
 export type UnrevokeSessionParams = __Infer<typeof UnrevokeSessionReducer>;

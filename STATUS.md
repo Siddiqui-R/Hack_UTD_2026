@@ -218,3 +218,12 @@ SLICE 4 — callable verifyChain + tamper detection + real status bar. DONE.
   yet: full chain rewrites remain undetectable without slice9. Record timeline/diff remains slice12.
   Attack this: edit an audit payload/prev hash, delete a middle/tail row, corrupt/delete chain_head; verify correct
   brokenAt and automatic UI recovery after repair; expired/revoked verifier; stale green after disconnect.
+
+SLICE 9 implementation milestone — scheduled checkpoint writer, immutable external-store implementation,
+  verifyIntegrity comparing external history, and real anchor labels/mismatch band implemented. verifyChain/hash
+  formula unchanged. 60-second scheduler plus immediate severity checkpoints; secrets only in module env.
+  DEPENDENCY: independently host anchor-store/server.mjs with durable storage and distinct read/write secrets,
+  then publish environment and owner-call start_anchoring. Not claiming an independent anchor before that.
+  Local store is explicitly LOCAL; missing/unreachable store does not show anchored green. Basic module/client
+  typechecks and code generation pass. Rabeet retains security validation. Attack this: rewrite checkpointed
+  history, immutable-store conflicts, outage labels and scheduled checkpoint durability.
