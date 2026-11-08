@@ -9,6 +9,8 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { StringDecoder } from 'node:string_decoder';
+import { resultRows, phaseRow, MAX_LINE_BYTES, MAX_OUTPUT_BYTES, MAX_EVENTS } from './protocol.mjs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -45,6 +47,7 @@ const HELD = {
 
 // The tamper script owns the recovery format; an invalid file comes back as { invalid, error } and blocks attack 2.
 const { pendingRecovery } = await import('../attack/demo/2-tamper.mjs');
+const publicRecovery = () => { const rec = pendingRecovery(); if (!rec || rec.invalid) return rec; const { token, ...safe } = rec; return safe; };
 
 function factsFor(n, results, phases) {
   const by = id => results.find(r => r.id === id);
@@ -87,41 +90,64 @@ function verdict(run) {
 let run = null;   // the current or last run; survives browser reconnects
 let child = null;
 const clients = new Set();
-const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
+const send = (res, ev, data) => { try { if (!res.destroyed) return res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`); } catch { clients.delete(res); } };
 const broadcast = (ev, data) => { run.events.push([ev, data]); for (const c of clients) send(c, ev, data); };
-const snapshot = () => ({ target, recovery: pendingRecovery(), busy: !!child, run: run && { id: run.id, n: run.n, done: run.done } });
+const snapshot = () => ({ target, recovery: publicRecovery(), busy: !!child, run: run && { id: run.id, n: run.n, done: run.done } });
 
 function start(n) {
   // Per-run secret: only the runner/demo (which get it via env) can print result/phase markers the bridge accepts.
   const mark = randomBytes(12).toString('hex');
-  run = { id: Date.now(), n, events: [], results: [], phases: [], code: null, gotResult: false, done: false };
+  run = { id: randomBytes(16).toString('hex'), n, events: [], results: [], phases: [], code: null, gotResult: false, done: false };
   for (const c of clients) { send(c, 'reset', snapshot()); send(c, 'live', {}); } // a new run is live, not a replay
   broadcast('start', { n, id: run.id });
   child = spawn(process.execPath, [here + 'runner.mjs', n], { cwd: attackDir, env: { ...process.env, DEMO_MARKER: mark }, stdio: ['pipe', 'pipe', 'pipe'] });
   const proc = child;
   // Watchdog: a hung demo must not lock the console forever. Demo 2 leaves its recovery file, so RESTORE still works.
   const watchdog = setTimeout(() => { run.timedOut = true; broadcast('line', `ERROR run exceeded ${RUN_TIMEOUT_MS / 1000}s, stopping it`); proc.kill(); }, RUN_TIMEOUT_MS);
-  let buf = '';
-  const onData = d => {
-    buf += strip(d.toString());
-    const parts = buf.split(/\r?\n/); buf = parts.pop();
-    for (const line of parts) {
-      try {
-        if (line.startsWith(`@@RESULT:${mark} `)) { run.results = JSON.parse(line.slice(mark.length + 10)); run.gotResult = true; continue; }
-        if (line.startsWith(`@@PHASE:${mark} `)) { const p = { ...JSON.parse(line.slice(mark.length + 9)), t: Date.now() }; run.phases.push(p); broadcast('phase', p); continue; }
-      } catch { run.badLine = true; } // malformed marker: shown as text, and the run cannot pass
-      if (line.trim()) broadcast('line', line);
-    }
+  let bytes = 0;
+  const stopOutput = () => {
+    if (run.outputLimit) return;
+    run.outputLimit = run.badLine = true;
+    broadcast('line', 'ERROR runner output limit exceeded; stopped, pending recovery remains available');
+    proc.kill();
   };
-  child.stdout.on('data', onData);
-  child.stderr.on('data', onData);
+  // Each pipe has its own UTF-8 decoder and partial line; stderr cannot splice a stdout result frame.
+  const reader = markers => {
+    let buf = '';
+    const decoder = new StringDecoder('utf8');
+    return d => {
+      if (run.outputLimit) return;
+      bytes += Buffer.byteLength(d);
+      if (bytes > MAX_OUTPUT_BYTES) return stopOutput();
+      buf += strip(decoder.write(d));
+      const parts = buf.split(/\r?\n/); buf = parts.pop();
+      if (Buffer.byteLength(buf) > MAX_LINE_BYTES) return stopOutput();
+      for (const line of parts) {
+        if (Buffer.byteLength(line) > MAX_LINE_BYTES || run.events.length >= MAX_EVENTS) return stopOutput();
+        try {
+          if (markers && line.startsWith(`@@RESULT:${mark} `)) {
+            if (run.gotResult) throw Error('duplicate results');
+            run.results = resultRows(JSON.parse(line.slice(mark.length + 10))); run.gotResult = true; continue;
+          }
+          if (markers && line.startsWith(`@@PHASE:${mark} `)) {
+            if (run.gotResult) throw Error('phase after result');
+            const p = { ...phaseRow(JSON.parse(line.slice(mark.length + 9))), runId: run.id, t: Date.now() };
+            run.phases.push(p); broadcast('phase', p); continue;
+          }
+        } catch { run.badLine = true; broadcast('line', 'ERROR invalid runner result/phase frame'); continue; }
+        if (line.trim()) broadcast('line', line.replaceAll(mark, '[marker]'));
+      }
+    };
+  };
+  child.stdout.on('data', reader(true));
+  child.stderr.on('data', reader(false));
   child.stdin.on('error', () => {});
   child.on('error', e => broadcast('line', `ERROR could not start runner: ${e.message}`)); // 'close' still follows
   child.on('close', code => {
     clearTimeout(watchdog);
     child = null;
     run.code = code; run.done = true;
-    broadcast('done', { id: run.id, code, results: run.results, verdict: verdict(run), recovery: pendingRecovery() });
+    broadcast('done', { id: run.id, code, results: run.results, verdict: verdict(run), recovery: publicRecovery() });
   });
 }
 
@@ -130,17 +156,29 @@ const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'a
 http.createServer(async (req, res) => { try {
   if (!HOSTS.has(req.headers.host ?? '')) { res.writeHead(421); return res.end('wrong host'); } // DNS-rebinding guard
   const url = req.url.split('?')[0];
+  // CORS alone prevents reading, not opening streams. Only the console's own origin (or a typed/bookmarked visit,
+  // Sec-Fetch-Site "none") may call it. Another localhost port is "same-site", not same-origin, so it is refused too;
+  // its no-cors requests carry no Origin header, which is why Sec-Fetch-Site is checked as well.
+  const site = req.headers['sec-fetch-site'];
+  const topLevelPage = req.method === 'GET' && url === '/' && req.headers['sec-fetch-dest'] === 'document';
+  if (!topLevelPage && ((req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) || (site && site !== 'same-origin' && site !== 'none')))
+    return json(res, 403, { error: 'console origin required' });
   if (req.method === 'GET' && url === '/') {
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    if (req.headers['sec-fetch-dest'] && req.headers['sec-fetch-dest'] !== 'document') return json(res, 403, { error: 'top-level page only' });
+    // Never framed: another page cannot overlay the console and steer clicks onto RUN or RESTORE.
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+      'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" });
     return res.end(await readFile(here + 'index.html'));
   }
   if (req.method === 'GET' && url === '/events') {
+    if (req.headers['sec-fetch-dest'] && req.headers['sec-fetch-dest'] !== 'empty') return json(res, 403, { error: 'event stream request required' });
     if (clients.size >= MAX_STREAMS) { res.writeHead(503); return res.end('too many consoles open'); }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
     send(res, 'reset', snapshot());
     if (run) for (const [ev, data] of run.events) send(res, ev, data);
     send(res, 'live', {}); // replay over: what follows is happening now
     clients.add(res);
+    res.on?.('error', () => clients.delete(res));
     const ping = setInterval(() => res.write(': ping\n\n'), 15_000);
     req.on('close', () => { clearInterval(ping); clients.delete(res); }); // the run keeps going
     return;
@@ -157,6 +195,7 @@ http.createServer(async (req, res) => { try {
     return json(res, 202, { id: run.id });
   }
   if (url === '/release') {
+    if (!run || req.headers['x-blackbox-run'] !== run.id) return json(res, 409, { error: 'release belongs to a different run' });
     // Only while the detected edit is actually held: an early release would be buffered and skip the hold entirely.
     if (!child || run.n !== '2' || run.phases.at(-1)?.phase !== 'DETECTED') return json(res, 409, { error: 'no tamper hold in progress' });
     child.stdin.write('release\n');

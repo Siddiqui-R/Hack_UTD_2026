@@ -167,7 +167,8 @@ let state = { target: null, recovery: null, busy: false, run: null };
 let current = null;          // { n, id } of the run on screen
 const waiting = new Map();   // run id -> resolve; RUN ALL waits on its own run's done
 const finished = new Map();  // run id -> verdict, in case done arrives before the POST answers
-let runAll = false, holdTimer = null;
+let runAll = false, holdTimer = null, releaseTimer = null;
+const clearReleaseTimer = () => { clearTimeout(releaseTimer); releaseTimer = null; };
 const outcomes = {};         // n -> verdict, per page session
 
 for (const [n, v] of Object.entries(VECTORS)) {
@@ -268,6 +269,7 @@ function showVerdict(n, v, animate) {
 }
 
 function onPhase(p, live) {
+  if (p.runId !== undefined && p.runId !== current?.id) return;
   setPhase(p.phase);
   line(`  [${p.phase}${p.seq ? ` · record #${p.seq}` : ''}]`, 'phase');
   if (p.phase === 'EDITING') pin('live', 'IN PROGRESS', [`RECORD #${p.seq} (INC-${p.incidentId}) ALTERED BY THE DATABASE OWNER`, `action "${p.original}" → "${p.tampered}"`]);
@@ -275,11 +277,17 @@ function onPhase(p, live) {
     pin('live', 'DETECTED · HOLDING', [`RECORD #${p.seq} ALTERED`, `BLACKBOX DETECTED HASH MISMATCH${p.module ? ' · MODULE AGREES' : ''}`, 'restore when the judges have seen the red band']);
     // A replay after a refresh still gets the control while the run is live; the countdown uses the bridge's clock.
     if (p.holdMaxMs && (live || state.busy)) hold(p.t + p.holdMaxMs);
-    if (live && runAll) setTimeout(() => post('/release'), 5000); // rehearsal: release on its own
+    if (runAll && (live || state.busy)) {
+      clearReleaseTimer();
+      const id = current?.id;
+      releaseTimer = setTimeout(() => {
+        if (state.busy && current?.id === id) post('/release', id);
+      }, Math.max(0, p.t + 5000 - Date.now()));
+    }
   }
   if (p.phase === 'DETECTION FAILED') pin('breached', 'DETECTION FAILED · RESTORING NOW', [`RECORD #${p.seq} ALTERED`, `independent verifier ${p.independent ? 'named it' : 'MISSED it'} · module ${p.module ? 'named it' : 'MISSED it'}`]);
   if (p.phase === 'INCOMPLETE') pin('incomplete', 'INCOMPLETE · RESTORING NOW', [`RECORD #${p.seq} ALTERED`, p.reason]);
-  if (p.phase === 'RESTORING') hold(0);
+  if (p.phase === 'RESTORING') { clearReleaseTimer(); hold(0); }
 }
 
 // One stream for the page's life. On every (re)connect the bridge replays the run, so redraw from scratch.
@@ -287,6 +295,7 @@ function connect() {
   const es = new EventSource('/events');
   let replaying = true;
   es.addEventListener('reset', e => {
+    clearReleaseTimer();
     state = JSON.parse(e.data); replaying = true;
     renderTarget(); renderControls();
     $('link').classList.remove('lost'); $('linkTxt').textContent = state.busy ? 'ENGAGED' : 'ARMED';
@@ -311,6 +320,7 @@ function connect() {
   es.addEventListener('line', e => { const t = JSON.parse(e.data); line(t, classify(t)); });
   es.addEventListener('phase', e => onPhase(JSON.parse(e.data), !replaying));
   es.addEventListener('done', e => {
+    clearReleaseTimer();
     const d = JSON.parse(e.data);
     state.busy = false; state.recovery = d.recovery;
     hold(0);
@@ -324,8 +334,8 @@ function connect() {
   es.onerror = () => { $('link').classList.add('lost'); $('linkTxt').textContent = 'LINK LOST · RECONNECTING'; };
 }
 
-async function post(path) {
-  const r = await fetch(path, { method:'POST', headers:{ 'x-blackbox-console':'1' } }).catch(() => null);
+async function post(path, runId) {
+  const r = await fetch(path, { method:'POST', headers:{ 'x-blackbox-console':'1', ...(runId === undefined ? {} : { 'x-blackbox-run': String(runId) }) } }).catch(() => null);
   if (!r) { line('  bridge unreachable', 'err'); return null; }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) { line(`  ${body.error ?? r.status}`, 'err'); return null; }
@@ -340,19 +350,21 @@ async function start(n) {
   return new Promise(res => waiting.set(body.id, res));
 }
 
-$('release').onclick = () => post('/release');
+$('release').onclick = () => post('/release', current?.id);
 $('restore').onclick = () => post('/restore');
 $('runAll').onclick = async () => {
-  if (state.busy) return;
+  if (state.busy || runAll) return;
   runAll = true;
+  const batch = [];
   for (const n of ['1','2','3','4']) {
     const v = await start(n);
+    if (v) batch.push(v);
     if (!v || v.kind !== 'held') { line(`  RUN ALL stopped at vector ${n}`, 'err'); break; }
     await new Promise(r => setTimeout(r, 1200));
   }
   runAll = false;
-  const held = Object.values(outcomes).filter(v => v.kind === 'held').length;
-  line(`\n== ${held}/4 defences held ==`, held === 4 ? 'pass' : 'err');
+  const held = batch.filter(v => v.kind === 'held').length;
+  line(`\n== ${held}/4 defences held in this rehearsal ==`, held === 4 ? 'pass' : 'err');
 };
 $('clear').onclick = () => {
   if (state.busy) return;

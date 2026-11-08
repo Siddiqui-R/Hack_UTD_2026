@@ -535,3 +535,28 @@ ATTACK SPREE on attacker/ + demo 2 (local stage only). Probed, broke, fixed, re-
   Regression: console RUN ALL 4/4 in 58 s; `node attack/run.mjs --demo` 16 held; chain clean, nothing pending.
   Still not runtime-tested: a real Ctrl+C in the stage terminal during the hold (handler code reviewed; Windows can't
     deliver CTRL_C to a pipe child from a script).
+
+REVIEW of Codex's uncommitted attacker/ changes — kept after independent verification, plus one gap fixed.
+  Confirmed real (re-ran Codex's checks against the committed bridge: 5/6 fail there, 6/6 pass with the fix):
+  1 Authenticated result frames with valid-but-wrong JSON (null, {}, [null]) threw inside verdict(), which runs in the
+    child 'close' handler -> uncaught -> bridge process down. attacker/protocol.mjs now validates shape (rows, ids,
+    outcomes, lengths, no duplicates) and phases (known names, integer seq, clamped holdMaxMs), and strips the recovery
+    token before anything reaches a browser.
+  2 /release was not bound to a run: a delayed release from run A released run B's hold. Release now needs
+    x-blackbox-run = current run id (random 128-bit, not Date.now()); the page sends it for RESTORE NOW and for RUN
+    ALL's timer, which is also cleared on restore/done/reset.
+  Also verified: RUN ALL totals only its own batch ("N/4 defences held in this rehearsal"; earlier outcomes used to
+    inflate it); per-pipe decoders/buffers (stderr can't splice a stdout frame; result frames only trusted on stdout);
+    64 KiB line / 1 MiB output / 2048 event limits stop the run as ERROR (recovery stays available); one result frame
+    per run; marker secret redacted from echoed lines.
+  Gap found and fixed in review: the origin rule only rejected Sec-Fetch-Site "cross-site". Another localhost port is
+    "same-site", and its no-cors fetch carries no Origin, so it could still open /events slots (Codex's version fails the
+    new check). Now only same-origin or "none" (typed/bookmarked) requests pass; GET / is served to top-level navigation
+    only, with X-Frame-Options DENY + frame-ancestors 'none'.
+  attacker/check-bridge.mjs (run: node --experimental-vm-modules attacker/check-bridge.mjs) executes the real bridge
+    with mocked HTTP/children/DB: 16/16 (6 Codex + 10 added: split frame, stderr frame, line/output limits, duplicate
+    result, marker leak, foreign Origin, same-site no-cors, own origin, token leak).
+  Live on the stage from the :5180 origin: no-cors /events -> 403, CORS release preflight -> 403, iframe of the console
+    -> 403 (no overlay). Console normal use: RUN ALL 4/4 "in this rehearsal" (58 s); stale-id release -> 409 with hold
+    intact; refresh mid-hold -> RESTORE NOW with run id -> restored. Chain clean, nothing pending.
+  Not covered: Codex's harness under agent-logs/ (ignored, not reviewed or kept); real Ctrl+C during the hold.
