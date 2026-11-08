@@ -4,6 +4,21 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
+**Branch `feat/task-workflow` (2026-11-08 09:15, NOT on main, NOT on Maincloud):** human task workflow + fixes from the
+owner's brief. **486 held, demo 16/16, unit 8/8, client tsc/build/lint, module tsc.** Release order: owner publishes
+the module to Maincloud FIRST, then merge to main (Vercel auto-deploys); details and rollback in DEPLOYMENT.md.
+- Tasks: commanders/responders create tasks; claim; commanders assign/reassign/clear (unrevoked humans, online not
+  needed); open/in progress/blocked/done with a required note to block, complete or reopen; versioned so a race or
+  repeat changes nothing; one audit row per change; closed incidents read-only; observers see status, never notes.
+  Agent createTask untouched. Contract in AGENT_CONTRACT.md. "Done" means a person recorded it; nothing runs on systems.
+- Fixed: A2 (local store aliases), agent_status revoked check (V1, bounded by the 60 s sweep), Activity/RECORD refresh
+  races and freshness/error display, /api/pdf 4 MiB read cap, activity labels now match real audit action names.
+- Hosted PDF renderer redeployed: prints task status, assignee and completion; observer PDFs omit notes (verified).
+- Deferred with reasons in FINDINGS.md: Q1 (needs an agreed run context for standalone live runs), P1, D1 (only a
+  major vitest upgrade fixes it).
+- **Attack this:** two people claiming the same task in the live UI; a stale dialog submit after someone else changed
+  the task; observer JSON/PDF export of a task with notes; Activity while switching incidents quickly.
+
 Updated 2026-11-08 08:35 CT · retested at `2986904` (Sensei's attacker console + demo 2 hold/recovery): **421 held,
 demo 16/16, 0 VULN/errors**; full-history gitleaks clean, no `nvapi-` in any commit; repo is PUBLIC.
 **Still open before judging:** worker NOT yet enrolled on Maincloud (paste the identity below into AGENT SERVICE on the
