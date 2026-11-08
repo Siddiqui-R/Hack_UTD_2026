@@ -43,3 +43,25 @@ Module typecheck, CLI module build/binding generation, and client production bui
 SDK test harness assertions exercised all three agent writes, evidence/conflict linkage, scoped reads,
 permission rejection, failed-transaction audit rollback, closing gate and agent revocation.
 No NVIDIA calls were used (5/40 remains). Local database/server was not running; no deployment was performed.
+
+## Live verification and hardening update
+Published locally with --delete-data=never; original data preserved. Live HTTP checks passed for all three
+agent writes, cross-incident denial, permission denial, expiry, revocation and exactly-one audit behavior.
+Full independent 43-row chain check passed. Expiry used a temporary three-second *enrolment* TTL, then the
+15-minute production TTL was restored and republished. No NVIDIA calls.
+
+updateIncident now requires expectedUpdatedAt (timestamp), appended after systemsAffected in HTTP positional
+arguments; generated SDK uses expectedUpdatedAt: incident.updatedAt. A stale version is rejected atomically.
+RABEET: update the attack helper to send the version; test/security.test.ts received only the required version
+argument, preserving all existing assertions. Closing/reopening is blocked pending two-human approval.
+
+Human commander revocation is owner-only. unrevokeSession is owner-only recovery for mistaken HUMAN revocation;
+it does not restart a session. Do not use it for a stolen token. Agent revocation remains permanent even for
+the owner, and the owner identity cannot be enrolled as an agent. Demotion/revocation removes issued invites.
+Consumed/expired invite hashes are deleted; duplicate active names and hidden/control characters are rejected.
+Names from revoked identities may be reused by a freshly invited replacement.
+
+Local regression scripts live in blackbox/spacetimedb/scripts/ (outside Rabeet-owned folders).
+live-contract.mjs requires BLACKBOX_VERIFY_SHORT_TTL=1 AND a temporary three-second agent-enrolment TTL for
+its real-time expiry test; never set that flag against production. Restore TTL and publish with deletion disabled
+afterwards. live-hardening.mjs consumes the ignored agent-logs/live-fixture.json from that check.

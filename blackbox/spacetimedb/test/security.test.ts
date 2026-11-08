@@ -45,7 +45,7 @@ describe('BLACKBOX security', () => {
     }));
     const inc = [...test.db.incident.iter()][0];
     expect(() => tx(responder, ctx => mod.updateIncident(ctx, {
-      incidentId: inc.id, severity: inc.severity, status: 'closed',
+      incidentId: inc.id, expectedUpdatedAt: inc.updatedAt, severity: inc.severity, status: 'closed',
       containmentStatus: inc.containmentStatus, systemsAffected: inc.systemsAffected,
     }))).toThrow();
     expect(test.db.incident.id.find(inc.id)?.status).toBe('triage');

@@ -16,4 +16,5 @@ export default {
   status: __t.string(),
   containmentStatus: __t.string(),
   systemsAffected: __t.string(),
+  expectedUpdatedAt: __t.timestamp(),
 };

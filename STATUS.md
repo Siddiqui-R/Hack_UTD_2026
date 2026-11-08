@@ -185,3 +185,16 @@ Post-pull verification: merged Rabeet's security suite (31338e3) before pushing 
   Rabeet's section is preserved. attack/fixes.patch targets slice 3 and does not apply cleanly after 3.5;
   remaining findings (duress visibility, commander lockout and other hardening) require adaptation, not blind apply.
   Attack this: re-run agent privilege checks against 82f7628; remaining findings are not claimed fixed.
+
+SLICE 3.5 LIVE + SECURITY FIXES — DONE. No database reset. Existing local server/data reused; publish
+  --delete-data=never succeeded. Agent writes/boundaries/permission denial/revocation/expiry/audit verified over
+  real HTTP; independent full 43-row chain verification passed. Temporary 3s enrolment TTL restored to 15min.
+  Adapted Rabeet fixes (not blind patch): commander-only duress visibility; owner-only commander revoke/human
+  recovery; service revocation remains permanent; owner cannot be enrolled as agent; weak code rejection;
+  consumed/expired hashes removed; active-name uniqueness/control-char checks; ancient dates rejected;
+  demotion/revocation invalidates invites. Lost updates fixed with mandatory expectedUpdatedAt.
+  RABEET: update_incident HTTP args gained expectedUpdatedAt at the END. SDK/contract regenerated. The one
+  existing unit-test call received this version; all its assertions retained. Your attack/ files unchanged.
+  Checks: module build/typecheck, client production build, unit suite 4 pass/4 todo, live-hardening script passes.
+  Test data added; original records preserved. No NVIDIA calls; 5/40. Attack this: stale writes; commander
+  lockout; duress leakage; agent owner-enrolment, permission grant, revoked/expired agent reads and writes.

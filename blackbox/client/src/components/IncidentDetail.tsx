@@ -50,6 +50,7 @@ export function IncidentDetail({ incident, team, canWrite }: { incident: Inciden
     run(() =>
       updateIncident({
         incidentId: incident.id,
+        expectedUpdatedAt: incident.updatedAt,
         severity: patch.severity ?? incident.severity,
         status: patch.status ?? incident.status,
         containmentStatus: patch.containmentStatus ?? incident.containmentStatus,

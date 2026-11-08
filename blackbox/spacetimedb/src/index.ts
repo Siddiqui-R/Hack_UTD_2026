@@ -185,6 +185,9 @@ function appendAudit(ctx: Ctx, action: string, payload: Canonical, incidentId = 
   else ctx.db.chainHead.insert(next);
 }
 
+function discardInvites(ctx: Ctx, creator: Identity) {
+  for (const i of [...ctx.db.inviteCode.iter()]) if (i.createdBy.isEqual(creator)) ctx.db.inviteCode.codeHash.delete(i.codeHash);
+}
 function startSession(ctx: Ctx) {
   const row = { identity: ctx.sender, startedAt: ctx.timestamp, expiresAt: inFuture(ctx, SESSION_TTL_MICROS) };
   if (ctx.db.session.identity.find(ctx.sender)) ctx.db.session.identity.update(row);
@@ -327,7 +330,7 @@ export const redeemInvite = spacetimedb.reducer({ code: t.string(), displayName:
   if (!invite || invite.usedBy !== undefined || isExpired(ctx, invite.expiresAt)) throw new SenderError(BAD_CODE);
   // Checked only after the code is valid, so outsiders can't probe which names exist.
   const taken = [...ctx.db.user.iter()].some(
-    u => !u.identity.isEqual(ctx.sender) && u.displayName.toLowerCase() === name.toLowerCase()
+    u => !u.identity.isEqual(ctx.sender) && !isRevoked(ctx, u.identity) && u.displayName.toLowerCase() === name.toLowerCase()
   );
   if (taken) throw new SenderError('display name already in use');
 
@@ -377,6 +380,7 @@ export const revokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx,
   if (isRevoked(ctx, target)) throw new SenderError('already revoked');
   ctx.db.session.identity.delete(target);
   ctx.db.revokedIdentity.insert({ identity: target, revokedBy: ctx.sender, revokedAt: ctx.timestamp });
+  discardInvites(ctx, target);
   appendAudit(ctx, 'user.revoke', { target: target.toHexString(), displayName: row?.displayName ?? 'NEMOTRON', role: row?.role ?? 'agent' });
 });
 
@@ -384,6 +388,7 @@ export const revokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx,
 export const unrevokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx, { target }) => {
   rejectAgent(ctx);
   if (!isOwner(ctx)) throw new SenderError('owner only');
+  if (ctx.db.agentIdentity.identity.find(target)) throw new SenderError('agent revocation is permanent');
   if (!ctx.db.revokedIdentity.identity.find(target)) throw new SenderError('not revoked');
   ctx.db.revokedIdentity.identity.delete(target);
   appendAudit(ctx, 'user.unrevoke', { target: target.toHexString() });
@@ -458,12 +463,14 @@ export const createIncident = spacetimedb.reducer(
 
 // Changes any of severity / status / containment / systems. Audit records old -> new for each changed field.
 export const updateIncident = spacetimedb.reducer(
-  { incidentId: t.u64(), severity: t.string(), status: t.string(), containmentStatus: t.string(), systemsAffected: t.string() },
+  { incidentId: t.u64(), severity: t.string(), status: t.string(), containmentStatus: t.string(), systemsAffected: t.string(), expectedUpdatedAt: t.timestamp() },
   (ctx, args) => {
     requireRole(ctx, ['commander', 'responder']);
     if (args.status === 'closed') throw new SenderError('closing requires two-person approval');
     const row = ctx.db.incident.id.find(args.incidentId);
     if (!row) throw new SenderError('incident not found');
+    if (row.status === 'closed') throw new SenderError('reopening requires two-person approval');
+    if (row.updatedAt.microsSinceUnixEpoch !== args.expectedUpdatedAt.microsSinceUnixEpoch) throw new SenderError('incident changed; review latest values before saving');
     const next = {
       severity: oneOf('severity', args.severity, SEVERITIES),
       status: oneOf('status', args.status, STATUSES),
@@ -484,7 +491,7 @@ export const updateIncident = spacetimedb.reducer(
 export const enrollAgent = spacetimedb.reducer({ target: t.identity(), incidentId: t.u64() }, (ctx, args) => {
   requireRole(ctx, ['commander']);
   if (isRevoked(ctx, args.target)) throw new SenderError('target is revoked');
-  if (ctx.db.user.identity.find(args.target)) throw new SenderError('agent requires a separate identity');
+  if (ctx.db.user.identity.find(args.target) || ctx.db.owner.id.find(0)?.identity.isEqual(args.target)) throw new SenderError('agent requires a separate identity');
   if (!ctx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
   const row = { identity: args.target, incidentId: args.incidentId, enrolledBy: ctx.sender, createdAt: ctx.timestamp };
   if (ctx.db.agentIdentity.identity.find(args.target)) ctx.db.agentIdentity.identity.update(row);
@@ -509,6 +516,7 @@ export const updateSeverity = spacetimedb.reducer({ incidentId: t.u64(), severit
   const row = ctx.db.incident.id.find(args.incidentId)!;
   const severity = oneOf('severity', args.severity, SEVERITIES);
   const reason = cleanText('reason', args.reason, 1, 2000);
+  if (SEVERITIES.indexOf(severity) < SEVERITIES.indexOf(row.severity as typeof severity)) throw new SenderError('agent cannot lower severity; human review required');
   ctx.db.incident.id.update({ ...row, severity, updatedAt: ctx.timestamp });
   appendAudit(ctx, 'incident.severity', { from: row.severity, to: severity, reason, sender: ctx.sender.toHexString() }, row.id, 'NEMOTRON');
 });
@@ -560,7 +568,8 @@ export const getScope = spacetimedb.procedure({ incidentId: t.u64() }, t.string(
   return canonicalJson({ incidentId: args.incidentId, available: false, items: [], reason: 'Scope storage arrives in slice 6' });
 }));
 export const evidenceRecords = spacetimedb.procedure({ incidentId: t.u64() }, t.string(), (ctx, args) => ctx.withTx(tx => {
-  const { agent } = requireReader(tx);
+  const { agent, human } = requireReader(tx);
+  if (human?.role === 'observer') throw new SenderError('observer cannot read evidence');
   if (agent && agent.incidentId !== args.incidentId) throw new SenderError('agent incident mismatch');
   return canonicalJson([...tx.db.evidence.incidentId.filter(args.incidentId)].map(r => ({ id: r.id, incidentId: r.incidentId, text: r.text })));
 }));
