@@ -25,7 +25,7 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 | 0 | Ping table syncing two tabs | — (Gate 0) | [x] |
 | 1 | Users + roles + `ctx.sender` checks on one write | acting as the wrong role | [x] |
 | 2 | Invite codes → real session identity → role | replay, reuse, expiry, forged code | [x] |
-| 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [ ] |
+| 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [x] |
 | 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [ ] |
 | 5 | Real-time chat | cross-incident message leakage | [ ] |
 | 6 | Scope items | observer reading scope | [ ] |
@@ -105,5 +105,26 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
     the only expiry we have.
   Attack this: replay a revoked token; revoke yourself; responder calling revoke_session; un-revoke via set_role;
     revoke then race a redeem; check every mutating reducer wrote exactly one audit row.
+[18:04] SLICE 3 — incidents + structured form + COMMAND shell + designed login. DONE.
+  Local data was wiped first (no "eve"). Schema changed again: republish with --delete-data=always, then
+    `issue_bootstrap_invite`. The `ping` table/reducer are gone.
+  Works: private `incident` table read via session-gated `incidents` view. `create_incident` (commander/responder):
+    title, type (ransomware|data_breach|bec|insider|ddos|unknown), severity, detected_at (UTC, not in future),
+    systems affected, containment; status starts at triage. `update_incident`: severity/status/containment/systems,
+    audit records from->to per changed field. Every enum validated server-side.
+  UI (DESIGN.md): 44px chrome (wordmark, active incident, chain status placeholder, agent, responders online, you,
+    link state, ticking UTC clock); COMMAND = incidents 280 · detail · team 320. Designed §6.1 login: 8 boxes
+    XXXX-XXXX fed by one hidden input (paste works, refused chars dropped), 60ms land, 3-frame shake + red on fail,
+    200ms green lock then hard cut. Reduced-motion disables all of it. Fonts self-hosted (@fontsource), no CDN.
+    Keyboard: N = new incident, Esc = cancel, Enter = submit; every shortcut is also a labeled button.
+  Verified: observer token over raw HTTP (/v1/database/blackbox/call/...) -> update_incident, create_incident,
+    create_invite all "role observer not permitted", incident unchanged, no audit rows written. Commander status change
+    appears live in the observer's browser. Audit rows incident.create / incident.update carry incident_id.
+    Login filter, fail state (red #FF4D4D + message) and success lock (green) checked via DOM.
+  Not yet: invites carry incident_id=0 — per-incident scoping is not enforced (all signed-in users see all
+    incidents). Chain status bar is an honest "VERIFICATION PENDING" placeholder until slice 4. shadcn not installed
+    yet — no primitive needed so far; native elements restyled to tokens.
+  Attack this: observer writes over HTTP; out-of-range enums; future detected_at; 121-char title; read `incident`
+    directly via SQL as non-owner; expired session still seeing incidents after the sweep.
 
 ## Known, not fixing

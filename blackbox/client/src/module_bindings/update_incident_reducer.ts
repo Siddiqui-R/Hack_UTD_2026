@@ -10,8 +10,10 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  id: __t.u64().primaryKey(),
-  text: __t.string(),
-  author: __t.identity(),
-});
+export default {
+  incidentId: __t.u64(),
+  severity: __t.string(),
+  status: __t.string(),
+  containmentStatus: __t.string(),
+  systemsAffected: __t.string(),
+};

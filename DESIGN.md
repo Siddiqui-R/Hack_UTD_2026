@@ -109,7 +109,7 @@ Dark only. No light mode — we have no time and it's wrong for the context.
 --critical: #FF4D4D
 --high:     #FF8A3D
 --medium:   #FFC53D
---low:      #4D9FFF
+--low:      #8FA3B8   /* was #4D9FFF — collided with --accent; see Decision log */
 --ok:       #35D07F
 --unknown:  #5E6B7C
 ```
@@ -303,9 +303,61 @@ width and change the chrome height. The asymmetry is the point.
 
 ## References
 
-_To be filled with 4–6 real operations interfaces (one adaptable technique each) at the start of slice 3, before any CSS is written — per §0.1._
+Researched 2026-11-07 at the start of slice 3, before any CSS. One technique adapted from each.
+Only what the sources actually state is recorded; where only an abstract was readable, that is said.
+
+1. **ISA-101 "high-performance HMI" (industrial control rooms).**
+   Source: Inductive Automation, *High Performance HMI Techniques* —
+   https://docs.inductiveautomation.com/docs/7.9/visualization-and-dashboards/understanding-components/high-performance-hmi-techniques.md
+   What it says: grayscale replaces bright colors; alerting colors are reserved for problems so they stand out;
+   alarm priority is encoded redundantly in **shape + color + text** (e.g. red rectangle "1", yellow triangle "2")
+   so state survives color-blindness or a display that renders color badly; a dotted line ties each alarm to the
+   object it refers to.
+   **Adapt:** every status chip carries a glyph and a word, never color alone (`▲ CRITICAL`, `● CONTAINED`,
+   `○ UNKNOWN`). The §6.4 TrustGraph conflict line between two evidence cards is the same "line from alarm to
+   object" idea.
+
+2. **FAA color standard for ATC displays (FAA-HF-STD-010A, 2020).**
+   Source: https://rosap.ntl.bts.gov/view/dot/92012 (abstract only — full PDF not read) and the FAA
+   terminal notice https://www.faa.gov/documentLibrary/media/Notice/N%20JO%207210.673.pdf (search snippet).
+   What it says: information must stay legible regardless of its color; a standard color set is reserved for
+   coding critical information; red = danger and yellow = warning are conventions that must not be violated;
+   pure blue should not be used for text or small symbols.
+   **Adapt:** `--critical` / `--medium` follow red-danger / yellow-warning exactly. The accent is a light blue
+   (`#4D9FFF`), not pure blue, and never carries status. Text stays readable with color removed.
+
+3. **Grafana practitioner guidance on density vs. readability.**
+   Source: https://dev.to/futhgar/grafana-dashboards-information-density-vs-readability-2j6k
+   What it says: tier views as "is it broken?" (compact stat panels, binary healthy/needs-action) → service
+   view → deep dive; if it takes more than a few seconds to tell what's wrong, the view is too dense;
+   "a dashboard is a tool for decision-making, not a data dump."
+   **Adapt:** the top of the COMMAND detail pane answers "how bad and is it contained?" in one line
+   (severity as the one 28px mono number, containment and status chips beside it). Everything else sits below.
+
+4. **NASA Open MCT (mission control framework).**
+   Source: https://nasa.github.io/openmct/about-open-mct and NTRS 20160006385.
+   What it says: a plain web browser is the only requirement; displays are composed from reusable objects
+   that operators reconfigure quickly.
+   **Adapt:** BLACKBOX is browser-only — nothing installed on a possibly-compromised laptop — and is stated
+   that way in the pitch. Panes are fixed regions with consistent internal structure (label row, content),
+   not free-floating cards.
+
+5. **Bloomberg Terminal — as a cautionary reference.**
+   Source: UX Magazine, *The Impossible Bloomberg Makeover* — https://uxmag.com/articles/the-impossible-bloomberg-makeover
+   (Bloomberg's own article https://www.bloomberg.com/company/stories/how-bloomberg-terminal-ux-designers-conceal-complexity
+   returned 403 and was not read.)
+   What it says: black background with yellow/orange text, keyboard-driven with commands users must memorize
+   (an 86-page manual), dense and called "hideous" by users.
+   **Adapt the density, reject the memorization.** Winstead judges on use without tutorials, so every keyboard
+   shortcut is also a visible labeled button with its key shown inline (`NEW INCIDENT  N`). Nothing is
+   reachable only by a remembered command.
 
 ### Decision log
+
+- **`--low` changed from `#4D9FFF` to `#8FA3B8`.** (2026-11-07, slice 3)
+  The spec gave `--low` the same value as `--accent`, contradicting its own rule "One accent color.
+  `--accent` is never used for status." Low severity is now a desaturated steel, distinct from the accent
+  and from `--unknown`. Revert by restoring the old value if the owner prefers.
 
 - **§6.1 login uses 8 characters (`XXXX-XXXX`), not 6 digits.** (2026-11-07, slice 2)
   A 6-digit code is 10^6 possibilities. SpacetimeDB rolls back a reducer's writes when

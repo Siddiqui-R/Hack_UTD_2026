@@ -29,6 +29,24 @@ export const ChainHead = __t.object("ChainHead", {
 });
 export type ChainHead = __Infer<typeof ChainHead>;
 
+export const Incident = __t.object("Incident", {
+  id: __t.u64(),
+  title: __t.string(),
+  severity: __t.string(),
+  status: __t.string(),
+  incidentType: __t.string(),
+  detectedAt: __t.timestamp(),
+  reportedBy: __t.identity(),
+  containmentStatus: __t.string(),
+  systemsAffected: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type Incident = __Infer<typeof Incident>;
+
+export const Incidents = __t.object("Incidents", {});
+export type Incidents = __Infer<typeof Incidents>;
+
 export const InviteCode = __t.object("InviteCode", {
   codeHash: __t.string(),
   role: __t.string(),
@@ -46,13 +64,6 @@ export const Owner = __t.object("Owner", {
   identity: __t.identity(),
 });
 export type Owner = __Infer<typeof Owner>;
-
-export const Ping = __t.object("Ping", {
-  id: __t.u64(),
-  text: __t.string(),
-  author: __t.identity(),
-});
-export type Ping = __Infer<typeof Ping>;
 
 export const RevokedIdentity = __t.object("RevokedIdentity", {
   identity: __t.identity(),

@@ -104,16 +104,30 @@ const sessionSweep = table(
   }
 );
 
-const ping = table(
-  { name: 'ping', public: true },
+const SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
+const STATUSES = ['triage', 'investigating', 'contained', 'eradicated', 'closed'] as const;
+const INCIDENT_TYPES = ['ransomware', 'data_breach', 'bec', 'insider', 'ddos', 'unknown'] as const;
+const CONTAINMENT = ['none', 'partial', 'contained'] as const;
+
+// Private. Read through the session-gated `incidents` view.
+const incident = table(
+  { name: 'incident' },
   {
     id: t.u64().primaryKey().autoInc(),
-    text: t.string(),
-    author: t.identity(),
+    title: t.string(),
+    severity: t.string(),
+    status: t.string(),
+    incidentType: t.string(),
+    detectedAt: t.timestamp(),
+    reportedBy: t.identity(),
+    containmentStatus: t.string(),
+    systemsAffected: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
   }
 );
 
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, ping });
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident });
 export default spacetimedb;
 
 type Ctx = ReducerCtx<InferSchema<typeof spacetimedb>>;
@@ -306,11 +320,83 @@ export const revokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx,
   appendAudit(ctx, 'user.revoke', { target: target.toHexString(), displayName: row.displayName, role: row.role });
 });
 
-export const addPing = spacetimedb.reducer({ text: t.string() }, (ctx, { text }) => {
-  requireRole(ctx, ['commander', 'responder']);
-  const trimmed = text.trim();
-  if (!trimmed) throw new SenderError('text required');
-  if (trimmed.length > 500) throw new SenderError('text too long');
-  const row = ctx.db.ping.insert({ id: 0n, text: trimmed, author: ctx.sender });
-  appendAudit(ctx, 'ping.add', { id: row.id, text: trimmed });
+function oneOf<T extends string>(field: string, value: string, allowed: readonly T[]): T {
+  if (!allowed.includes(value as T)) throw new SenderError(`${field} must be one of: ${allowed.join(', ')}`);
+  return value as T;
+}
+
+function cleanText(field: string, value: string, min: number, max: number) {
+  const v = value.trim();
+  if (v.length < min || v.length > max) throw new SenderError(`${field} must be ${min}-${max} chars`);
+  return v;
+}
+
+// Only signed-in callers with a live session row see incidents.
+export const incidents = spacetimedb.view({ name: 'incidents', public: true }, t.array(incident.rowType), ctx => {
+  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender)) return [];
+  return [...ctx.db.incident.iter()];
 });
+
+export const createIncident = spacetimedb.reducer(
+  {
+    title: t.string(),
+    incidentType: t.string(),
+    severity: t.string(),
+    detectedAt: t.timestamp(),
+    systemsAffected: t.string(),
+    containmentStatus: t.string(),
+  },
+  (ctx, args) => {
+    requireRole(ctx, ['commander', 'responder']);
+    const title = cleanText('title', args.title, 1, 120);
+    const incidentType = oneOf('type', args.incidentType, INCIDENT_TYPES);
+    const severity = oneOf('severity', args.severity, SEVERITIES);
+    const containmentStatus = oneOf('containment', args.containmentStatus, CONTAINMENT);
+    const systemsAffected = cleanText('systems affected', args.systemsAffected, 0, 500);
+    if (args.detectedAt.microsSinceUnixEpoch > ctx.timestamp.microsSinceUnixEpoch + 60_000_000n) {
+      throw new SenderError('detected time cannot be in the future');
+    }
+    const row = ctx.db.incident.insert({
+      id: 0n,
+      title,
+      severity,
+      status: 'triage',
+      incidentType,
+      detectedAt: args.detectedAt,
+      reportedBy: ctx.sender,
+      containmentStatus,
+      systemsAffected,
+      createdAt: ctx.timestamp,
+      updatedAt: ctx.timestamp,
+    });
+    appendAudit(
+      ctx,
+      'incident.create',
+      { title, incidentType, severity, containmentStatus, systemsAffected, detectedAt: args.detectedAt.microsSinceUnixEpoch },
+      row.id
+    );
+  }
+);
+
+// Changes any of severity / status / containment / systems. Audit records old -> new for each changed field.
+export const updateIncident = spacetimedb.reducer(
+  { incidentId: t.u64(), severity: t.string(), status: t.string(), containmentStatus: t.string(), systemsAffected: t.string() },
+  (ctx, args) => {
+    requireRole(ctx, ['commander', 'responder']);
+    const row = ctx.db.incident.id.find(args.incidentId);
+    if (!row) throw new SenderError('incident not found');
+    const next = {
+      severity: oneOf('severity', args.severity, SEVERITIES),
+      status: oneOf('status', args.status, STATUSES),
+      containmentStatus: oneOf('containment', args.containmentStatus, CONTAINMENT),
+      systemsAffected: cleanText('systems affected', args.systemsAffected, 0, 500),
+    };
+    const changes: { [k: string]: Canonical } = {};
+    for (const k of Object.keys(next) as (keyof typeof next)[]) {
+      if (row[k] !== next[k]) changes[k] = { from: row[k], to: next[k] };
+    }
+    if (Object.keys(changes).length === 0) throw new SenderError('no changes');
+    ctx.db.incident.id.update({ ...row, ...next, updatedAt: ctx.timestamp });
+    appendAudit(ctx, 'incident.update', changes, row.id);
+  }
+);

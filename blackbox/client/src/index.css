@@ -1,0 +1,115 @@
+/* Self-hosted fonts: the UI must not depend on a third-party CDN being reachable. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/600.css';
+@import 'tailwindcss';
+
+/* Tokens — DESIGN.md §3. Dark only. */
+@theme {
+  --color-bg-0: #0a0c0f;
+  --color-bg-1: #11151a;
+  --color-bg-2: #171c23;
+  --color-line: #232a33;
+  --color-line-hi: #333d4a;
+  --color-text-0: #e6ebf2;
+  --color-text-1: #9aa6b5;
+  --color-text-2: #5e6b7c;
+  --color-accent: #4d9fff;
+  --color-critical: #ff4d4d;
+  --color-high: #ff8a3d;
+  --color-medium: #ffc53d;
+  --color-low: #8fa3b8;
+  --color-ok: #35d07f;
+  --color-unknown: #5e6b7c;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-bg-0);
+  color: var(--color-text-0);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+::selection { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
+:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
+input, select, textarea, button { font: inherit; color: inherit; }
+
+/* 11px uppercase section label — §4 */
+.label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-1); }
+
+/* Status chip — §7. Color comes from --c; background is 12% of it (transparent if color-mix is unsupported). */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px;
+  border: 1px solid var(--c); border-radius: 2px; color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+}
+
+/* Buttons — §7. Flat, 1px border, 28px; primary 32px accent border + text. */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px;
+  background: var(--color-bg-2); border: 1px solid var(--color-line); border-radius: 4px;
+  color: var(--color-text-0); font-size: 13px; cursor: pointer; white-space: nowrap;
+  transition: border-color 120ms, background-color 120ms;
+}
+.btn:hover { border-color: var(--color-line-hi); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { height: 32px; border-color: var(--color-accent); color: var(--color-accent); }
+.btn-primary:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-2)); }
+.btn-danger {
+  border-color: var(--color-critical); color: var(--color-critical);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.kbd { font-family: var(--font-mono); font-size: 11px; color: var(--color-text-2); }
+
+/* Inputs — §7. bg-2, 1px line, focus swaps border to accent. No glow. */
+.field {
+  height: 28px; width: 100%; padding: 0 8px; background: var(--color-bg-2);
+  border: 1px solid var(--color-line); border-radius: 4px; outline: none; transition: border-color 120ms;
+}
+.field:focus { border-color: var(--color-accent); }
+.field:focus-visible { outline: none; }
+
+/* Segmented choice: one click, selected = accent border. */
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button {
+  height: 28px; padding: 0 10px; background: var(--color-bg-2); border: 1px solid var(--color-line);
+  border-radius: 4px; color: var(--color-text-1); cursor: pointer; font-size: 13px;
+  transition: border-color 120ms, color 120ms;
+}
+.seg button:hover { border-color: var(--color-line-hi); color: var(--color-text-0); }
+.seg button[aria-pressed='true'] { border-color: var(--color-accent); color: var(--color-text-0); }
+
+/* List rows — §7. 32px, hover raises bg, selected gets 2px accent left border. */
+.row {
+  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; line-height: 1.25;
+  border-bottom: 1px solid var(--color-line); border-left: 2px solid transparent; cursor: pointer;
+  transition: background-color 120ms;
+}
+.row:hover { background: var(--color-bg-2); }
+.row[aria-selected='true'] { border-left-color: var(--color-accent); background: var(--color-bg-2); }
+
+/* ---- §6.1 login: the only cinematic motion on this screen ---- */
+@keyframes land { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 33% { transform: translateX(-6px); } 66% { transform: translateX(6px); } }
+@keyframes drift { from { transform: translateY(0); } to { transform: translateY(4px); } }
+.code-char { animation: land 60ms ease-out; }
+.code-shake { animation: shake 120ms steps(3, end); }
+.scanlines {
+  position: fixed; inset: -8px 0; pointer-events: none; opacity: 0.035;
+  background-image: repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 4px);
+  animation: drift 8s linear infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-char, .code-shake, .scanlines { animation: none !important; }
+  * { transition: none !important; }
+}

@@ -4,7 +4,9 @@ import { SpacetimeDBProvider } from 'spacetimedb/react';
 import { DbConnection } from './module_bindings';
 import { SPACETIMEDB_URI, MODULE_NAME } from './config';
 import { loadToken, saveToken } from './identity';
+import { ToastProvider } from './components/Toast';
 import App from './App.tsx';
+import './index.css';
 
 const connectionBuilder = DbConnection.builder()
   .withUri(SPACETIMEDB_URI)
@@ -20,7 +22,9 @@ const connectionBuilder = DbConnection.builder()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </SpacetimeDBProvider>
   </StrictMode>,
 );

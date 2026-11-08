@@ -34,35 +34,32 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AddPingReducer from "./add_ping_reducer";
+import CreateIncidentReducer from "./create_incident_reducer";
 import CreateInviteReducer from "./create_invite_reducer";
 import IssueBootstrapInviteReducer from "./issue_bootstrap_invite_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
 import RevokeSessionReducer from "./revoke_session_reducer";
 import SetRoleReducer from "./set_role_reducer";
 import TouchSessionReducer from "./touch_session_reducer";
+import UpdateIncidentReducer from "./update_incident_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
-import PingRow from "./ping_table";
+import IncidentsRow from "./incidents_table";
 import TeamRow from "./team_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
-  ping: __table({
-    name: 'ping',
+  incidents: __table({
+    name: 'incidents',
     indexes: [
-      { accessor: 'id', name: 'ping_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
     ],
     constraints: [
-      { name: 'ping_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, PingRow),
+  }, IncidentsRow),
   team: __table({
     name: 'team',
     indexes: [
@@ -74,13 +71,14 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
-  __reducerSchema("add_ping", AddPingReducer),
+  __reducerSchema("create_incident", CreateIncidentReducer),
   __reducerSchema("create_invite", CreateInviteReducer),
   __reducerSchema("issue_bootstrap_invite", IssueBootstrapInviteReducer),
   __reducerSchema("redeem_invite", RedeemInviteReducer),
   __reducerSchema("revoke_session", RevokeSessionReducer),
   __reducerSchema("set_role", SetRoleReducer),
   __reducerSchema("touch_session", TouchSessionReducer),
+  __reducerSchema("update_incident", UpdateIncidentReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

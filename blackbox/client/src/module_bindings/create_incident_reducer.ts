@@ -11,5 +11,10 @@ import {
 } from "spacetimedb";
 
 export default {
-  text: __t.string(),
+  title: __t.string(),
+  incidentType: __t.string(),
+  severity: __t.string(),
+  detectedAt: __t.timestamp(),
+  systemsAffected: __t.string(),
+  containmentStatus: __t.string(),
 };
