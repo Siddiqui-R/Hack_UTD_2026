@@ -33,15 +33,15 @@ async function consume() {
   console.log(`Claimed run #${runId} (${request.mode}/${request.tier})`);
   let summary, failed = false;
   const trace = async e => {
-    // Additive endpoint from 4eb367f: check this exact request, even if the same identity
-    // has since claimed a different run. Server-side atomic expected-run guards remain Q1.
+    // Early, readable stop. The server check is the real guard: record_agent_step and every tool write carry
+    // this runId and are refused unless it is still this worker's running run (Q1).
     const status = await procedure('agent_run_status', [runId]);
     if (status.status !== 'running' || String(status.runId) !== String(runId)) throw new Error('requested investigation is no longer running');
-    await reducer('record_agent_step', [e.kind, e.name, json(e.input), json(e.output)]);
+    await reducer('record_agent_step', [runId, e.kind, e.name, json(e.input), json(e.output)]);
   };
   try {
     const recording = request.mode === 'replay' ? replayRecording(requestedModel, incidentId) : undefined;
-    ({ summary } = await executeRun({ mode: request.mode, modelId: requestedModel, incidentId, recording, onTrace: trace }));
+    ({ summary } = await executeRun({ mode: request.mode, modelId: requestedModel, incidentId, runId, recording, onTrace: trace }));
   } catch (err) {
     failed = true;
     summary = `Investigation stopped: ${err.message}`.slice(0, 16000);

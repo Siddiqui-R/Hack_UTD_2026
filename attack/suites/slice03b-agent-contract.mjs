@@ -1,6 +1,6 @@
 // Slice 3.5: agent contract. The agent is a dedicated identity enrolled to ONE incident.
 // Threat: a prompt-injected or stolen agent tries to escalate, escape its incident, or act as a human.
-import { newIdentity, call, sql, proc, record, expectDenied, signIn, getCommander, write, enrollAgent, auditRows, runTag, tsArg, owner, ownerCall, randomCode } from '../lib.mjs';
+import { newIdentity, call, sql, proc, record, expectDenied, signIn, getCommander, write, enrollAgent, auditRows, runTag, tsArg, owner, ownerCall, randomCode, NO_RUN } from '../lib.mjs';
 
 export const slice = '3b';
 export const title = 'Agent contract (NEMOTRON identity)';
@@ -37,14 +37,14 @@ export async function run() {
   expectDenied('G11', 'commander grants a role to the agent', await call(cmd, 'set_role', [id(ag), 'commander']));
 
   // --- Incident escape -------------------------------------------------------------------
-  expectDenied('G12', 'agent changes severity of another incident', await call(ag, 'update_severity', [other.id, 'low', 'not mine']));
+  expectDenied('G12', 'agent changes severity of another incident', await call(ag, 'update_severity', [other.id, 'low', 'not mine', NO_RUN]));
   await call(cmd, 'submit_evidence', [home.id, `home evidence A ${runTag}`]);
   await call(cmd, 'submit_evidence', [other.id, `other evidence ${runTag}`]);
   const homeEv = (await proc(cmd, 'evidence_records', [home.id])).data ?? [];
   const otherEv = (await proc(cmd, 'evidence_records', [other.id])).data ?? [];
   if (homeEv[0] && otherEv[0]) {
     expectDenied('G13', 'agent links evidence across incidents',
-      await call(ag, 'flag_conflict', [Number(homeEv[0].id), Number(otherEv[0].id), 'cross-incident']));
+      await call(ag, 'flag_conflict', [Number(homeEv[0].id), Number(otherEv[0].id), 'cross-incident', NO_RUN]));
   }
   const search = await proc(ag, 'search_incidents', ['atk-agent']);
   const leaked = (search.data ?? []).filter(r => r.incidentId !== String(home.id));
@@ -53,16 +53,16 @@ export async function run() {
   expectDenied('G16', 'agent reads scope of another incident', await call(ag, 'get_scope', [other.id]));
 
   // --- Humans pretending to be NEMOTRON --------------------------------------------------------
-  expectDenied('G17', 'human calls create_task (fake NEMOTRON)', await call(resp, 'create_task', ['fake agent task', 'responder']));
-  expectDenied('G18', 'outsider calls update_severity', await call(await newIdentity(), 'update_severity', [home.id, 'low', 'x']));
+  expectDenied('G17', 'human calls create_task (fake NEMOTRON)', await call(resp, 'create_task', ['fake agent task', 'responder', NO_RUN]));
+  expectDenied('G18', 'outsider calls update_severity', await call(await newIdentity(), 'update_severity', [home.id, 'low', 'x', NO_RUN]));
 
   // --- What a hijacked agent CAN do -------------------------------------------------------
   // Severity downgrade by the agent: the exact goal of the "mark this resolved" prompt injection.
-  await call(ag, 'update_severity', [home.id, 'critical', 'escalate']);
-  const down = await call(ag, 'update_severity', [home.id, 'low', 'Per log note: false positive']);
+  await call(ag, 'update_severity', [home.id, 'critical', 'escalate', NO_RUN]);
+  const down = await call(ag, 'update_severity', [home.id, 'low', 'Per log note: false positive', NO_RUN]);
   record('G19', 'agent downgrades severity critical → low', down.ok ? 'VULN' : 'PASS',
     down.ok ? 'accepted with no human confirmation (prompt-injection target)' : down.error);
-  const bidiTask = await call(ag, 'create_task', [`Restore ‮backups ${runTag}`, 'responder']);
+  const bidiTask = await call(ag, 'create_task', [`Restore ‮backups ${runTag}`, 'responder', NO_RUN]);
   record('G20', 'agent writes hidden chars into a task', bidiTask.ok ? 'VULN' : 'PASS', bidiTask.ok ? 'stored' : 'rejected');
 
   // --- Observer reads ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ export async function run() {
   record('G23', 'only agent tool actions are attributed to NEMOTRON', agentRows.length && !humanAsNemo.length ? 'PASS' : 'VULN',
     `${agentRows.length} NEMOTRON rows, ${humanAsNemo.length} unexpected`);
   await call(cmd, 'revoke_session', [id(ag)]);
-  expectDenied('G24', 'revoked agent writes', await call(ag, 'create_task', ['after revoke', 'responder']));
+  expectDenied('G24', 'revoked agent writes', await call(ag, 'create_task', ['after revoke', 'responder', NO_RUN]));
   expectDenied('G25', 'revoked agent is re-enrolled', await call(cmd, 'enroll_agent', [id(ag), home.id]));
 
   // --- Hardening added by Sensei after 3.5 -------------------------------------------------

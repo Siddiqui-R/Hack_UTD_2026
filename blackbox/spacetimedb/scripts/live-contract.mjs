@@ -18,6 +18,8 @@ const count=async()=>Number((await sql('SELECT COUNT(*) AS n FROM audit'))[0].n)
 async function call(who,name,args=[],deny){const n=await count(),r=await request(who,`call/${name}`,args); if(deny){assert(!r.ok,`${name} unexpectedly accepted`);assert.match(r.text,deny);assert.equal(await count(),n,'denied call changed audit');}else{assert(r.ok,`${name}: ${r.text}`);assert.equal(await count(),n+1,`${name} must append exactly one audit row`);}return r;}
 async function identity(){const r=await fetch(`${target}/v1/identity`,{method:'POST'});assert(r.ok);const who=await r.json();who.identity=who.identity.startsWith('0x')?who.identity:`0x${who.identity}`;return who;}
 const ident=who=>({__identity__:who.identity});
+// Standalone (run-less) agent writes; the optional runId is the last argument.
+const none={none:[]};
 const commander=await identity(), invite=code();
 await call(owner,'issue_bootstrap_invite',[invite]);
 await call(commander,'redeem_invite',[invite,`verify-command-${tag}`]);
@@ -27,14 +29,14 @@ const incidents=(await sql('SELECT * FROM incident')).filter(r=>r.title.startsWi
 const [a,b]=incidents.sort((x,y)=>Number(x.id)-Number(y.id));assert.equal(incidents.length,2);
 for(const row of before)assert((await sql('SELECT id FROM incident')).some(r=>r.id===row.id),'existing incident lost');
 const agent=await identity();await call(commander,'enroll_agent',[ident(agent),a.id]);
-await call(agent,'create_task',['Isolate verification host','responder']);
-await call(agent,'update_severity',[a.id,'critical','Confirmed encryption']);
-await call(agent,'update_severity',[b.id,'low','Cross incident attempt'],/mismatch/);
+await call(agent,'create_task',['Isolate verification host','responder',none]);
+await call(agent,'update_severity',[a.id,'critical','Confirmed encryption',none]);
+await call(agent,'update_severity',[b.id,'low','Cross incident attempt',none],/mismatch/);
 for(const text of ['Encryption observed','Host healthy'])await call(commander,'submit_evidence',[a.id,text]);
 await call(commander,'submit_evidence',[b.id,'Other incident']);
 const ea=(await sql(`SELECT * FROM evidence WHERE incident_id = ${a.id}`)), eb=(await sql(`SELECT * FROM evidence WHERE incident_id = ${b.id}`))[0];
-await call(agent,'flag_conflict',[ea[0].id,ea[1].id,'Contradictory observations']);
-await call(agent,'flag_conflict',[ea[0].id,eb.id,'Cross incident'],/distinct evidence/);
+await call(agent,'flag_conflict',[ea[0].id,ea[1].id,'Contradictory observations',none]);
+await call(agent,'flag_conflict',[ea[0].id,eb.id,'Cross incident',none],/distinct evidence/);
 for(const [name,args] of [['create_invite',[code(),'commander']],['set_role',[ident(commander),'observer']],['issue_bootstrap_invite',[code()]],['redeem_invite',[code(),'Agent']],['revoke_session',[ident(commander)]],['enroll_agent',[ident(await identity()),a.id]]])await call(agent,name,args,/NEMOTRON/);
 const proc=async(who,name,args,deny)=>{const n=await count(),r=await request(who,`call/${name}`,args);assert.equal(await count(),n);if(deny){assert(!r.ok);assert.match(r.text,deny);return;}assert(r.ok,r.text);let value=JSON.parse(r.text);if(typeof value==='string')value=JSON.parse(value);return value;};
 const results=await proc(agent,'search_incidents',['Verify']);assert.equal(results.length,1);assert.equal(String(results[0].incidentId),String(a.id));
@@ -43,10 +45,10 @@ await proc(agent,'get_scope',[b.id],/mismatch/);await proc(agent,'evidence_recor
 if (process.env.BLACKBOX_VERIFY_SHORT_TTL !== '1') throw new Error('Expiry test requires temporary 3-second agent-enrolment TTL; see contract');
 await call(commander,'enroll_agent',[ident(agent),a.id]);
 await new Promise(resolve => setTimeout(resolve, 4000));
-await call(agent,'create_task',['Expired','responder'],/session required/);await proc(agent,'get_scope',[a.id],/session expired/);
+await call(agent,'create_task',['Expired','responder',none],/session required/);await proc(agent,'get_scope',[a.id],/session expired/);
 await call(commander,'enroll_agent',[ident(agent),a.id]);
 await call(commander,'revoke_session',[ident(agent)]);
-await call(agent,'create_task',['Revoked','responder'],/revoked/);await proc(agent,'get_scope',[a.id],/revoked/);
+await call(agent,'create_task',['Revoked','responder',none],/revoked/);await proc(agent,'get_scope',[a.id],/revoked/);
 await call(commander,'enroll_agent',[ident(agent),a.id],/revoked/);
 const rows=(await sql('SELECT * FROM audit')).sort((x,y)=>Number(x.seq)-Number(y.seq));
 function canonical(v){if(v==null)return 'null';if(typeof v==='bigint')return JSON.stringify(v.toString());if(typeof v!=='object')return JSON.stringify(v);if(Array.isArray(v))return `[${v.map(canonical)}]`;return `{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;}

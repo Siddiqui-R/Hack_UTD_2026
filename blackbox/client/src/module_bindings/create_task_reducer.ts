@@ -13,4 +13,5 @@ import {
 export default {
   text: __t.string(),
   assigneeRole: __t.string(),
+  runId: __t.option(__t.u64()),
 };

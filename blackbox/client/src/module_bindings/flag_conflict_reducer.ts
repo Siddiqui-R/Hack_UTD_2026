@@ -14,4 +14,5 @@ export default {
   evidenceIdA: __t.u64(),
   evidenceIdB: __t.u64(),
   reason: __t.string(),
+  runId: __t.option(__t.u64()),
 };

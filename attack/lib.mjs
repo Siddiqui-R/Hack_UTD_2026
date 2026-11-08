@@ -53,6 +53,11 @@ export async function call(who, reducer, args = []) {
   return { ok: res.ok, status: res.status, error: text };
 }
 
+// The optional run id on agent writes (create_task, update_severity, flag_conflict; always last).
+// NO_RUN = a standalone CLI write; inRun(id) = a write bound to a queue run.
+export const NO_RUN = { none: [] };
+export const inRun = id => ({ some: id });
+
 // Timestamp argument in SpacetimeDB's JSON format.
 export const ts = (ms = Date.now()) => ({ __timestamp_micros_since_unix_epoch__: Math.round(ms * 1000) });
 

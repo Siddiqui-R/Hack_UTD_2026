@@ -42,7 +42,7 @@ await call(resp,'update_incident',[row.id,'low','triage',row.containment_status,
 const next=(await sql(`SELECT * FROM incident WHERE id = ${row.id}`))[0];assert.equal(next.status,newStatus);assert.equal(next.systems_affected,row.systems_affected);
 await call(resp,'update_incident',[row.id,next.severity,'closed',next.containment_status,next.systems_affected,next.updated_at],/approval/);
 const service=await mint();await call(cmd,'enroll_agent',[id(service),row.id]);
-await call(service,'update_severity',[row.id,'low','Injected downgrade'],/cannot lower/);
+await call(service,'update_severity',[row.id,'low','Injected downgrade',{none:[]}],/cannot lower/);
 await call(service,'create_invite',[code(),'commander'],/NEMOTRON/);
 const read=await req(obs,'call/evidence_records',[row.id]);assert(!read.ok);assert.match(read.text,/observer cannot read evidence/);
 await call(cmd,'revoke_session',[id(service)]);
