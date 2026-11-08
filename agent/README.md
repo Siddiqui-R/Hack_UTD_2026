@@ -41,7 +41,8 @@ The service uses its own SpacetimeDB identity, stored in `agent/.agent-token` (g
 ## Queue integration and cancellation
 Use the dedicated enrolled service identity. The existing UI queues mock/replay requests; the worker honors the request's
 tier even when AGENT_MODE differs, claims with the actual mock/model identity, publishes awaited call/result/revision/
-summary/error traces, and finishes completed/failed runs. Trace rejection stops before the next tool action. A missing
+summary/error traces, and finishes completed/failed runs. It polls agentRunStatus for the exact claimed run before
+every trace/tool action; cancellation or trace rejection stops before the next tool action. A missing
 or model/incident-mismatched live recording fails replay; it never calls NVIDIA. Set AGENT_REPLAY_FILE for a specific
 recording. Recordings must match the incident/model; evidence IDs are never silently rebound to unrelated records.
 

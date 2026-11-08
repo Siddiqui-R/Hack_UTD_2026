@@ -80,9 +80,10 @@ export async function renderPdf(snapshot) {
     await execute(browserPath(),['--headless','--disable-gpu','--no-first-run','--no-default-browser-check',
       '--disable-extensions','--disable-background-networking','--disable-component-update','--disable-sync',
       `--user-data-dir=${path.join(dir,'profile')}`,'--no-pdf-header-footer',`--print-to-pdf=${output}`,pathToFileURL(input).href],
-      {timeout:30000,windowsHide:true,maxBuffer:1024*1024});
+      {timeout:18000,windowsHide:true,maxBuffer:1024*1024});
     const pdf=await readFile(output);
     if(pdf.subarray(0,5).toString()!=='%PDF-')throw new Error('Browser did not produce a PDF');
+    if(pdf.length>4*1024*1024)throw new Error('PDF exceeds the adapter size limit');
     return pdf;
   } finally { await rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}); }
 }

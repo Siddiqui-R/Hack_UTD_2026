@@ -10,6 +10,13 @@ The renderer receives no SpacetimeDB token and makes no NVIDIA requests. No cont
 For deployment, install Chromium on the renderer host, use HTTPS, set `PDF_ALLOWED_ORIGINS` to the exact client
 origin, and prefer a same-origin `/record.pdf` reverse proxy. The local endpoint is not a deployed service.
 
+The owner's newer authenticated Vercel adapter (`4eb367f`) is supported without signature changes: set its
+server-only PDF_RENDERER_URL to this service's HTTPS `/record.pdf`. Set the same PDF_RENDERER_TOKEN on both
+services to require the adapter's dedicated Bearer credential. Leave VITE_PDF_URL unset in production to use
+`/api/pdf`; that route fetches a fresh authorized snapshot and sends only the renderer credential here.
+The browser's SpacetimeDB token is never the renderer credential. Rendering times out at 18 seconds and
+output is capped at 4 MiB, within the adapter's 20-second/4-MiB limits. Local direct-snapshot mode remains available.
+
 Snapshots are rendered in memory plus temporary browser files, removed after each request, and never logged.
 Untrusted content is escaped into text and network content is blocked by CSP. The endpoint rejects tokens,
 unknown origins, malformed snapshots, payloads over 2 MiB and concurrent rendering. Keep it behind the same

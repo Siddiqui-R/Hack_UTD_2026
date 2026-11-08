@@ -30,7 +30,13 @@ async function consume() {
   await reducer('begin_agent_run', [runId, modelId]);
   console.log(`Claimed run #${runId} (${request.mode}/${request.tier})`);
   let summary, failed = false;
-  const trace = e => reducer('record_agent_step', [e.kind, e.name, json(e.input), json(e.output)]);
+  const trace = async e => {
+    // Additive endpoint from 4eb367f: check this exact request, even if the same identity
+    // has since claimed a different run. Server-side atomic expected-run guards remain Q1.
+    const status = await procedure('agent_run_status', [runId]);
+    if (status.status !== 'running' || String(status.runId) !== String(runId)) throw new Error('requested investigation is no longer running');
+    await reducer('record_agent_step', [e.kind, e.name, json(e.input), json(e.output)]);
+  };
   try {
     const recording = request.mode === 'replay' ? replayRecording(requestedModel, incidentId) : undefined;
     ({ summary } = await executeRun({ mode: request.mode, modelId: requestedModel, incidentId, recording, onTrace: trace }));

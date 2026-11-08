@@ -1,7 +1,9 @@
 // POST the existing snapshot contract; no database or NVIDIA credentials required.
 import http from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { renderPdf, validateSnapshot } from './render.mjs';
 const origins=new Set((process.env.PDF_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174').split(',').filter(Boolean));
+const rendererToken=process.env.PDF_RENDERER_TOKEN;
 let rendering=false;
 const server=http.createServer(async(req,res)=>{
   const send=(status,text)=>{res.writeHead(status,{'content-type':'text/plain','cache-control':'no-store'});res.end(text);};
@@ -17,7 +19,10 @@ const server=http.createServer(async(req,res)=>{
   }
   if(req.method!=='POST')return send(405,'Use POST');
   if(!req.headers['content-type']?.startsWith('application/json'))return send(415,'JSON required');
-  if(req.headers.authorization)return send(400,'Database credentials must not be sent to the renderer');
+  if(rendererToken){
+    const provided=Buffer.from(req.headers.authorization??''),expected=Buffer.from(`Bearer ${rendererToken}`);
+    if(provided.length!==expected.length || !timingSafeEqual(provided,expected))return send(401,'Renderer credential required');
+  }else if(req.headers.authorization)return send(400,'Database credentials must not be sent to the renderer');
   if(rendering)return send(503,'Renderer busy');
   let length=0,chunks=[];
   try{
