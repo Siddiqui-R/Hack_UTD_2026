@@ -1,5 +1,5 @@
 // Slice 2b: session revocation + early audit chain.
-import { newIdentity, call, sql, record, expectDenied, signIn, getCommander, randomCode, auditRows, auditHash, owner } from '../lib.mjs';
+import { newIdentity, call, sql, record, expectDenied, signIn, getCommander, randomCode, auditRows, auditHash, owner, write } from '../lib.mjs';
 
 export const slice = '2b';
 export const title = 'Revocation and audit chain';
@@ -21,7 +21,7 @@ export async function run() {
   // --- A revoked (stolen) token is dead ---------------------------------------------
   const rv = await call(cmd, 'revoke_session', [{ __identity__: victim.identity }]);
   if (!rv.ok) return record('V4', 'commander revokes a responder', 'VULN', `revoke failed: ${rv.error}`);
-  expectDenied('V4', 'revoked token writes', await call(victim, 'add_ping', ['still here']));
+  expectDenied('V4', 'revoked token writes', await write(victim, 'still here'));
   const t = await sql(victim, 'SELECT * FROM team');
   record('V5', 'revoked token reads team', t.rows.length ? 'VULN' : 'PASS', t.rows.length ? `${t.rows.length} rows` : 'no data');
 
@@ -65,10 +65,10 @@ export async function run() {
   // Exactly one row per successful mutation, zero per failed one.
   const count = async () => (await auditRows()).length;
   const checks = [
-    ['C6', 'add_ping writes exactly 1 row', () => call(resp, 'add_ping', ['audit me']), 1],
+    ['C6', 'create_incident writes exactly 1 row', () => write(resp, 'audit me'), 1],
     ['C7', 'create_invite writes exactly 1 row', () => call(cmd, 'create_invite', [randomCode(), 'observer']), 1],
     ['C8', 'set_role writes exactly 1 row', () => call(cmd, 'set_role', [{ __identity__: resp.identity }, 'observer']), 1],
-    ['C9', 'failed call writes 0 rows', () => call(resp, 'add_ping', ['denied now']), 0],
+    ['C9', 'failed call writes 0 rows', () => write(resp, 'denied now'), 0],
   ];
   for (const [id, label, fn, want] of checks) {
     const before = await count();

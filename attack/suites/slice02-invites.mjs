@@ -1,5 +1,5 @@
 // Slice 2: invite codes → session identity → role.
-import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, randomCode, CODE_ALPHABET } from '../lib.mjs';
+import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, randomCode, CODE_ALPHABET, write } from '../lib.mjs';
 
 export const slice = 2;
 export const title = 'Invite codes and sessions';
@@ -63,7 +63,7 @@ export async function run() {
 
   // Expire the session the way the sweep does (delete the row), then replay the token.
   ownerSql(`DELETE FROM session WHERE identity = ${live.identity}`);
-  expectDenied('S12', 'replay token after session expiry (write)', await call(live, 'add_ping', ['replayed']));
+  expectDenied('S12', 'replay token after session expiry (write)', await write(live, 'replayed'));
   const t = await sql(live, 'SELECT * FROM team');
   record('S13', 'replay token after session expiry (read team)', t.rows.length ? 'VULN' : 'PASS',
     t.rows.length ? `${t.rows.length} rows still served` : 'no data served');
