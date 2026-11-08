@@ -119,3 +119,9 @@ input, select, textarea, button { font: inherit; color: inherit; }
 .integrity-wash { position: absolute; inset: 0; background: var(--color-critical); opacity: 0.08;
   transform-origin: left; animation: integrity-wash 400ms ease-out both; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .integrity-wash { animation: none; } }
+
+@keyframes revision-enter { from { opacity: .3; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.revision-enter { animation: revision-enter 200ms ease-out; }
+@keyframes trace-cursor { 50% { opacity: 0; } }
+.trace-cursor { animation: trace-cursor 1s steps(2,end) infinite; }
+@media (prefers-reduced-motion: reduce) { .revision-enter, .trace-cursor { animation: none; } }

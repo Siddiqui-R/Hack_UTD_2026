@@ -233,3 +233,12 @@ SLICE 11 module milestone — request/claim/finish/cancel run queue plus request
   RABEET: poll next_agent_run, begin_agent_run(runId,actualModelId), stream record_agent_step, finish_agent_run.
   Queue mode is mock/replay only; no NVIDIA calls. UI wiring follows. Attack this: trace privacy, worker context,
   concurrent claims, cancellation and step/run attribution.
+
+SLICE 11 UI milestone — INVESTIGATE workspace, evidence intake, FAST/Deep Analysis request buttons, explicit
+  mock/replay mode, streamed tool call/result details, conflict references, model/time badge and preserved old/new
+  conclusion with REVISED timestamp. Cancel stuck requests as commander. Observer evidence restriction retained.
+  Basic client production build passes. RABEET DEPENDENCY: connect service queue/trace/finish hooks documented
+  in AGENT_CONTRACT.md; until claimed UI truthfully shows QUEUED. No model calls or fabricated steps.
+  Self-critique: bounded trace/evidence panes, expandable JSON, model provenance and mode remain explicit;
+  reduced-motion fallback on revision/cursor. Attack this: observer trace visibility, queue cancellation and
+  failed-run display; full end-to-end worker behavior belongs to Rabeet.

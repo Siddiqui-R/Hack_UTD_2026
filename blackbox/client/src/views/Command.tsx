@@ -7,6 +7,7 @@ import { IncidentList } from '../components/IncidentList';
 import { IncidentForm } from '../components/IncidentForm';
 import { IncidentDetail } from '../components/IncidentDetail';
 import { TeamPane } from '../components/TeamPane';
+import { Investigate } from './Investigate';
 
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
@@ -17,6 +18,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
   const [incidents] = useTable(tables.incidents);
   const [selectedId, setSelectedId] = useState<bigint | undefined>();
   const [creating, setCreating] = useState(false);
+  const [view, setView] = useState<'command'|'investigate'>('command');
   const selectNewest = useRef(false);
   const canWrite = me.role === 'commander' || me.role === 'responder';
 
@@ -51,6 +53,9 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
   return (
     <div className="flex h-full min-w-[1120px] flex-col">
       <Chrome active={creating ? undefined : selected} me={me} team={team} linkUp={isActive} />
+      <nav className="flex h-9 shrink-0 items-center gap-1 border-b border-line bg-bg-1 px-3" aria-label="Workspace">
+        {(['command','investigate'] as const).map(v=><button key={v} className="btn h-7 border-0 bg-transparent font-mono text-[11px] uppercase" style={{color:view===v?'var(--color-accent)':undefined}} aria-current={view===v?'page':undefined} onClick={()=>{setCreating(false);setView(v);}}>{v}</button>)}
+      </nav>
       <div className="grid min-h-0 flex-1 grid-cols-[280px_1fr_320px]">
         <IncidentList
           incidents={incidents}
@@ -59,9 +64,10 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
             setCreating(false);
             setSelectedId(id);
           }}
-          onNew={() => setCreating(true)}
+          onNew={() => {setView('command');setCreating(true);}}
           canCreate={canWrite}
         />
+        {view==='investigate' ? <section className="col-span-2 min-h-0 overflow-hidden">{selected?<Investigate key={selected.id.toString()} incident={selected} me={me}/>:<p className="p-6 text-text-2">Select an incident.</p>}</section> : <>
         <main className="min-h-0 overflow-y-auto bg-bg-0">
           {creating ? (
             <IncidentForm
@@ -83,6 +89,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
           )}
         </main>
         <TeamPane team={team} me={me} />
+        </>}
       </div>
     </div>
   );
