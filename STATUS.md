@@ -4,9 +4,13 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-**Branch `feat/task-workflow` (2026-11-08 09:15, NOT on main, NOT on Maincloud):** human task workflow + fixes from the
-owner's brief. **486 held, demo 16/16, unit 8/8, client tsc/build/lint, module tsc.** Release order: owner publishes
-the module to Maincloud FIRST, then merge to main (Vercel auto-deploys); details and rollback in DEPLOYMENT.md.
+**RELEASED 2026-11-08 10:00:** module published to Maincloud by the owner, then PR #3 merged as `f998a95`; Vercel
+production `blackbox-utd2026-p7zlht9f9` is live (rollback target `blackbox-utd2026-nbdq6z5d3`). Verified live without a
+login: Maincloud schema has the four task reducers with the expected arguments and unchanged agent reducers;
+`task_progress`/`tasks`/`messages`/`agent_status`/`incidents` subscriptions apply with the merged bindings; an anonymous
+`create_human_task` is refused ("not registered"); the deployed bundle contains the new Tasks UI; `pdfReady: true`;
+`/api/pdf` refuses a bogus session (401). **Not yet verified: any signed-in flow** (create/claim/complete a task, two
+people at once, Export PDF). Pre-release: 486 held, demo 16/16, unit 8/8, client tsc/build/lint, module tsc.
 - Tasks: commanders/responders create tasks; claim; commanders assign/reassign/clear (unrevoked humans, online not
   needed); open/in progress/blocked/done with a required note to block, complete or reopen; versioned so a race or
   repeat changes nothing; one audit row per change; closed incidents read-only; observers see status, never notes.
