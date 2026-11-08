@@ -3,17 +3,18 @@
 Reproduce with `cd attack && npm run attack` (local server only). Unit tests: `cd blackbox/spacetimedb && npm test`.
 Fix code for anything open: `FIXES.md`.
 
-**Status @ `3a53d45` (incl. owner `4eb367f`):** **275 live regression checks held**, 0 succeeded/errors;
-unit tests **8/8**, client typecheck passes; demo **5 held / 2 skipped**.
-Two separate targeted probes below reproduce open module gaps; they are not included in the 275 passing checks.
-Q1 re-confirmed 2026-11-07 20:05 (probe exits 1).
+**Status: validated fixes based on `098d049`, 2026-11-07:** **408 live regression checks held**, 0 succeeded/errors;
+unit tests **8/8**, module typecheck and client production build pass; demo **16 held / 0 skipped**.
+Separate targeted probes reproduce open findings; they are not included in the 408 passing checks.
+A1, Q1 and the new A2 were reproduced during this sweep. See `DEEP_SWEEP.md` for scope and commands.
 Zero live NVIDIA calls. Published locally with deletion disabled; original data retained.
 
 ## Open
 
 | ID | Severity | Finding | Suggested fix |
 |---|---|---|---|
-| A1 | HIGH (configured independent anchoring) | `verifyIntegrity` compares external history in one transaction, then only checks internal consistency in the final transaction. A full owner rewrite between them returns `chain.ok=true` and stale `anchorOk=true`. Deterministically reproduced with the harness commit hook; `getRecord` has the same comparison/snapshot split. | Fetch/validate external history outside transactions, then compare every checkpoint in the same final transaction as chain verification/snapshot. Owner notified on issue #2. Reproduce: `BLACKBOX_PROBE_ANCHOR_RACE=1 npm test` in the module (PowerShell: set `$env:BLACKBOX_PROBE_ANCHOR_RACE='1'` first). Optional test 6 currently fails, expected false / actual true. |
+| A2 | MED (local store, writer credential required) | Local JSONL checkpoint store compares sequence strings for immutability. After storing `11`, appending `011` with a different hash returns 201 and retains two conflicting checkpoints at numeric sequence 11. This violates immutability; it does not bypass a verifier that checks every historical checkpoint. Hosted implementation already canonicalizes and holds. | Canonicalize with `BigInt(seq).toString()` before lookup, storage and reference creation; compare existing persisted sequences numerically for backward compatibility. Reproduce: `node attack/probes/checkpoint-alias.mjs` (exit 1). Store source belongs to module owner; unchanged. |
+| D1 | CRITICAL-rated development dependency advisories; application exploitability not demonstrated | Live `npm audit --json` in the module reports vitest 3.2.4 and tinypool 1.1.1 as critical-rated packages, plus a moderate @vitest/mocker package finding. Agent/client audits and module `--omit=dev` audit report zero findings. Vitest advisory depends on UI/browser/API server exposure; tinypool advisory requires an additional prototype-pollution path. Current tests use `vitest run`. | Module owner: coordinate a compatible Vitest/test-toolchain update and rerun full audit/tests; npm proposes 3.2.7, but verify the resulting lockfile against every advisory. No dependencies or lockfiles changed. Details and primary sources in DEEP_SWEEP.md. |
 | Q1 | MED | `recordAgentStep` infers the current run. After cancelling A and claiming B with the same identity, a delayed A trace is accepted as B. Confirmed by `node attack/probes/run-attribution.mjs` (exits 1, cleans up). | Coordinate an expected `runId` reducer argument before changing callers. Existing worker now enforces one local process per identity and awaits trace acceptance before actions; this is mitigation, not a server fix across machines. Atomic cancellation of in-flight writes needs server guards too. |
 | P1 | LOW | A procedure that rejects its caller is reported as "The module instance encountered a **fatal error**", and costs ~29 ms against ~6 ms for a normal call. A throw inside a procedure appears to tear down the module instance, so any signed-in user can make the server do ~5× work per call. | In the read procedures, return `canonicalJson({ error })` instead of throwing for expected denials. |
 
@@ -32,8 +33,12 @@ Zero live NVIDIA calls. Published locally with deletion disabled; original data 
 | G19 | Agent could lower severity with no human (injection target) | Sensei: `update_severity` is raise-only for agents; plus an agent-side policy in `agent/src/tools.mjs` |
 | G22 | Observers could read raw evidence | Sensei: `evidence_records` rejects observers |
 | I12 | Stale `update_incident` silently reverted other fields | Sensei: mandatory `expectedUpdatedAt` (last HTTP arg); stale writes rejected |
+| A1 | HIGH: anchor comparison could become stale before the final chain/snapshot transaction | External history is now compared inside the final transaction in verifyIntegrity/getRecord; default unit test 6 verifies both rewrite boundaries. |
+| V10/V12 | HIGH: a commander could demote a peer, then revoke them despite the owner-only peer revocation restriction | Small `index.ts` fix: only the DB owner may demote an existing commander. Live demote/revoke chain denied with zero audit rows; unit test 8 confirms owner recovery still works after bootstrap sign-in. |
+| S14 | MED: a commander could reauthenticate as an observer while their old commander invitations remained redeemable | Small `index.ts` fix: `redeemInvite` discards the caller's outstanding invites when reauthentication removes commander authority. Reproduced before fix; live regression now rejects the old invite. |
 
 ## Held, by slice
+- **Authority transitions / read boundaries:** peer demotion/revoke chain blocked; reauthentication invalidates former-commander invites; all 21 private tables deny outsider/observer/agent/non-owner commander SQL; demotion immediately withdraws restricted views; revoked/expired/service identities receive no human views. Prior demoted/expired reviewer approvals do not execute closure.
 - **5/6:** human-only chat/scope mutations, private base tables, incident chat filters, observer read-only chat/no scope, expired/revoked sessions, agent scope restriction, exactly-one audit/zero on denial, real getScope data and stale scope updates.
 - **9:** separate local checkpoint process: split credentials, authorization, idempotency, immutable same-sequence hashes, monotonic sequence, full history, out-of-range rejection and restart durability. Independent hosting and full live external anchoring remain unverified. See A1 before claiming independent security.
 - **10:** requester/duplicate/agent/observer rejection; two distinct eligible human reviewers; revoked approvals stop counting; stale incident rejection; cancellation; one audit per success; request expiry tested using harness clock and a live reviewer session.
@@ -49,7 +54,8 @@ Zero live NVIDIA calls. Published locally with deletion disabled; original data 
 - **4 (10):** `verify_chain` refuses outsiders, revoked and expired sessions · matches the independent verifier on a clean chain · writes no audit rows · names the exact seq for an edited payload, rewritten actor, broken prev_hash and corrupt chain_head · clean again after repair.
 
 ## Notes, not bugs yet
-- **Pitch honesty:** independent anchoring is not configured here. An owner who rewrites rows and recomputes all hashes can pass internal verification. Say "tamper-evident within the database" until an independent deployment is verified; fix A1 before stronger claims.
+- **Q1 cancellation extension confirmed:** `node attack/probes/cancelled-tool.mjs` exits 1: a call trace succeeds, the commander cancels, then `create_task` still writes. It is a bounded disposable test incident, not an original incident. Expected-run/status guards must be checked atomically by business reducers; an earlier worker status read cannot guarantee this.
+- **Pitch honesty:** independent anchoring is not configured here. An owner who rewrites rows and recomputes all hashes can pass internal verification. Say "tamper-evident within the database" until an independent deployment is verified; verify independent deployment before stronger claims.
 - **NEMOTRON attribution = "an identity a commander enrolled"**, not proof it's the model. A commander could enroll a script. Fine for the demo; don't claim cryptographic proof.
 - Failed redeems leave no audit trace (rollback). `init` isn't audited.
 - Every signed-in user sees every incident (invites aren't incident-scoped yet).

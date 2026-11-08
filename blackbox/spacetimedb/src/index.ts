@@ -370,6 +370,10 @@ export const redeemInvite = spacetimedb.reducer({ code: t.string(), displayName:
   );
   if (taken) throw new SenderError('display name already in use');
 
+  // Reauthentication may change an existing commander's role, just like setRole.
+  // Their old invitations must not retain authority after that downgrade.
+  if (existing?.role === 'commander' && invite.role !== 'commander') discardInvites(ctx, ctx.sender);
+
   // Deleted, not marked used: nothing left to crack; the audit row records the redeem.
   ctx.db.inviteCode.codeHash.delete(invite.codeHash);
   const row = { identity: ctx.sender, displayName: name, role: invite.role, joinedAt: ctx.timestamp, isDuressed: false };
@@ -393,6 +397,9 @@ export const setRole = spacetimedb.reducer({ target: t.identity(), role: t.strin
   if (isRevoked(ctx, target)) throw new SenderError('target is revoked');
   const row = ctx.db.user.identity.find(target);
   if (!row) throw new SenderError('target not registered');
+  // Otherwise a compromised commander can demote a peer, then bypass the
+  // owner-only commander revocation check in revokeSession.
+  if (row.role === 'commander' && role !== 'commander' && !isOwner(ctx)) throw new SenderError('only the owner can demote a commander');
   ctx.db.user.identity.update({ ...row, role });
   // A demoted commander's outstanding invites die with their authority.
   if (row.role === 'commander' && role !== 'commander') {
@@ -701,41 +708,43 @@ const AnchorVerification = t.object('AnchorVerification', {
   anchorOk: t.option(t.bool()), status: t.string(), reason: t.string(),
   lastAnchorSeq: t.option(t.u64()), lastAnchorAt: t.option(t.timestamp()), lastAnchorHash: t.string(), externalRef: t.string(),
 });
-function checkExternalAnchor(ctx: ProcCtx) {
+// Fetch outside a transaction; return a comparison that the caller must run
+// inside the same transaction as its chain verification and snapshot reads.
+function loadAnchorComparison(ctx: ProcCtx) {
   const base = { anchorOk: undefined as boolean | undefined, status: 'unconfigured', reason: 'Independent anchoring not configured',
     lastAnchorSeq: undefined as bigint | undefined, lastAnchorAt: undefined as Timestamp | undefined, lastAnchorHash: '', externalRef: '' };
   const url = ctx.env.ANCHOR_URL;
   const token = ctx.env.ANCHOR_READ_TOKEN;
-  if (!url || !token) return base;
+  if (!url || !token) return (_tx: Ctx) => base;
   try {
     const response = ctx.http.fetch(`${url.replace(/\/$/, '')}/checkpoints?database=${ctx.databaseIdentity.toHexString()}`, {
       headers: { authorization: `Bearer ${token}`, ...(ctx.env.ANCHOR_GATE_TOKEN ? { 'OAI-Sites-Authorization': `Bearer ${ctx.env.ANCHOR_GATE_TOKEN}` } : {}) }, timeout: TimeDuration.fromMillis(4000),
     });
-    if (response.status !== 200) return { ...base, status: 'unavailable', reason: 'External checkpoint store unavailable' };
+    if (response.status !== 200) return (_tx: Ctx) => ({ ...base, status: 'unavailable', reason: 'External checkpoint store unavailable' });
     const records: unknown = JSON.parse(response.text());
-    if (!Array.isArray(records) || records.length === 0) return { ...base, status: 'pending', reason: 'No external checkpoint yet' };
+    if (!Array.isArray(records) || records.length === 0) return (_tx: Ctx) => ({ ...base, status: 'pending', reason: 'No external checkpoint yet' });
     const checkpoints = records.map((r: { seq: string; headHash: string; at: string; ref: string }) => {
       if (!/^\d+$/.test(r.seq) || !/^[0-9a-f]{64}$/.test(r.headHash) || !/^\d+$/.test(r.at) || typeof r.ref !== 'string') throw new Error('invalid checkpoint');
       return { seq: BigInt(r.seq), hash: r.headHash, at: new Timestamp(BigInt(r.at)), ref: r.ref };
     }).sort((a,b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0);
     const latest = checkpoints[checkpoints.length - 1];
-    const mismatch = ctx.withTx(tx => checkpoints.find(c => {
-      if (c.seq === 0n) return c.hash !== GENESIS_HASH;
-      return tx.db.audit.seq.find(c.seq)?.eventHash !== c.hash;
-    }));
     const meta = { lastAnchorSeq: latest.seq, lastAnchorAt: latest.at, lastAnchorHash: latest.hash, externalRef: latest.ref };
-    if (mismatch) return { ...base, ...meta, anchorOk: false, status: 'mismatch', reason: `Checkpoint #${mismatch.seq} does not match the database` };
     const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname);
-    if (local || ctx.env.ANCHOR_INDEPENDENT !== '1') return { ...base, ...meta, status: 'local', reason: 'Checkpoint matches; deployment is not marked independent' };
-    return { ...base, ...meta, anchorOk: true, status: 'verified', reason: 'Matches independent external checkpoints' };
-  } catch { return { ...base, status: 'unavailable', reason: 'External checkpoint could not be checked' }; }
+    const independent = !local && ctx.env.ANCHOR_INDEPENDENT === '1';
+    return (tx: Ctx) => {
+      const mismatch = checkpoints.find(c => c.seq === 0n ? c.hash !== GENESIS_HASH : tx.db.audit.seq.find(c.seq)?.eventHash !== c.hash);
+      if (mismatch) return { ...base, ...meta, anchorOk: false, status: 'mismatch', reason: `Checkpoint #${mismatch.seq} does not match the database` };
+      if (!independent) return { ...base, ...meta, status: 'local', reason: 'Checkpoint matches; deployment is not marked independent' };
+      return { ...base, ...meta, anchorOk: true, status: 'verified', reason: 'Matches independent external checkpoints' };
+    };
+  } catch { return (_tx: Ctx) => ({ ...base, status: 'unavailable', reason: 'External checkpoint could not be checked' }); }
 }
 const IntegrityVerification = t.object('IntegrityVerification', { chain: ChainVerification, anchor: AnchorVerification });
 export const verifyIntegrity = spacetimedb.procedure(IntegrityVerification, ctx => {
-  const chain = ctx.withTx(tx => { requireReader(tx); return checkChain(tx); });
-  const anchor = checkExternalAnchor(ctx);
+  ctx.withTx(tx => { requireReader(tx); });
+  const compareAnchor = loadAnchorComparison(ctx);
   // Re-authorize and recheck after network I/O: never return data after a concurrent revoke.
-  return ctx.withTx(tx => { requireReader(tx); return { chain: chain.ok ? checkChain(tx) : chain, anchor }; });
+  return ctx.withTx(tx => { requireReader(tx); return { chain: checkChain(tx), anchor: compareAnchor(tx) }; });
 });
 
 export const requestAgentRun = spacetimedb.reducer({ incidentId: t.u64(), tier: t.string(), mode: t.string() }, (ctx, args) => {
@@ -825,7 +834,7 @@ export const investigationConflicts = spacetimedb.view({ public: true }, t.array
 
 export const getRecord = spacetimedb.procedure({ incidentId: t.u64() }, t.string(), (ctx, args) => {
   ctx.withTx(tx => { const { human } = requireReader(tx); if (!human) throw new SenderError('human record reader required'); });
-  const external = checkExternalAnchor(ctx);
+  const compareAnchor = loadAnchorComparison(ctx);
   return ctx.withTx(tx => {
     const { human } = requireReader(tx);
     if (!human) throw new SenderError('human record reader required');
@@ -833,6 +842,7 @@ export const getRecord = spacetimedb.procedure({ incidentId: t.u64() }, t.string
     if (!row) throw new SenderError('incident not found');
     const restricted = human.role === 'observer';
     const chain = checkChain(tx);
+    const external = compareAnchor(tx);
     const events = [...tx.db.audit.iter()].filter(e => e.incidentId === row.id).sort((a,b) => a.seq < b.seq ? -1 : 1);
     const head = tx.db.chainHead.id.find(0);
     return canonicalJson({

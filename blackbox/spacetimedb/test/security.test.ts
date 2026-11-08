@@ -109,6 +109,11 @@ describe('BLACKBOX security', () => {
   });
   it('6. verifyChain detects edits, gaps, deleted tails and corrupt heads, then recovers after repair', () => {
     const { test, tx, commander } = setup();
+    tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Atomic anchored snapshot', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'DB-1', containmentStatus: 'none',
+    }));
+    const incidentId = [...test.db.incident.iter()][0].id;
     const verify = () => mod.verifyChain(test.procedureContext(commander), {});
     const rows = [...test.db.audit.iter()].sort((a, b) => Number(a.seq - b.seq));
     const row = rows[2];
@@ -127,31 +132,48 @@ describe('BLACKBOX security', () => {
     expect(verify()).toMatchObject({ ok: false, brokenAt: head.seq, reason: 'chain head hash mismatch' });
     tx(commander, ctx => ctx.db.chainHead.id.update(head));
     expect(verify().ok).toBe(true);
-    if ((globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env.BLACKBOX_PROBE_ANCHOR_RACE === '1') {
-      // Optional deterministic reproduction: DB owner rewrites the entire chain after the
-      // external comparison transaction, before the final verification transaction.
-      let commits = 0;
-      const hooks = createProcedureTestHooks<InferSchema<typeof spacetimedb>>().afterTxCommit(() => {
-        if (++commits !== 2) return;
+    {
+      // Probe both transaction boundaries. A rewrite before the final transaction
+      // must mismatch; a rewrite after it must not retroactively change its snapshot.
+      const context = (rewriteAfter: number) => {
         tx(commander, ctx => {
-          let previous = '0'.repeat(64);
-          for (const original of rows) {
-            const r = { ...original, payloadJson: '{"rewritten":true}', prevHash: previous };
-            const eventHash = sha256Hex(canonicalJson({ seq:r.seq,incidentId:r.incidentId,actor:r.actor,action:r.action,
-              payloadJson:r.payloadJson,prevHash:r.prevHash,createdAt:r.createdAt.microsSinceUnixEpoch }) + r.prevHash);
-            ctx.db.audit.seq.update({ ...r, eventHash }); previous = eventHash;
-          }
-          ctx.db.chainHead.id.update({ ...head, headHash: previous });
+          for (const original of rows) ctx.db.audit.seq.update(original);
+          ctx.db.chainHead.id.update(head);
         });
-      });
-      const ctx = test.procedureContextBuilder(commander).hooks(hooks).http(() => ({
-        code: 200, headers: { entries: [] }, version: { tag:'Http11' },
-        body: JSON.stringify([{seq:head.seq.toString(),headHash:head.headHash,at:'0',ref:'test:checkpoint'}]),
-      })).build();
-      Object.defineProperty(ctx, 'env', { value: { ANCHOR_URL:'https://checkpoint.invalid',ANCHOR_READ_TOKEN:'test',ANCHOR_INDEPENDENT:'1' } });
-      const result = mod.verifyIntegrity(ctx, {});
+        let commits = 0;
+        const hooks = createProcedureTestHooks<InferSchema<typeof spacetimedb>>().afterTxCommit(() => {
+          if (++commits !== rewriteAfter) return;
+          tx(commander, ctx => {
+            let previous = '0'.repeat(64);
+            for (const original of rows) {
+              const r = { ...original, payloadJson: '{"rewritten":true}', prevHash: previous };
+              const eventHash = sha256Hex(canonicalJson({ seq:r.seq,incidentId:r.incidentId,actor:r.actor,action:r.action,
+                payloadJson:r.payloadJson,prevHash:r.prevHash,createdAt:r.createdAt.microsSinceUnixEpoch }) + r.prevHash);
+              ctx.db.audit.seq.update({ ...r, eventHash }); previous = eventHash;
+            }
+            ctx.db.chainHead.id.update({ ...head, headHash: previous });
+          });
+        });
+        const ctx = test.procedureContextBuilder(commander).hooks(hooks).http(() => ({
+          code: 200, headers: { entries: [] }, version: { tag:'Http11' },
+          body: JSON.stringify([{seq:head.seq.toString(),headHash:head.headHash,at:'0',ref:'test:checkpoint'}]),
+        })).build();
+        Object.defineProperty(ctx, 'env', { value: { ANCHOR_URL:'https://checkpoint.invalid',ANCHOR_READ_TOKEN:'test',ANCHOR_INDEPENDENT:'1' } });
+        return ctx;
+      };
+      const result = mod.verifyIntegrity(context(1), {});
       expect(result.chain.ok).toBe(true);
-      expect(result.anchor.anchorOk, `anchor probe commits=${commits} status=${result.anchor.status} reason=${result.anchor.reason}`).toBe(false);
+      expect(result.anchor.anchorOk).toBe(false);
+      // No rewrite at either transaction: retain the positive independent path.
+      expect(mod.verifyIntegrity(context(99), {}).anchor.anchorOk).toBe(true);
+      for (const boundary of [1, 2]) {
+        const snapshot = JSON.parse(mod.getRecord(context(boundary), { incidentId }));
+        expect(snapshot.verification.ok).toBe(true);
+        // The old implementation returns a rewritten head with stale verified=true
+        // at boundary 2. Atomic snapshots return either mismatch or the original head.
+        if (snapshot.verification.anchorOk === true) expect(snapshot.auditHead.hash).toBe(head.headHash);
+        else expect(snapshot.verification.anchorOk).toBe(false);
+      }
     }
   });
   it('7. closure needs two distinct non-requester humans; one approver stays pending', () => {
@@ -196,7 +218,7 @@ describe('BLACKBOX security', () => {
 
   // 8 (partial until slice 8 adds the NEMOTRON actor): a non-commander cannot grant a role.
   it('8. permission-granting reducer rejects non-commanders', () => {
-    const { test, tx, id, commander, responder, observer } = setup();
+    const { test, tx, id, owner, commander, responder, observer } = setup();
     const target = id(observer);
     expect(() => tx(responder, ctx => mod.setRole(ctx, { target, role: 'commander' }))).toThrow(/not permitted/);
     expect(() => tx(observer, ctx => mod.createInvite(ctx, { code: CODES.extra, role: 'commander' })))
@@ -213,5 +235,18 @@ describe('BLACKBOX security', () => {
     expect(() => tx(agent, ctx => mod.setRole(ctx, { target, role: 'commander' }))).toThrow('NEMOTRON');
     expect(() => tx(agent, ctx => mod.createInvite(ctx, { code: CODES.extra, role: 'commander' }))).toThrow('NEMOTRON');
     expect(test.db.audit.count()).toBe(before);
+
+    // A peer demotion must not bypass the owner-only commander revoke boundary.
+    tx(commander, ctx => mod.setRole(ctx, { target: id(responder), role: 'commander' }));
+    const peerAudit = test.db.audit.count();
+    expect(() => tx(commander, ctx => mod.setRole(ctx, { target: id(responder), role: 'observer' }))).toThrow('only the owner');
+    expect(test.db.user.identity.find(id(responder))?.role).toBe('commander');
+    expect(test.db.audit.count()).toBe(peerAudit);
+
+    // The real owner retains this operation after signing in through bootstrap.
+    tx(owner, ctx => mod.issueBootstrapInvite(ctx, { code: CODES.extra }));
+    tx(owner, ctx => mod.redeemInvite(ctx, { code: CODES.extra, displayName: 'owner' }));
+    tx(owner, ctx => mod.setRole(ctx, { target: id(responder), role: 'observer' }));
+    expect(test.db.user.identity.find(id(responder))?.role).toBe('observer');
   });
 });

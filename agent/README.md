@@ -12,6 +12,7 @@ npm run agent:deep     # one real run on MODEL_DEEP
 npm run agent:replay   # replays the latest recorded live run's tool calls (no credits): use this at judging
 npm run worker         # poll the INVESTIGATE queue until stopped (mock/replay only)
 npm run worker:once    # consume at most one queued request, then exit
+npm run demo:check     # read-only enrollment, golden-replay, budget and PDF HTTP preflight
 ```
 
 Every run prints a live trace (`[14:32:07] → searchIncidents("Payroll")`), ends with a model badge
@@ -56,3 +57,17 @@ workers; server enforcement needs an agreed expected runId argument. No signatur
 Cancellation cannot roll back a tool action that has already committed or atomically guard the existing write reducers.
 
 AI SDK note: installed `ai@7`. The step limit helper is **`isStepCount`** (`stepCountIs` no longer exists); tools use `inputSchema`.
+
+## Judging preflight
+
+`npm run demo:check` exits nonzero until the configured service identity can read its enrolled incident,
+a matching FAST live recording exists, the database is reachable, and the PDF HTTP health endpoint responds.
+It also reports whether live-recording credentials/budget are available. It never mints tokens, changes data,
+prints credentials/evidence, or calls a model. `-- --json` emits machine-readable results. Set PDF_HEALTH_URL
+to check a hosted health endpoint; HTTP health alone does not verify Chromium or the authenticated PDF adapter.
+
+The 2026-11-07 local demo rehearsal passed all 16 checks on 10 consecutive runs. The network test exercises
+real SDK WebSocket disconnect/reconnect and catch-up, not a physical phone-hotspot or browser-offline test.
+The injection demo verifies evidence fencing and server refusals, not a real model's response to the payload.
+A real golden recording still requires the NVIDIA key (or the chosen self-hosted endpoint), a live run on the
+same demo incident, then successful replay. No synthetic transcript should be presented as a model recording.

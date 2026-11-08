@@ -31,9 +31,11 @@ Open module findings are separately reproducible (see FINDINGS.md), so a passing
 
 ```powershell
 node attack/probes/run-attribution.mjs # from repo root: Q1, exits 1 while vulnerable
+node attack/probes/cancelled-tool.mjs  # Q1: tool write after cancellation, exits 1 while vulnerable
+node attack/probes/checkpoint-alias.mjs # A2: local store numeric sequence alias, exits 1 while vulnerable
 cd blackbox/spacetimedb
 $env:BLACKBOX_PROBE_ANCHOR_RACE='1'
-npm test                             # A1: test 6 fails while vulnerable
+npm test                             # A1: fixed; test 6 covers anchor race by default
 Remove-Item Env:BLACKBOX_PROBE_ANCHOR_RACE
 ```
 

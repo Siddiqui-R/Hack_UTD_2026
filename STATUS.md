@@ -4,12 +4,18 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 20:10 CT · module/client tested through `3a53d45` (includes owner `4eb367f` status endpoint + PDF adapter).
-**275 live regression checks held, 0 VULN/errors · unit tests 8/8 · client typecheck passes.**
-New: hosted checkpoint worker source vs durable SQLite (9/hosted); authenticated `/api/pdf` adapter end to end (12/proxy);
-`agent_run_status` denied to humans, foreign/expired workers. Worker checks its exact run status before every trace.
-PDF renderer accepts the adapter's `PDF_RENDERER_TOKEN` Bearer credential (timing-safe), 18 s / 4 MiB limits.
-Demo: 5 held / 2 skipped (model injection and browser-offline demos remain unfinished). No data reset.
+Updated 2026-11-07 · security/integration fixes validated on top of `098d049` for push.
+**408 live regression checks held, 0 VULN/errors · unit tests 8/8 · module typecheck and client production build pass.**
+Fixed two missed authority transitions in index.ts: only the owner may demote a commander (blocks demote-then-revoke
+lockout), and reauthentication as a lower role discards former-commander invites. Both reproduced before the fixes.
+New checks exercise all 21 private tables, role/session/view withdrawal and prior reviewer demotion/expiry.
+Full report: attack/DEEP_SWEEP.md. Local module republished with --delete-data=never; schema/contracts unchanged.
+Demo: all 16 checks held, zero skips/errors, on 10 consecutive rehearsals of Claude's demo scripts.
+Network test is SDK disconnect/reconnect/catch-up, not a physical hotspot/browser test. Injection test covers
+prompt fencing and server refusals, not real model behavior. No data reset or NVIDIA calls.
+Added `cd agent && npm run demo:check`: read-only database/enrollment/replay/budget/PDF HTTP preflight.
+Demo agent renewed on local incident #196. NVIDIA_API_KEY, real FAST recording and production account config are missing.
+Local UI/PDF endpoints already listen on 5173/4400. Maincloud CLI lists no databases; none deployed here.
 
 **Worker connected:** `cd agent && npm run worker` (or `worker:once`). Poll/claim/trace/finish via existing contract;
 mock/replay only, respects tier, publishes call/result/revision/summary/error, carries previous conclusion and stops
@@ -26,24 +32,35 @@ No token forwarding, snapshot logging or external asset loading. Deploy renderer
 controls before configuring a production VITE_PDF_URL. Browser automation host unavailable: no UI-click claim.
 
 **OPEN, module/client owner fixes requested on issue #2:**
-- **A1 HIGH when independent anchoring is configured:** verifyIntegrity returns stale anchorOk=true if the owner
-  fully rewrites/recomputes the chain after external comparison but before the final transaction. Deterministic
-  optional probe: in spacetimedb set BLACKBOX_PROBE_ANCHOR_RACE=1 and npm test (test 6 currently fails, true vs false).
-  getRecord uses the same split comparison/snapshot pattern. Compare fetched checkpoint history inside the final
-  transaction that verifies/builds the snapshot. No public API change required. Normal npm test is 8/8; probe is separate.
 - **Q1 MED:** cancelled old worker traces can attach to a newly claimed run on the same identity. Reproducer:
   `node attack/probes/run-attribution.mjs` (currently exits 1, confirmed; both runs cleaned up). Coordinate an expected
   runId argument on recordAgentStep before changing it. Strict atomic tool cancellation also needs server run guards.
+  Confirmed extension: node attack/probes/cancelled-tool.mjs accepts create_task after cancellation between trace
+  and business call (disposable test incident). Worker status prechecks cannot make business writes atomic.
+- **A2 MED, local checkpoint store only:** string sequences 11 and 011 accept conflicting hashes at numeric seq 11.
+  node attack/probes/checkpoint-alias.mjs exits 1. Canonicalize before lookup/store and handle persisted aliases.
+  Hosted implementation already rejects this. Store source left to owner; this is not full-history-verifier evasion.
 - **P1 LOW:** expected procedure denials still surface as fatal module errors; malformed trace JSON does too.
+- **D1 dev tooling:** live module npm audit reports 2 critical-rated packages plus 1 moderate (@vitest/mocker,
+  tinypool, vitest); agent/client and module production-only audits report zero. No exposed application exploit
+  demonstrated. Owner should coordinate a compatible toolchain update; package files remain unchanged.
 
-**No module/client source or schema edits; no contract changes.** Generated bindings were regenerated and verified,
-then line-ending-only churn restored. Only owned tests changed under spacetimedb/. Root handoff files remain untracked.
+**A1 FIXED:** external checkpoint history is fetched outside transactions, then compared inside the exact
+final transaction that verifies the chain/builds getRecord. Removed the separate stale precomparison transaction.
+Unit test 6 now always covers rewrites at both boundaries: mismatch before final snapshot, or a coherent historical
+snapshot if the rewrite happens after it. All 8 tests and the 408-check live suite pass after republish.
+**Module source edits:** index.ts authority-transition fixes plus atomic anchor comparison; no client source edits,
+schema or contract changes. Unit test 8 also verifies the owner retains legitimate commander demotion authority.
+Root handoff files remain untracked. Test fixtures use disposable identities/incidents; original records retained.
+History secret sweep: gitleaks scanned 73 commits, no leaks. UI source-review follow-ups are in DEEP_SWEEP.md;
+no browser-reproduction or independently deployed service verification claim is made.
 **NVIDIA:** zero live calls used; hosted budget remains the known 5/40 (carry any higher machine totals forward).
 Worker never falls back to live. Standalone live calls reserve budget before provider requests; absent counter starts at 5.
 
-**Waiting on owner:** A1 fix; agreement on Q1 runId signature; independent anchor hosting/secrets. No independence claim
-until deployed. Local checkpoint store auth/immutable-same-seq/history/restart tests pass; independent deployment not verified.
-**Attack this:** optional A1 race and Q1 stale-run probes, then rerun all 275 checks after coordinated fixes.
+**Waiting on owner:** agreement on Q1 runId/atomic-action contract; A2 local-store sequence canonicalization;
+independent deployment verification and production integrations. No independence claim until verified.
+**Attack this:** A1 is now covered by default unit test 6; Q1 stale-run/cancelled-tool and A2 numeric-alias probes
+remain expected failures. Rerun the 408-check gate after coordinated contract changes.
 
 ## How to run locally
 

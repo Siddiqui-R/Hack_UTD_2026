@@ -40,4 +40,26 @@ export async function run() {
   must(ownerSql(`DELETE FROM session WHERE identity = ${expired.identity}`));
   await denied('C-expired-session', 'expired reviewer cannot approve',expired,'approve_closure',[oldReq.id]);
   await audited('C-cleanup', 'test pending request cancelled',cmd,'cancel_closure',[oldReq.id]);
+
+  // Earlier approval must lose its authority when the reviewer is demoted.
+  const reduced = await signIn('responder'), replacement = await signIn('responder');
+  const demotionCase = await incident('closure-demotion'), demotionReq = await request(demotionCase);
+  try {
+    must(await call(reduced,'approve_closure',[demotionReq.id]));
+    must(await call(cmd,'set_role',[ident(reduced),'observer']));
+    must(await call(replacement,'approve_closure',[demotionReq.id]));
+    check('C-demoted-not-counted','demoted reviewer approval cannot execute closure',
+      (await rows(`SELECT * FROM closure_request WHERE id = ${demotionReq.id}`))[0].status === 'pending');
+    await denied('C-demoted-approve','demoted reviewer cannot approve again',reduced,'approve_closure',[demotionReq.id]);
+  } finally { must(await call(cmd,'cancel_closure',[demotionReq.id])); }
+
+  const lapsed = await signIn('responder'), fresh = await signIn('responder');
+  const expiryCase = await incident('closure-reviewer-expiry'), expiryReq = await request(expiryCase);
+  try {
+    must(await call(lapsed,'approve_closure',[expiryReq.id]));
+    must(ownerSql(`DELETE FROM session WHERE identity = ${lapsed.identity}`));
+    must(await call(fresh,'approve_closure',[expiryReq.id]));
+    check('C-expired-approval-not-counted','expired prior reviewer approval cannot execute closure',
+      (await rows(`SELECT * FROM closure_request WHERE id = ${expiryReq.id}`))[0].status === 'pending');
+  } finally { must(await call(cmd,'cancel_closure',[expiryReq.id])); }
 }

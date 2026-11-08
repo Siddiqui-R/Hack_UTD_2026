@@ -44,5 +44,9 @@ export async function run(){
     await start();
     check('A-restart','checkpoint history survives process restart',(await (await get()).json()).length===2);
     check('A-bad-seq','out-of-range sequence rejected',(await post({...first,seq:'18446744073709551616'})).status===400);
+    if(process.env.BLACKBOX_PROBE_CHECKPOINT_ALIAS==='1') {
+      check('A-alias','numeric aliases cannot append a conflicting same-sequence checkpoint',
+        (await post({...first,seq:'011',headHash:'d'.repeat(64)})).status===409);
+    }
   }finally{if(child){child.kill();await exit;}await fs.rm(dir,{recursive:true,force:true});}
 }
