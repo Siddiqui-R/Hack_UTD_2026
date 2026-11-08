@@ -400,3 +400,13 @@ AGENT ENROLMENT UI + LIVE AGENT LABEL + COMMANDER LOCKOUT FIX — module/client 
   Attack this: observer/responder calling enroll_agent; enrolling a human, owner or revoked identity via the box;
     agent_status visibility to agents/observers/expired humans; keep-alive in a hidden tab (must still expire).
 
+
+ATTACKER CONSOLE — `attacker/` (index.html, server.mjs, runner.mjs): a CRT-style stage UI over Rabeet's existing
+  `attack/demo/` scripts. No new attack logic: runner.mjs imports lib.mjs, calls guardTarget(), runs one demo's
+  run() and prints lib.results. `node attacker/server.mjs` from repo root -> http://localhost:4400 (SSE stream).
+  Fixes on import: server binds 127.0.0.1 only (was all interfaces, so the LAN could trigger runs with the owner
+  login); left column scrolls so objectives/score stay reachable on short screens. Verified against local
+  `blackbox-attack`: buttons 1-4 each stream real output and flip to BLOCKED; RUN ALL 4/4; RESET + RUN ALL 4/4.
+  Note: port 4400 is also the local pdf/ renderer's port; don't run both at once.
+  Attack this: /run/:n with concurrent requests (busy flag), client disconnect mid-run (child killed), a demo that
+    hangs (no timeout), ATTACK_TARGET pointed at a non-local host (runner must refuse).
