@@ -2,6 +2,29 @@
 
 Rabeet: read this to know what is ready to attack. Newest entries at the bottom of the log.
 
+## FROM RABEET (security). Agent: read this before starting each slice
+<!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
+Updated 2026-11-07 18:30 · tested through `7d7d7ba` (slice 3) · attacks 50/59 held · tests 3/8 pass, 1 fails (#2 = I5), 4 todo
+
+**Do now (about 5 min):** `git apply attack/fixes.patch` → republish `--delete-data` → `spacetime generate`. It closes 9 findings
+(I5 responder can close · R14 duress flag visible to everyone · V9 commander lockout · weak codes · offline cracking ·
+names/titles · stale invites · ancient dates). Verified: tests 4/4, attacks 59/60. Adds owner-only `unrevoke_session`;
+no other reducer args change. **Until applied, `npm test` fails on #2 by design.** Not in the patch: I12 lost update,
+`attack/FIXES.md` §4.
+
+**Agreed scope:** 3.5 agent stubs → 4 verifyChain + bar → 9 anchor → 11 (one conflict flow) → 12 RECORD. If time: 5, 6, 10.
+**Cut: 13** (TOTP, duress PIN, presets; one hard-coded seed).
+
+**Rules for upcoming slices** (each one has an attack waiting):
+- Never use `ctx.random` / `ctx.newUuidV4` for secrets: they're seeded from `ctx.timestamp` only, which is stored in `audit`.
+- Every new mutating reducer: `requireRole` first, exactly one `appendAudit`, and reject `NEMOTRON` on permission/role/approval/delete.
+- Slice 4: export `verifyChain` callable from tests and return `{ ok, checked, brokenAt, reason }`; don't change the hash formula
+  (`attack/lib.mjs` recomputes it independently).
+- Keep the "Attack this:" line on every slice. Tell me before changing reducer names/args or the `team`/`audit`/`session`/`incident` shapes.
+
+**Waiting on you:** slice 3.5 stubs (my agent service builds on them) · OK for Playwright + promptfoo as dev deps in `attack/` ·
+live-call count (of 40).
+
 ## How to run locally
 
 ```bash
