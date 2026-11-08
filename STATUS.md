@@ -4,8 +4,11 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 19:44 CT · module/client tested through `277030e` plus worker/PDF integration.
-**246 live regression checks held, 0 VULN/errors · unit tests 8/8 · module/client typechecks + client production build pass.**
+Updated 2026-11-07 20:10 CT · module/client tested through `3a53d45` (includes owner `4eb367f` status endpoint + PDF adapter).
+**275 live regression checks held, 0 VULN/errors · unit tests 8/8 · client typecheck passes.**
+New: hosted checkpoint worker source vs durable SQLite (9/hosted); authenticated `/api/pdf` adapter end to end (12/proxy);
+`agent_run_status` denied to humans, foreign/expired workers. Worker checks its exact run status before every trace.
+PDF renderer accepts the adapter's `PDF_RENDERER_TOKEN` Bearer credential (timing-safe), 18 s / 4 MiB limits.
 Demo: 5 held / 2 skipped (model injection and browser-offline demos remain unfinished). No data reset.
 
 **Worker connected:** `cd agent && npm run worker` (or `worker:once`). Poll/claim/trace/finish via existing contract;
@@ -40,7 +43,7 @@ Worker never falls back to live. Standalone live calls reserve budget before pro
 
 **Waiting on owner:** A1 fix; agreement on Q1 runId signature; independent anchor hosting/secrets. No independence claim
 until deployed. Local checkpoint store auth/immutable-same-seq/history/restart tests pass; independent deployment not verified.
-**Attack this:** optional A1 race and Q1 stale-run probes, then rerun all 246 checks after coordinated fixes.
+**Attack this:** optional A1 race and Q1 stale-run probes, then rerun all 275 checks after coordinated fixes.
 
 ## How to run locally
 

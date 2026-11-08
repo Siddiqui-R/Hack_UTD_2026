@@ -37,6 +37,9 @@ export async function run() {
   await denied('Q-live', 'queue cannot spend live model credits',resp,'request_agent_run',[home.id,'fast','live']);
   await denied('Q-human-poll', 'human cannot poll worker queue',resp,'next_agent_run');
   const req = await request();
+  await denied('Q-human-status','human cannot query worker status',cmd,'agent_run_status',[req.id]);
+  await denied('Q-cross-status','foreign worker cannot query run status',foreign,'agent_run_status',[req.id]);
+  check('Q-own-status','enrolled worker reads the exact queued run status',(await read(ag,'agent_run_status',[req.id])).status==='queued');
   await denied('Q-duplicate', 'second active request rejected',resp,'request_agent_run',[home.id,'fast','mock']);
   const next = await read(ag,'next_agent_run');
   check('Q-context', 'poll returns only enrolled incident', String(next.runId)===String(req.id) && String(next.incidentId)===String(home.id));
@@ -116,6 +119,7 @@ export async function run() {
     const expired=await enrollAgent(home.id);
     must(ownerSql(`DELETE FROM session WHERE identity = ${expired.identity}`));
     await denied('Q-expired-poll', 'expired worker cannot poll',expired,'next_agent_run');
+    await denied('Q-expired-status','expired worker cannot read run status',expired,'agent_run_status',[cancelled.id]);
     must(await call(cmd,'revoke_session',[ident(rival)]));
     await denied('Q-revoked-poll', 'revoked worker cannot poll',rival,'next_agent_run');
     check('Q-budget', 'mock/replay/cancel leave NVIDIA call counter unchanged',await fs.readFile(counter,'utf8').catch(()=>null)===counterBefore);

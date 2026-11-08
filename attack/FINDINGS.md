@@ -3,9 +3,10 @@
 Reproduce with `cd attack && npm run attack` (local server only). Unit tests: `cd blackbox/spacetimedb && npm test`.
 Fix code for anything open: `FIXES.md`.
 
-**Status @ `277030e` + worker/PDF integration:** **246 live regression checks held**, 0 succeeded/errors;
-unit tests **8/8**, module/client typechecks + client production build pass; demo **5 held / 2 skipped**.
-Two separate targeted probes below reproduce open module gaps; they are not included in the 246 passing checks.
+**Status @ `3a53d45` (incl. owner `4eb367f`):** **275 live regression checks held**, 0 succeeded/errors;
+unit tests **8/8**, client typecheck passes; demo **5 held / 2 skipped**.
+Two separate targeted probes below reproduce open module gaps; they are not included in the 275 passing checks.
+Q1 re-confirmed 2026-11-07 20:05 (probe exits 1).
 Zero live NVIDIA calls. Published locally with deletion disabled; original data retained.
 
 ## Open
