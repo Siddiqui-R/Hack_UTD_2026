@@ -15,9 +15,9 @@
 /* Masthead integrity: neutral while checking/offline, red when the check fails. */
 .bb .integrity small { color: var(--dim); font: 10px var(--mono); }
 .bb .integrity.is-neutral { color: var(--muted); border-color: var(--line); }
-.bb .integrity.is-broken { color: var(--red); border-color: #6b343b; background: #201318; }
+.bb .integrity.is-broken { color: var(--red); border-color: var(--lt-6b343b, #6b343b); background: var(--lt-201318, #201318); }
 
-.bb .incident.is-closed strong { color: var(--dim); text-decoration: line-through; text-decoration-color: #3b495c; }
+.bb .incident.is-closed strong { color: var(--dim); text-decoration: line-through; text-decoration-color: var(--lt-3b495c, #3b495c); }
 .bb .rail-foot .mono { font-family: var(--mono); }
 
 /* Dialogs: forms keep the reference spacing. */
@@ -35,13 +35,13 @@
 .bb .empty-workspace h1 { margin-bottom: 12px; }
 
 /* Team panel presence. */
-.bb .avatar.online { border-color: #3d6b58; color: var(--green); }
-.bb .avatar.revoked { border-color: #6b343b; color: var(--red); opacity: .7; }
+.bb .avatar.online { border-color: var(--lt-3d6b58, #3d6b58); color: var(--green); }
+.bb .avatar.revoked { border-color: var(--lt-6b343b, #6b343b); color: var(--red); opacity: .7; }
 .bb .invite-code { margin-top: 14px; display: grid; gap: 6px; }
 .bb .invite-code .mono { font-size: 22px; letter-spacing: 4px; color: var(--text); }
 
 /* Incident record. */
-.bb .hash-diff { background: var(--red); color: #0b0e12; }
+.bb .hash-diff { background: var(--red); color: var(--bg); }
 .bb .payload { margin-top: 18px; white-space: pre-wrap; word-break: break-word; font: 11px/1.6 var(--mono); color: var(--muted); max-height: 320px; overflow: auto; }
 .bb .record-row.faded { opacity: .35; }
 .bb .chain-flow > span[style] { display: contents; }
@@ -59,3 +59,13 @@
   .bb .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .toast { max-width: min(480px, calc(100vw - 32px)); }
+
+/* Theme switch (masthead and login). Outside .bb the workspace tokens are unset, so each falls back to the
+   global token. Selectors out-rank the generic `.bb button` rules on purpose. */
+.theme-toggle { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 2px; border: 1px solid var(--line, var(--color-line)); border-radius: 3px; }
+.theme-toggle button.theme-opt {
+  height: 22px; padding: 0 8px; border: 0; border-radius: 2px; background: none; cursor: pointer; outline-offset: 1px;
+  font: 10px/22px var(--mono, var(--font-mono)); letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim, var(--color-text-2));
+}
+.theme-toggle button.theme-opt:hover { color: var(--text, var(--color-text-0)); }
+.theme-toggle button.theme-opt[aria-pressed='true'] { background: var(--raised, var(--color-bg-2)); color: var(--text, var(--color-text-0)); }
