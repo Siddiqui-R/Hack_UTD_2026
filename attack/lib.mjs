@@ -19,9 +19,15 @@ export function guardTarget() {
 const C = { red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', dim: '\x1b[2m', bold: '\x1b[1m', reset: '\x1b[0m' };
 export const color = C;
 
+// fetch with one retry on a dropped connection (Windows sockets can hiccup under the brute-force burst).
+async function req(url, opts) {
+  try { return await fetch(url, opts); }
+  catch { await new Promise(r => setTimeout(r, 250)); return fetch(url, opts); }
+}
+
 // A fresh identity each call. Each one is a brand-new "user" from SpacetimeDB's point of view.
 export async function newIdentity() {
-  const res = await fetch(`${TARGET}/v1/identity`, { method: 'POST' });
+  const res = await req(`${TARGET}/v1/identity`, { method: 'POST' });
   if (!res.ok) throw new Error(`identity mint failed: HTTP ${res.status}`);
   const { identity, token } = await res.json();
   return { identity: identity.startsWith('0x') ? identity : `0x${identity}`, token };
@@ -31,7 +37,7 @@ export async function newIdentity() {
 export async function call(who, reducer, args = []) {
   const headers = { 'Content-Type': 'application/json' };
   if (who?.token) headers.Authorization = `Bearer ${who.token}`;
-  const res = await fetch(`${TARGET}/v1/database/${DB}/call/${reducer}`, {
+  const res = await req(`${TARGET}/v1/database/${DB}/call/${reducer}`, {
     method: 'POST', headers, body: JSON.stringify(args),
   });
   const text = res.ok ? '' : (await res.text()).trim();
@@ -51,7 +57,7 @@ export function write(who, title = 'atk write', over = {}) {
 export async function sql(who, query) {
   const headers = { 'Content-Type': 'text/plain' };
   if (who?.token) headers.Authorization = `Bearer ${who.token}`;
-  const res = await fetch(`${TARGET}/v1/database/${DB}/sql`, { method: 'POST', headers, body: query });
+  const res = await req(`${TARGET}/v1/database/${DB}/sql`, { method: 'POST', headers, body: query });
   if (!res.ok) return { ok: false, rows: [], cols: [], error: (await res.text()).trim() };
   const [first] = await res.json();
   const cols = first.schema.elements.map(e => e.name?.some ?? '');
@@ -114,8 +120,11 @@ export async function auditRows() {
 // Random invite code in the module's format (8 chars, no I/L/O/0/1).
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function randomCode() {
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  return [...bytes].map(b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+  for (;;) {
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    const c = [...bytes].map(b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+    if (new Set(c).size >= 5) return c; // the weak-code rule (fix S9) would reject the rest
+  }
 }
 
 // One commander per run, made via the owner-only bootstrap invite.

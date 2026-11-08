@@ -67,6 +67,10 @@ export async function run() {
     const seen = await sql(obs, `SELECT flagged FROM team WHERE display_name = '${victim.name}'`);
     record('R14', 'duress flag hidden from observers', seen.rows[0]?.flagged ? 'VULN' : 'PASS',
       seen.rows[0]?.flagged ? 'any observer sees FLAGGED' : 'hidden');
+    // Guard against over-fixing R14: commanders must still see it, or the feature is useless.
+    const cmdView = await sql(cmd, `SELECT flagged FROM team WHERE display_name = '${victim.name}'`);
+    record('R15', 'commander still sees the duress flag', cmdView.rows[0]?.flagged ? 'PASS' : 'VULN',
+      cmdView.rows[0]?.flagged ? 'visible to commander' : 'hidden from commanders too; duress is useless');
   } finally {
     ownerSql(`UPDATE user SET is_duressed = false WHERE display_name = '${victim.name}'`);
   }
