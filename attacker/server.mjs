@@ -8,6 +8,7 @@
 // POSTs need the x-blackbox-console header, so another site in the same browser cannot trigger runs (CORS preflight).
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -15,6 +16,8 @@ const attackDir = fileURLToPath(new URL('../attack/', import.meta.url));
 const { TARGET, DB, guardTarget } = await import('../attack/lib.mjs');
 guardTarget(); // same local-only rule as the scripts
 const PORT = 4400;
+const RUN_TIMEOUT_MS = Math.max(10_000, Number(process.env.RUN_TIMEOUT_MS) || 180_000);
+const MAX_STREAMS = 32;
 const HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 const strip = s => s.replace(/\x1b\[[0-9;]*m/g, '');
 
@@ -69,7 +72,7 @@ function verdict(run) {
   if (failed.length) return { kind: 'breached', label: 'DEFENCE FAILED', stamp: 'FAILED', facts: failed.map(why) };
   if (errors.length || code !== 0 || !run.gotResult || run.badLine)
     return { kind: 'error', label: 'ERROR', stamp: 'ERROR', facts: errors.length ? errors.map(why)
-      : [code === null || code > 255 ? 'script was killed before it finished'
+      : [run.timedOut ? `run exceeded ${RUN_TIMEOUT_MS / 1000}s and was stopped` : code === null || code > 255 ? 'script was killed before it finished'
         : run.badLine ? 'script printed a malformed result/phase marker' : `script exited with code ${code}${run.gotResult ? '' : ', no results reported'}`] };
   const rec = (n === '2' || n === 'restore') && pendingRecovery();
   if (rec?.invalid) return { kind: 'incomplete', label: 'RECOVERY REQUIRED', stamp: 'INCOMPLETE', facts: [rec.error, 'check the audit record by hand, fix it, then delete attack/.tamper-recovery.json'] };
@@ -89,18 +92,23 @@ const broadcast = (ev, data) => { run.events.push([ev, data]); for (const c of c
 const snapshot = () => ({ target, recovery: pendingRecovery(), busy: !!child, run: run && { id: run.id, n: run.n, done: run.done } });
 
 function start(n) {
+  // Per-run secret: only the runner/demo (which get it via env) can print result/phase markers the bridge accepts.
+  const mark = randomBytes(12).toString('hex');
   run = { id: Date.now(), n, events: [], results: [], phases: [], code: null, gotResult: false, done: false };
   for (const c of clients) { send(c, 'reset', snapshot()); send(c, 'live', {}); } // a new run is live, not a replay
   broadcast('start', { n, id: run.id });
-  child = spawn(process.execPath, [here + 'runner.mjs', n], { cwd: attackDir, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+  child = spawn(process.execPath, [here + 'runner.mjs', n], { cwd: attackDir, env: { ...process.env, DEMO_MARKER: mark }, stdio: ['pipe', 'pipe', 'pipe'] });
+  const proc = child;
+  // Watchdog: a hung demo must not lock the console forever. Demo 2 leaves its recovery file, so RESTORE still works.
+  const watchdog = setTimeout(() => { run.timedOut = true; broadcast('line', `ERROR run exceeded ${RUN_TIMEOUT_MS / 1000}s, stopping it`); proc.kill(); }, RUN_TIMEOUT_MS);
   let buf = '';
   const onData = d => {
     buf += strip(d.toString());
     const parts = buf.split(/\r?\n/); buf = parts.pop();
     for (const line of parts) {
       try {
-        if (line.startsWith('@@RESULT ')) { run.results = JSON.parse(line.slice(9)); run.gotResult = true; continue; }
-        if (line.startsWith('@@PHASE ')) { const p = { ...JSON.parse(line.slice(8)), t: Date.now() }; run.phases.push(p); broadcast('phase', p); continue; }
+        if (line.startsWith(`@@RESULT:${mark} `)) { run.results = JSON.parse(line.slice(mark.length + 10)); run.gotResult = true; continue; }
+        if (line.startsWith(`@@PHASE:${mark} `)) { const p = { ...JSON.parse(line.slice(mark.length + 9)), t: Date.now() }; run.phases.push(p); broadcast('phase', p); continue; }
       } catch { run.badLine = true; } // malformed marker: shown as text, and the run cannot pass
       if (line.trim()) broadcast('line', line);
     }
@@ -110,6 +118,7 @@ function start(n) {
   child.stdin.on('error', () => {});
   child.on('error', e => broadcast('line', `ERROR could not start runner: ${e.message}`)); // 'close' still follows
   child.on('close', code => {
+    clearTimeout(watchdog);
     child = null;
     run.code = code; run.done = true;
     broadcast('done', { id: run.id, code, results: run.results, verdict: verdict(run), recovery: pendingRecovery() });
@@ -126,6 +135,7 @@ http.createServer(async (req, res) => { try {
     return res.end(await readFile(here + 'index.html'));
   }
   if (req.method === 'GET' && url === '/events') {
+    if (clients.size >= MAX_STREAMS) { res.writeHead(503); return res.end('too many consoles open'); }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
     send(res, 'reset', snapshot());
     if (run) for (const [ev, data] of run.events) send(res, ev, data);
@@ -147,7 +157,8 @@ http.createServer(async (req, res) => { try {
     return json(res, 202, { id: run.id });
   }
   if (url === '/release') {
-    if (!child || run.n !== '2') return json(res, 409, { error: 'no tamper hold in progress' });
+    // Only while the detected edit is actually held: an early release would be buffered and skip the hold entirely.
+    if (!child || run.n !== '2' || run.phases.at(-1)?.phase !== 'DETECTED') return json(res, 409, { error: 'no tamper hold in progress' });
     child.stdin.write('release\n');
     return json(res, 202, {});
   }

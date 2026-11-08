@@ -510,3 +510,28 @@ FIX(attack console review pass) — code review + targeted tests of attacker/ an
     RESTORE recovered it. In a normal terminal the runner is orphaned and restores itself, as the pipe test shows.
   Attack this: real Ctrl+C in the stage terminal during the hold; closing the terminal window during the hold
     (SIGHUP gives ~5 s); a demo printing a fake "@@RESULT" line.
+
+ATTACK SPREE on attacker/ + demo 2 (local stage only). Probed, broke, fixed, re-attacked.
+  Held with no change: 18 hostile bridge requests (wrong method/path/encoding/case, double slash, path traversal,
+    evil/uppercase/trailing-dot/missing Host, header=0, no header, CORS preflight, cross-origin /events read);
+    12-way parallel POST /run race (exactly one 202); browser attack from another local origin (fetch with header
+    blocked by preflight, no-cors and form POST got 403, /events unreadable, no run started).
+  BROKE and fixed:
+  - Early release: a /release sent before detection was buffered and consumed the instant the hold began (DETECTED and
+    RESTORING in the same ms: judges see nothing). /release now only accepted while the last phase is DETECTED.
+    Re-attack: early release -> 409, hold still up 3 s later, real release -> TAMPER DETECTED → RESTORED.
+  - Concurrent tamper (console + CLI): both edited the same record; one overwrote the other's recovery file and the
+    first to finish deleted it while the other still held an edit. Now the recovery file is created exclusively
+    (write tmp + link, EEXIST -> SKIP "another tamper run holds an edit", nothing changed) and carries a random token;
+    a run deletes the file only if the token is its own. Re-attack: 3 rounds of simultaneous runs -> exactly one edit
+    per round, other refused, no file or tmp left, chain ok.
+  Hardened from review:
+  - Result/phase markers carry a per-run secret (DEMO_MARKER from the bridge): no other output line can forge a verdict
+    or phase. 0 raw marker lines leak into the console.
+  - Watchdog (RUN_TIMEOUT_MS, default 180 s): a hung run is stopped -> ERROR "run exceeded …"; demo 2's recovery file
+    survives the kill and RESTORE works (tested with a 10 s limit against the 30 s hold).
+  - Hold limit clamped to 1-120 s (bad TAMPER_HOLD_MAX_MS can't skip the hold or leave the edit up); max 32 event streams.
+  - .gitignore covers recovery temp files.
+  Regression: console RUN ALL 4/4 in 58 s; `node attack/run.mjs --demo` 16 held; chain clean, nothing pending.
+  Still not runtime-tested: a real Ctrl+C in the stage terminal during the hold (handler code reviewed; Windows can't
+    deliver CTRL_C to a pipe child from a script).

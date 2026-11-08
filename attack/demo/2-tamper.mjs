@@ -8,6 +8,7 @@
 // TAMPER_HOLD_MAX_MS (default 30 s); otherwise the edit is held TAMPER_HOLD_MS (default 4 s) for open clients.
 // TODO(slice 9): rewrite the WHOLE chain consistently, then expect the anchor mismatch to catch it.
 import fs from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { DB, ownerSql, auditRows, auditHash, verifyChainIndependent, verifyChainRemote, getCommander, record, write, signIn, runTag, color as C } from '../lib.mjs';
 
@@ -17,7 +18,9 @@ export const title = 'Rewrite the audit log as the database owner';
 const say = s => console.log(`  ${C.dim}${s}${C.reset}`);
 const q = s => `'${String(s).replace(/'/g, "''")}'`;
 const EVENTS = process.env.ATTACK_EVENTS === '1';
-const phase = (name, data = {}) => { if (EVENTS) console.log('@@PHASE ' + JSON.stringify({ phase: name, ...data })); };
+// The bridge passes a per-run secret so no other output line can forge a phase marker.
+const MARK = process.env.DEMO_MARKER ?? 'local';
+const phase = (name, data = {}) => { if (EVENTS) console.log(`@@PHASE:${MARK} ` + JSON.stringify({ phase: name, ...data })); };
 const TAMPERED = 'nothing_happened';
 export const RECOVERY_FILE = fileURLToPath(new URL('../.tamper-recovery.json', import.meta.url));
 
@@ -41,7 +44,9 @@ async function verifyRestored(rec) {
   const row = rows.find(r => Number(r.seq) === rec.seq);
   const chain = verifyChainIndependent(rows);
   const ok = row?.action === rec.original && chain.ok;
-  if (ok) fs.rmSync(RECOVERY_FILE, { force: true });
+  // Delete only our own record: another run's file (or a hand-made one) is never removed here.
+  const current = pendingRecovery();
+  if (ok && current && !current.invalid && current.token === rec.token) fs.rmSync(RECOVERY_FILE, { force: true });
   phase(ok ? 'VERIFIED' : 'RESTORE FAILED', { seq: rec.seq, checked: chain.checked, brokenAt: chain.brokenAt });
   return { ok, chain, row };
 }
@@ -66,6 +71,9 @@ export async function recover() {
     v.ok ? `${v.chain.checked} rows verified` : `still broken at seq ${v.chain.brokenAt}: ${v.chain.reason}`);
 }
 
+// Presenter hold limit, clamped to 1-120 s so a bad env value can neither skip the hold nor leave the edit up.
+const holdMax = () => Math.min(120_000, Math.max(1_000, Number(process.env.TAMPER_HOLD_MAX_MS) || 30_000));
+
 // Set while an edit is live: ends the hold early so Ctrl+C / window close / bridge loss restores before exiting.
 let endHold = () => {};
 
@@ -78,7 +86,7 @@ async function holdForPresenter() {
     }
     return;
   }
-  const max = Number(process.env.TAMPER_HOLD_MAX_MS ?? 30_000);
+  const max = holdMax();
   say(`holding the detected edit until the presenter restores it (automatic in ${max / 1000}s)`);
   await new Promise(resolve => {
     const done = () => { endHold = () => {}; clearTimeout(timer); process.stdin.off('data', onData); process.stdin.off('end', done); process.stdin.pause(); resolve(); };
@@ -114,10 +122,14 @@ export async function run() {
   if (!pool.length) return record('A2', 'tamper target', 'SKIP', `TAMPER_INCIDENT=${wanted} has no audit record to edit; nothing was changed`);
   const target = pool[Math.floor(pool.length / 2)];
   const seq = Number(target.seq);
-  const rec = { db: DB, seq, incidentId: Number(target.incident_id), column: 'action', original: target.action, tampered: TAMPERED, at: new Date().toISOString() };
+  const rec = { db: DB, seq, incidentId: Number(target.incident_id), column: 'action', original: target.action, tampered: TAMPERED, at: new Date().toISOString(), token: randomBytes(8).toString('hex') };
   // Before the edit, so a kill can be undone. Write-then-rename: a crash never leaves a half-written record.
-  fs.writeFileSync(RECOVERY_FILE + '.tmp', JSON.stringify(rec, null, 2), { mode: 0o600 });
-  fs.renameSync(RECOVERY_FILE + '.tmp', RECOVERY_FILE);
+  // Exclusive: link() fails if a record already exists, so two tamper runs can never share or overwrite one.
+  const tmp = `${RECOVERY_FILE}.${process.pid}.${rec.token}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(rec, null, 2), { mode: 0o600 });
+  try { fs.linkSync(tmp, RECOVERY_FILE); }
+  catch (e) { if (e.code === 'EEXIST') return record('A2', 'tamper lock', 'SKIP', 'another tamper run holds an edit (recovery file exists); nothing was changed'); throw e; }
+  finally { fs.rmSync(tmp, { force: true }); }
   // While the row is edited, an interrupt ends the hold instead of killing the process, so finally restores it.
   const onSignal = () => { say('interrupted: restoring the edit before exiting'); endHold(); };
   const signals = ['SIGINT', 'SIGBREAK', 'SIGHUP', 'SIGTERM'];
@@ -143,7 +155,7 @@ export async function run() {
       `module: brokenAt ${mod.brokenAt}, ${mod.reason}`);
     // Only a detection both verifiers agree on is held for the audience; anything else restores at once.
     if (caught && modCaught) {
-      phase('DETECTED', { seq, holdMaxMs: EVENTS ? Number(process.env.TAMPER_HOLD_MAX_MS ?? 30_000) : 0 });
+      phase('DETECTED', { seq, holdMaxMs: EVENTS ? holdMax() : 0 });
       await holdForPresenter();
     } else if (!mod.called) {
       phase('INCOMPLETE', { seq, reason: `module verifyChain unavailable (${mod.status ?? ''} ${mod.error ?? ''})`.trim() });

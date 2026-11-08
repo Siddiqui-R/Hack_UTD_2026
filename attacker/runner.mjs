@@ -20,4 +20,4 @@ try { await (n === 'restore' ? mod.recover() : mod.run()); }
 catch (e) { lib.results.push({ id: file, title: e.message, outcome: 'ERROR' }); console.log(`ERROR ${e.message}`); code = 1; }
 // Exit only after the result line is flushed: on Windows pipe writes are async and process.exit() can drop them.
 // stdin stays open for "release" and SDK sockets may linger, so exit explicitly once written.
-process.stdout.write(`@@RESULT ${JSON.stringify(lib.results)}\n`, () => process.exit(code));
+process.stdout.write(`@@RESULT:${process.env.DEMO_MARKER ?? 'local'} ${JSON.stringify(lib.results)}\n`, () => process.exit(code));
