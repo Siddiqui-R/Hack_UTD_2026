@@ -1,5 +1,5 @@
 // Slice 2b: session revocation + early audit chain.
-import { newIdentity, call, sql, record, expectDenied, signIn, getCommander, randomCode, auditRows, auditHash, owner, write } from '../lib.mjs';
+import { newIdentity, call, sql, record, expectDenied, signIn, getCommander, randomCode, auditRows, auditHash, owner, write, runTag } from '../lib.mjs';
 
 export const slice = '2b';
 export const title = 'Revocation and audit chain';
@@ -27,9 +27,9 @@ export async function run() {
 
   const fresh = randomCode();
   await call(cmd, 'create_invite', [fresh, 'commander']);
-  expectDenied('V6', 'revoked token redeems a valid code', await call(victim, 'redeem_invite', [fresh, 'back again']));
+  expectDenied('V6', 'revoked token redeems a valid code', await call(victim, 'redeem_invite', [fresh, `back again ${runTag}`]));
   const realUser = await newIdentity();
-  const reuse = await call(realUser, 'redeem_invite', [fresh, 'real person']);
+  const reuse = await call(realUser, 'redeem_invite', [fresh, `real person ${runTag}`]);
   record('V7', 'code not burned by the revoked attempt', reuse.ok ? 'PASS' : 'VULN', reuse.ok ? 'real user got in' : reuse.error);
   expectDenied('V8', 'un-revoke via set_role', await call(cmd, 'set_role', [{ __identity__: victim.identity }, 'commander']));
 

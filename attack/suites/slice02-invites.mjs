@@ -1,5 +1,5 @@
 // Slice 2: invite codes → session identity → role.
-import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, randomCode, CODE_ALPHABET, write } from '../lib.mjs';
+import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, randomCode, CODE_ALPHABET, write, runTag } from '../lib.mjs';
 
 export const slice = 2;
 export const title = 'Invite codes and sessions';
@@ -27,12 +27,12 @@ export async function run() {
   await call(cmd, 'create_invite', [code, 'responder']);
   // Race: two identities redeem the same code at the same moment.
   const [a, b] = [await newIdentity(), await newIdentity()];
-  const [ra, rb] = await Promise.all([call(a, 'redeem_invite', [code, 'race-a']), call(b, 'redeem_invite', [code, 'race-b'])]);
+  const [ra, rb] = await Promise.all([call(a, 'redeem_invite', [code, `race-a-${runTag}`]), call(b, 'redeem_invite', [code, `race-b-${runTag}`])]);
   const winners = [ra, rb].filter(r => r.ok).length;
   record('S6', 'two identities race one code', winners === 1 ? 'PASS' : 'VULN', `${winners} redeemed`);
 
   expectDenied('S7', 'replay a used code (different formatting)',
-    await call(await newIdentity(), 'redeem_invite', [`${code.slice(0, 4).toLowerCase()}-${code.slice(4)}`, 'replay']));
+    await call(await newIdentity(), 'redeem_invite', [`${code.slice(0, 4).toLowerCase()}-${code.slice(4)}`, `replay-${runTag}`]));
 
   // Error oracle: every failure should look identical.
   const malformed = await call(anon, 'redeem_invite', ['!!', 'x']);
