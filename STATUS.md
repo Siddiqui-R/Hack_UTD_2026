@@ -198,3 +198,8 @@ SLICE 3.5 LIVE + SECURITY FIXES — DONE. No database reset. Existing local serv
   Checks: module build/typecheck, client production build, unit suite 4 pass/4 todo, live-hardening script passes.
   Test data added; original records preserved. No NVIDIA calls; 5/40. Attack this: stale writes; commander
   lockout; duress leakage; agent owner-enrolment, permission grant, revoked/expired agent reads and writes.
+
+3.5 merged follow-up: Rabeet security fixes and agent service preserved during rebase. G19 agent downgrades
+  now denied; G22 observer raw evidence denied. Rabeet raw-evidence lenient text rule retained. Live hardening
+  checks re-run successfully on the merged/published module; npm test 4 pass/4 todo. No reset, no NVIDIA calls.
+  Attack this: G19 downgrade, G22 evidence read, owner-agent enrolment and permanent agent revocation.

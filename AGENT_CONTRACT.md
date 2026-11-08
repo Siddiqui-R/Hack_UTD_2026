@@ -65,3 +65,6 @@ Local regression scripts live in blackbox/spacetimedb/scripts/ (outside Rabeet-o
 live-contract.mjs requires BLACKBOX_VERIFY_SHORT_TTL=1 AND a temporary three-second agent-enrolment TTL for
 its real-time expiry test; never set that flag against production. Restore TTL and publish with deletion disabled
 afterwards. live-hardening.mjs consumes the ignored agent-logs/live-fixture.json from that check.
+
+After merging Rabeet security/service work: updateSeverity is raise-only for agents; any downgrade requires a human update.
+Observers cannot read evidenceRecords. Raw evidence keeps hidden characters as evidence (Rabeet strict=false rule preserved).
