@@ -5,7 +5,7 @@
 //   http://127.0.0.1:4400  attacker console
 // Never touches Maincloud: refuses unless both the attacks and the client point at 127.0.0.1:3000.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
@@ -60,7 +60,7 @@ if (!stage) {
   stage = await findStage();
   await lib.call(cmd, 'submit_evidence', [stage.id, 'EDR alert: payroll-07 is encrypting files on \\\\fs01\\payroll']);
 }
-const recovery = (() => { try { return JSON.parse(readFileSync(new URL('../attack/.tamper-recovery.json', import.meta.url), 'utf8')); } catch { return null; } })();
+const recovery = (await import('../attack/demo/2-tamper.mjs')).pendingRecovery(); // same validator as the script
 
 const children = [];
 const start = (name, cmd, args, opts) => {
@@ -97,4 +97,5 @@ console.log(`
   TAMPER TARGET              INC-${stage.id} ${STAGE_TITLE}: open it in BLACKBOX, RECORD tab, before attack 2
   Ctrl+C stops both.
 `);
-if (recovery) console.log(`  ! DEMO EDIT PENDING: record #${recovery.seq} is still edited. Press RESTORE DEMO EDIT in the console first.\n`);
+if (recovery?.invalid) console.log(`  ! RECOVERY REQUIRED: ${recovery.error}. Attack 2 is blocked: check the audit record by hand, fix it, then delete attack/.tamper-recovery.json.\n`);
+else if (recovery) console.log(`  ! DEMO EDIT PENDING: record #${recovery.seq} is still edited. Press RESTORE DEMO EDIT in the console first.\n`);

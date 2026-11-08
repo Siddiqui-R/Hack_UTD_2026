@@ -460,3 +460,29 @@ ATTACK CONSOLE HARDENING (review items 1-4, plus 5's readability) — attacker/ 
   Attack this: kill the bridge (not the runner) mid-hold, two console tabs pressing RESTORE NOW/RESTORE at once,
     a tampered or hand-edited .tamper-recovery.json (restore must refuse anything but the recorded seq/value),
     cross-origin POST with the header via a crafted page (preflight must fail), demo 2 with TAMPER_INCIDENT unknown.
+
+FIX(attack console edges) — three review edges, no new features. attack/demo/2-tamper.mjs + attacker/.
+  RABEET, what changed in your demo 2:
+  1 pendingRecovery() returns null ONLY when attack/.tamper-recovery.json is absent. Unreadable, non-JSON or invalid
+    (db string, integer seq > 0, column 'action', original string, tampered 'nothing_happened') returns
+    { invalid, error }. run() and recover() then SKIP with "RECOVERY REQUIRED: <why>: check that audit record's action
+    by hand (owner SQL), fix it, then delete attack/.tamper-recovery.json". The file is never deleted on that path.
+    The bridge and stage.mjs import this same function (their own lenient readers are gone): run 2 and /restore get
+    409 RECOVERY REQUIRED, the console shows the steps and hides RESTORE DEMO EDIT, the launcher prints a warning.
+  2 TAMPER_INCIDENT set with no audit row for that incident -> SKIP "has no audit record to edit; nothing was
+    changed" before any recovery file or edit. No fallback to another incident. Unset still uses the global middle row.
+  3 DETECTED is emitted (and the presenter hold runs) only when the independent verifier AND the module's
+    verifyChain both name the edited seq. Otherwise DETECTION FAILED (a verifier missed it) or INCOMPLETE (module
+    verify unavailable), and the row is restored immediately. Final verdicts unchanged (VULN -> DEFENCE FAILED,
+    missing A2c -> INCOMPLETE).
+  Verified: malformed and bad-field files -> run 2 and restore SKIP, file kept (script level); stage warning, bridge
+    409s, console panel with restore hidden (bridge level). TAMPER_INCIDENT=99999 -> SKIP, no file, chain 234 ok.
+    Normal path via the bridge: EDITING → DETECTION CHECK → DETECTED → RESTORING → VERIFIED, TAMPER DETECTED →
+    RESTORED, nothing pending. `node attack/run.mjs --demo` 16 held. NOT triggered for real: DETECTION FAILED /
+    INCOMPLETE phases (would need a verifier that misses); only their console rendering was checked by injecting the
+    events.
+  Left for your testing (not done here): killing the bridge mid-hold; two consoles pressing RESTORE NOW / RESTORE
+    DEMO EDIT concurrently.
+  Attack this: recovery file edited to a valid but wrong seq/original (recover() refuses rows not holding
+    'nothing_happened' or the original — confirm it cannot overwrite a different record), TAMPER_INCIDENT pointing at
+    an incident whose only rows are others' (must SKIP), a verifier stub that misses (DETECTION FAILED path).

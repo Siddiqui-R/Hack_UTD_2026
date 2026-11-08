@@ -21,9 +21,19 @@ const phase = (name, data = {}) => { if (EVENTS) console.log('@@PHASE ' + JSON.s
 const TAMPERED = 'nothing_happened';
 export const RECOVERY_FILE = fileURLToPath(new URL('../.tamper-recovery.json', import.meta.url));
 
+// null only when no file exists. An unreadable, malformed or invalid file is { invalid: true, error } and must block
+// tampering: it may stand for an edit nobody can undo automatically. The file is never deleted here.
 export function pendingRecovery() {
-  try { return JSON.parse(fs.readFileSync(RECOVERY_FILE, 'utf8')); } catch { return null; }
+  let text;
+  try { text = fs.readFileSync(RECOVERY_FILE, 'utf8'); }
+  catch (e) { return e.code === 'ENOENT' ? null : { invalid: true, error: `recovery file unreadable (${e.code ?? e.message})` }; }
+  let rec;
+  try { rec = JSON.parse(text); } catch { return { invalid: true, error: 'recovery file is not valid JSON' }; }
+  const ok = rec && typeof rec === 'object' && typeof rec.db === 'string' && Number.isInteger(rec.seq) && rec.seq > 0
+    && rec.column === 'action' && typeof rec.original === 'string' && rec.tampered === TAMPERED;
+  return ok ? rec : { invalid: true, error: 'recovery file is missing or has wrong db/seq/column/original/tampered fields' };
 }
+const recoveryHelp = r => `${r.error}: check that audit record's action by hand (owner SQL), fix it, then delete attack/.tamper-recovery.json`;
 
 // Restored only if the row holds its original value again and the whole chain verifies; then the record is cleared.
 async function verifyRestored(rec) {
@@ -40,6 +50,7 @@ async function verifyRestored(rec) {
 export async function recover() {
   const rec = pendingRecovery();
   if (!rec) { say('no pending demo edit'); return record('R2', 'no pending demo edit', 'PASS', 'nothing to restore'); }
+  if (rec.invalid) return record('R2', 'RECOVERY REQUIRED', 'SKIP', recoveryHelp(rec));
   if (rec.db !== DB) return record('R2', 'restore demo edit', 'SKIP', `recovery is for database ${rec.db}, not ${DB}`);
   phase('RESTORING', rec);
   say(`restoring record #${rec.seq}: action "${TAMPERED}" → "${rec.original}"`);
@@ -72,6 +83,7 @@ async function holdForPresenter() {
 
 export async function run() {
   const pending = pendingRecovery();
+  if (pending?.invalid) return record('A2', 'RECOVERY REQUIRED', 'SKIP', recoveryHelp(pending));
   if (pending) return record('A2', 'previous demo edit restored', 'SKIP', `record #${pending.seq} is still edited: use Restore demo edit (recover())`);
 
   let rows = await auditRows();
@@ -86,8 +98,10 @@ export async function run() {
   if (!before.ok) return record('A2', 'chain clean before attack', 'SKIP', `already broken at seq ${before.brokenAt}: ${before.reason}`);
   say(`chain clean: ${before.checked} rows verified`);
 
-  const pinned = process.env.TAMPER_INCIDENT ? rows.filter(r => String(r.incident_id) === String(process.env.TAMPER_INCIDENT)) : [];
-  const pool = pinned.length ? pinned : rows;
+  // An explicit target is a promise to the audience: never fall back to another incident's record.
+  const wanted = process.env.TAMPER_INCIDENT;
+  const pool = wanted ? rows.filter(r => String(r.incident_id) === String(wanted)) : rows;
+  if (!pool.length) return record('A2', 'tamper target', 'SKIP', `TAMPER_INCIDENT=${wanted} has no audit record to edit; nothing was changed`);
   const target = pool[Math.floor(pool.length / 2)];
   const seq = Number(target.seq);
   const rec = { db: DB, seq, incidentId: Number(target.incident_id), column: 'action', original: target.action, tampered: TAMPERED, at: new Date().toISOString() };
@@ -109,8 +123,15 @@ export async function run() {
     const modCaught = mod.called && mod.ok === false && mod.brokenAt === seq;
     if (mod.called) record('A2c', "module's verifyChain names the same row (red bar)", modCaught ? 'PASS' : 'VULN',
       `module: brokenAt ${mod.brokenAt}, ${mod.reason}`);
-    phase('DETECTED', { seq, independent: caught, module: modCaught, holdMaxMs: EVENTS ? Number(process.env.TAMPER_HOLD_MAX_MS ?? 30_000) : 0 });
-    await holdForPresenter();
+    // Only a detection both verifiers agree on is held for the audience; anything else restores at once.
+    if (caught && modCaught) {
+      phase('DETECTED', { seq, holdMaxMs: EVENTS ? Number(process.env.TAMPER_HOLD_MAX_MS ?? 30_000) : 0 });
+      await holdForPresenter();
+    } else if (!mod.called) {
+      phase('INCOMPLETE', { seq, reason: `module verifyChain unavailable (${mod.status ?? ''} ${mod.error ?? ''})`.trim() });
+    } else {
+      phase('DETECTION FAILED', { seq, independent: caught, module: modCaught });
+    }
   } finally {
     phase('RESTORING', rec);
     ownerSql(`UPDATE audit SET action = ${q(target.action)} WHERE seq = ${seq} AND action = ${q(TAMPERED)}`);

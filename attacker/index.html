@@ -211,16 +211,20 @@ function renderControls() {
   $('runAll').disabled = busy; $('clear').disabled = busy;
   const r = state.recovery;
   $('recovery').classList.toggle('show', !!r);
-  if (r) $('recoveryTxt').textContent = `DEMO EDIT PENDING · record #${r.seq} (INC-${r.incidentId}) holds "${r.tampered}"; original "${r.original}". Attack 2 is locked until it is restored.`;
+  if (r?.invalid) $('recoveryTxt').textContent = `RECOVERY REQUIRED · ${r.error}. Attack 2 is blocked. Check the audit record by hand (owner SQL), fix it, then delete attack/.tamper-recovery.json. The file is kept until then.`;
+  else if (r) $('recoveryTxt').textContent = `DEMO EDIT PENDING · record #${r.seq} (INC-${r.incidentId}) holds "${r.tampered}"; original "${r.original}". Attack 2 is locked until it is restored.`;
+  $('restore').style.display = r?.invalid ? 'none' : 'block';
   $('restore').disabled = busy;
   $('v2').disabled = $('v2').disabled || !!r;
 }
 
 function setPhase(name) {
   const strip = $('phases'); strip.classList.add('show');
-  const at = PHASES.indexOf(name === 'DETECTED' ? 'DETECTION CHECK' : name === 'RESTORE FAILED' ? 'RESTORING' : name);
+  const failed = name === 'DETECTION FAILED' || name === 'INCOMPLETE' || name === 'RESTORE FAILED';
+  const at = PHASES.indexOf(['DETECTED', 'DETECTION FAILED', 'INCOMPLETE'].includes(name) ? 'DETECTION CHECK' : name === 'RESTORE FAILED' ? 'RESTORING' : name);
   strip.querySelectorAll('.ph').forEach((el, i) => {
-    el.className = 'ph' + (i < at ? ' done' : i === at ? (name === 'RESTORE FAILED' ? ' bad' : name === 'VERIFIED' ? ' done' : ' now') : '');
+    el.className = 'ph' + (i < at ? ' done' : i === at ? (failed ? ' bad' : name === 'VERIFIED' ? ' done' : ' now') : '');
+    if (el.dataset.p === 'DETECTION CHECK') el.textContent = ['DETECTION FAILED', 'INCOMPLETE'].includes(name) ? name : 'DETECTION CHECK';
   });
 }
 function pin(kind, label, facts) {
@@ -272,6 +276,8 @@ function onPhase(p, live) {
     if (p.holdMaxMs && (live || state.busy)) hold(p.t + p.holdMaxMs);
     if (live && runAll) setTimeout(() => post('/release'), 5000); // rehearsal: release on its own
   }
+  if (p.phase === 'DETECTION FAILED') pin('breached', 'DETECTION FAILED · RESTORING NOW', [`RECORD #${p.seq} ALTERED`, `independent verifier ${p.independent ? 'named it' : 'MISSED it'} · module ${p.module ? 'named it' : 'MISSED it'}`]);
+  if (p.phase === 'INCOMPLETE') pin('incomplete', 'INCOMPLETE · RESTORING NOW', [`RECORD #${p.seq} ALTERED`, p.reason]);
   if (p.phase === 'RESTORING') hold(0);
 }
 

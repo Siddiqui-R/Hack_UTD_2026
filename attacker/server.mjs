@@ -9,11 +9,9 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const attackDir = fileURLToPath(new URL('../attack/', import.meta.url));
-const recoveryFile = fileURLToPath(new URL('../attack/.tamper-recovery.json', import.meta.url));
 const { TARGET, DB, guardTarget } = await import('../attack/lib.mjs');
 guardTarget(); // same local-only rule as the scripts
 const PORT = 4400;
@@ -42,7 +40,8 @@ const HELD = {
   restore: { label: 'DEMO EDIT RESTORED', stamp: 'RESTORED' },
 };
 
-const pendingRecovery = () => { try { return JSON.parse(fs.readFileSync(recoveryFile, 'utf8')); } catch { return null; } };
+// The tamper script owns the recovery format; an invalid file comes back as { invalid, error } and blocks attack 2.
+const { pendingRecovery } = await import('../attack/demo/2-tamper.mjs');
 
 function factsFor(n, results, phases) {
   const by = id => results.find(r => r.id === id);
@@ -71,8 +70,9 @@ function verdict(run) {
   if (errors.length || code !== 0 || !run.gotResult)
     return { kind: 'error', label: 'ERROR', stamp: 'ERROR', facts: errors.length ? errors.map(why)
       : [code === null || code > 255 ? 'script was killed before it finished' : `script exited with code ${code}${run.gotResult ? '' : ', no results reported'}`] };
-  if ((n === '2' || n === 'restore') && pendingRecovery())
-    return { kind: 'incomplete', label: 'EDIT NOT RESTORED', stamp: 'INCOMPLETE', facts: ['the demo edit is still in place · use RESTORE DEMO EDIT'] };
+  const rec = (n === '2' || n === 'restore') && pendingRecovery();
+  if (rec?.invalid) return { kind: 'incomplete', label: 'RECOVERY REQUIRED', stamp: 'INCOMPLETE', facts: [rec.error, 'check the audit record by hand, fix it, then delete attack/.tamper-recovery.json'] };
+  if (rec) return { kind: 'incomplete', label: 'EDIT NOT RESTORED', stamp: 'INCOMPLETE', facts: ['the demo edit is still in place · use RESTORE DEMO EDIT'] };
   if (missing.length || notPass.length)
     return { kind: 'incomplete', label: 'INCOMPLETE', stamp: 'INCOMPLETE', facts: [...notPass.map(why), ...missing.map(id => `${id} not reported`)] };
   return { kind: 'held', ...HELD[n], facts: factsFor(n, results, phases) };
@@ -135,7 +135,8 @@ http.createServer(async (req, res) => {
   let m;
   if ((m = url.match(/^\/run\/([1-4])$/))) {
     if (child) return json(res, 409, { error: 'another run is in progress' });
-    if (m[1] === '2' && pendingRecovery()) return json(res, 409, { error: 'a demo edit is still pending: restore it first' });
+    const rec = m[1] === '2' && pendingRecovery();
+    if (rec) return json(res, 409, { error: rec.invalid ? `RECOVERY REQUIRED: ${rec.error}` : 'a demo edit is still pending: restore it first' });
     start(m[1]);
     return json(res, 202, { id: run.id });
   }
@@ -146,7 +147,9 @@ http.createServer(async (req, res) => {
   }
   if (url === '/restore') {
     if (child) return json(res, 409, { error: 'wait for the current run to finish' });
-    if (!pendingRecovery()) return json(res, 409, { error: 'no pending demo edit' });
+    const rec = pendingRecovery();
+    if (!rec) return json(res, 409, { error: 'no pending demo edit' });
+    if (rec.invalid) return json(res, 409, { error: `RECOVERY REQUIRED: ${rec.error}; restore it by hand, then delete attack/.tamper-recovery.json` });
     start('restore');
     return json(res, 202, { id: run.id });
   }
