@@ -3,10 +3,11 @@
 Reproduce with `cd attack && npm run attack` (local server only). Unit tests: `cd blackbox/spacetimedb && npm test`.
 Fix code for anything open: `FIXES.md`.
 
-**Status: validated fixes based on `098d049`, 2026-11-07:** **408 live regression checks held**, 0 succeeded/errors;
-unit tests **8/8**, module typecheck and client production build pass; demo **16 held / 0 skipped**.
-Separate targeted probes reproduce open findings; they are not included in the 408 passing checks.
-A1, Q1 and the new A2 were reproduced during this sweep. See `DEEP_SWEEP.md` for scope and commands.
+**Status @ `813c13f`, 2026-11-07 23:10:** **421 live regression checks held** on 10 consecutive runs, 0 succeeded/errors;
+unit tests **8/8**; demo **16 held / 0 skipped** on 10 rehearsals; injection harness **20/20** (fence + server layers;
+model layer not run, no key). Database: local `blackbox-attack` (see attack/README.md, "Owner login and database").
+Separate targeted probes reproduce open findings; they are not included in the passing checks.
+A1, Q1 and A2 were reproduced in the earlier sweep. See `DEEP_SWEEP.md` for scope and commands.
 Zero live NVIDIA calls. Published locally with deletion disabled; original data retained.
 
 ## Open
@@ -17,6 +18,7 @@ Zero live NVIDIA calls. Published locally with deletion disabled; original data 
 | D1 | CRITICAL-rated development dependency advisories; application exploitability not demonstrated | Live `npm audit --json` in the module reports vitest 3.2.4 and tinypool 1.1.1 as critical-rated packages, plus a moderate @vitest/mocker package finding. Agent/client audits and module `--omit=dev` audit report zero findings. Vitest advisory depends on UI/browser/API server exposure; tinypool advisory requires an additional prototype-pollution path. Current tests use `vitest run`. | Module owner: coordinate a compatible Vitest/test-toolchain update and rerun full audit/tests; npm proposes 3.2.7, but verify the resulting lockfile against every advisory. No dependencies or lockfiles changed. Details and primary sources in DEEP_SWEEP.md. |
 | Q1 | MED | `recordAgentStep` infers the current run. After cancelling A and claiming B with the same identity, a delayed A trace is accepted as B. Confirmed by `node attack/probes/run-attribution.mjs` (exits 1, cleans up). | Coordinate an expected `runId` reducer argument before changing callers. Existing worker now enforces one local process per identity and awaits trace acceptance before actions; this is mitigation, not a server fix across machines. Atomic cancellation of in-flight writes needs server guards too. |
 | P1 | LOW | A procedure that rejects its caller is reported as "The module instance encountered a **fatal error**", and costs ~29 ms against ~6 ms for a normal call. A throw inside a procedure appears to tear down the module instance, so any signed-in user can make the server do ~5× work per call. | In the read procedures, return `canonicalJson({ error })` instead of throwing for expected denials. |
+| V1 | LOW (code review, not reproducible over SQL) | `agent_status` (813c13f) checks that the caller has a user row and a session row, not that the session is unexpired or unrevoked. An expired human keeps reading agent identities and incident IDs until the 60 s sweep deletes the row. Swept and revoked humans already see nothing (slice 11/enrol). It also scans `agentIdentity` with `.iter()`, which re-evaluates on every change. | Gate on `!isExpired(...)` and `!isRevoked(...)` like `requireRole`. Data exposed is low-sensitivity; fix only if convenient. |
 
 ## Fixed (applied to the module by Rabeet at the user's request, re-verified)
 
