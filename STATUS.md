@@ -718,3 +718,7 @@ ATTACKER CONSOLE: LIVE ATTACK 3 (owner request: show the real model under attack
   Attacks 1 and 4 re-run after the change: held. Bridge checks 16/16 (harness now mocks node:fs for the budget read).
   Demo: a live run takes ~10-25 s, so narrate over it; each rehearsal spends ~3-8 calls (budget left: 26).
   Attack this: a model that obeys (canary in output), budget at 40/40, NVIDIA endpoint down mid-run (must end ERROR).
+
+ULTRA LIVE + REPLAY (owner-approved, ~17:05 CT): first live ULTRA 550B run (local incident #84): 71.7 s, 7 calls,
+  getScope + flagConflict + updateSeverity(critical) + 3 createTask, all ok. Replay of it: 2.5 s, 0 calls, identical tool
+  sequence. NVIDIA BUDGET NOW 21/40. Demo: ULTRA live is too slow for stage (~70 s); use replay or FAST live (~10-25 s).
