@@ -423,3 +423,11 @@ ATTACK STAGE LAUNCHER — `node attacker/stage.mjs` (repo root): one command for
     rarely appears on screen. Holding the edit ~4 s before restoring in demo/2-tamper.mjs would make it visible.
   Attack this: stage with ATTACK_TARGET set to a remote host (must refuse), client env drift back to blackbox or
     Maincloud, a reused/expired commander code, port squatting on [::1].
+
+FIX(demo 2, owner-approved while Rabeet unavailable) — `attack/demo/2-tamper.mjs` now holds the edited audit row 4 s
+  (TAMPER_HOLD_MS, default 4000; 0 restores the old instant behaviour) before the `finally` restore, so open clients,
+  which re-verify every 2 s, actually show the red band. The hold sits inside the try, so the row is still restored
+  if anything throws. Checks and outcomes unchanged; one extra log line. Verified on the stage (local blackbox-attack,
+  judges' window at :5180): INTEGRITY BROKEN · RECORD #53 for ~4.1 s, then CHAIN VERIFIED; A2a/A2b/A2c all PASS.
+  Demo rehearsals get ~4 s longer per run.
+  Attack this: kill the demo process during the hold (row stays edited until restored by hand or a re-run's repair).

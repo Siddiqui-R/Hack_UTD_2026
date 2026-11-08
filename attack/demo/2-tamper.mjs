@@ -37,6 +37,9 @@ export async function run() {
     const mod = await verifyChainRemote(await getCommander());
     if (mod.called) record('A2c', "module's verifyChain names the same row (red bar)", mod.ok === false && mod.brokenAt === seq ? 'PASS' : 'VULN',
       `module: brokenAt ${mod.brokenAt}, ${mod.reason}`);
+    // Leave the edit in place long enough for an open client (re-verifies every 2 s) to show the red bar on stage.
+    const hold = Number(process.env.TAMPER_HOLD_MS ?? 4000);
+    if (hold > 0) { say(`holding the edit ${hold / 1000}s so open BLACKBOX windows show INTEGRITY BROKEN…`); await new Promise(r => setTimeout(r, hold)); }
   } finally {
     ownerSql(`UPDATE audit SET action = ${q(target.action)} WHERE seq = ${seq}`);
   }
