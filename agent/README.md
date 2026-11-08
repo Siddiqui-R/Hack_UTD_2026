@@ -23,6 +23,9 @@ The service uses its own SpacetimeDB identity, stored in `agent/.agent-token` (g
 - `maxRetries: 0`, `maxOutputTokens: 4096` (these models reason first), at most 8 steps, `temperature 1.0 / top_p 0.95`.
 - Each model step increments `agent-logs/live-call-count.json`, and the step cap shrinks to the remaining budget (40 total).
 - A malformed tool call (fails Zod validation) ends the run instead of being retried.
+- The budget only applies when `NVIDIA_BASE_URL` is `integrate.api.nvidia.com`. Point it at a self-hosted OpenAI-compatible
+  endpoint (NIM or vLLM on Brev, e.g. `http://<host>:8000/v1`, with `MODEL_FAST` set to the served model name) and live runs
+  are uncapped, don't touch the counter, and don't need `NVIDIA_API_KEY`.
 
 ## Injection defense
 1. Evidence is wrapped in `<evidence id nonce>` markers with a per-run random nonce, so text can't fake a closing tag.

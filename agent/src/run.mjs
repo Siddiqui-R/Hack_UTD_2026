@@ -72,18 +72,20 @@ if (mode === 'mock') {
 }
 
 if (mode === 'live') {
-  if (!config.nvidiaKey) { console.error('NVIDIA_API_KEY missing from .env'); return void (process.exitCode = 2); }
+  if (config.metered && !config.nvidiaKey) { console.error('NVIDIA_API_KEY missing from .env'); return void (process.exitCode = 2); }
   const counterFile = path.join(config.logDir, 'live-call-count.json');
   const counter = fs.existsSync(counterFile) ? JSON.parse(fs.readFileSync(counterFile, 'utf8')) : { count: 0, calls: [] };
-  const left = config.liveBudget - counter.count;
+  const left = config.metered ? config.liveBudget - counter.count : config.maxSteps;
   if (left <= 0) { console.error(`live-call budget exhausted (${counter.count}/${config.liveBudget})`); return void (process.exitCode = 2); }
+  if (!config.metered) console.log(`(self-hosted endpoint ${new URL(config.nvidiaBase).host}: credit budget not applied)`);
   const spend = () => {
+    if (!config.metered) return;
     counter.count += 1;
     counter.calls.push({ n: counter.count, at: new Date().toISOString(), label: `agent ${modelId}` });
     fs.writeFileSync(counterFile, JSON.stringify(counter, null, 2));
   };
 
-  const nvidia = createOpenAICompatible({ name: 'nvidia', baseURL: config.nvidiaBase, apiKey: config.nvidiaKey });
+  const nvidia = createOpenAICompatible({ name: 'nvidia', baseURL: config.nvidiaBase, apiKey: config.nvidiaKey || 'none' });
   const result = await generateText({
     model: nvidia.chatModel(modelId),
     system: SYSTEM_PROMPT,

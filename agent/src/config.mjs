@@ -26,7 +26,14 @@ export const config = {
   stdbUrl: (env.STDB_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, ''),
   stdbDb: env.STDB_DB ?? 'blackbox',
   maxSteps: 8,
-  liveBudget: 40,
+  liveBudget: 40,                                  // applies only to NVIDIA's hosted API (see `metered`)
   logDir: path.join(ROOT, 'agent-logs'),           // gitignored at repo root
   tokenFile: path.join(AGENT_DIR, '.agent-token'), // gitignored in agent/
 };
+
+// Only build.nvidia.com's hosted API spends the 40-call credit budget. A self-hosted endpoint
+// (NIM or vLLM on Brev) is unmetered: no counter, no budget cap, API key optional.
+function isMetered(base) {
+  try { return new URL(base).hostname === 'integrate.api.nvidia.com'; } catch { return true; }
+}
+config.metered = isMetered(config.nvidiaBase);
