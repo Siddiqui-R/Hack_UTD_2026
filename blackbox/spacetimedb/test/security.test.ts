@@ -36,7 +36,21 @@ function setup() {
 
 describe('BLACKBOX security', () => {
   it.todo('1. observer cannot read scope_item rows (slice 6)');
-  it.todo('2. responder cannot delete or close an incident (slice 3)');
+  // There is no delete reducer at all, so "close" is the live check.
+  it('2. responder cannot close an incident', () => {
+    const { test, tx, commander, responder } = setup();
+    tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Payroll ransomware', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'fin-db-02', containmentStatus: 'partial',
+    }));
+    const inc = [...test.db.incident.iter()][0];
+    expect(() => tx(responder, ctx => mod.updateIncident(ctx, {
+      incidentId: inc.id, severity: inc.severity, status: 'closed',
+      containmentStatus: inc.containmentStatus, systemsAffected: inc.systemsAffected,
+    }))).toThrow();
+    expect(test.db.incident.id.find(inc.id)?.status).toBe('triage');
+    expect('deleteIncident' in mod).toBe(false); // if a delete reducer appears, extend this test
+  });
 
   it('3. expired invite code is rejected', () => {
     const { test, tx, id, commander } = setup();
