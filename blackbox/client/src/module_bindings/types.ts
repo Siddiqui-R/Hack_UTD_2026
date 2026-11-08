@@ -277,6 +277,23 @@ export const Task = __t.object("Task", {
 });
 export type Task = __Infer<typeof Task>;
 
+export const TaskProgress = __t.object("TaskProgress", {});
+export type TaskProgress = __Infer<typeof TaskProgress>;
+
+export const TaskState = __t.object("TaskState", {
+  taskId: __t.u64(),
+  incidentId: __t.u64(),
+  status: __t.string(),
+  assignee: __t.option(__t.identity()),
+  version: __t.u64(),
+  note: __t.string(),
+  updatedBy: __t.identity(),
+  updatedAt: __t.timestamp(),
+  completedBy: __t.option(__t.identity()),
+  completedAt: __t.option(__t.timestamp()),
+});
+export type TaskState = __Infer<typeof TaskState>;
+
 export const Tasks = __t.object("Tasks", {});
 export type Tasks = __Infer<typeof Tasks>;
 
