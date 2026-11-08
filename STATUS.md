@@ -279,3 +279,23 @@ IMPLEMENTATION HANDOFF — all owned module/client work through agreed scope is 
   per recordTypes.ts / VITE_PDF_URL. Cancellation requires worker to stop if queue/trace is cancelled.
   Attack this: review new endpoints/permissions and integration behavior; especially run attribution,
   snapshot redaction, external checkpoint provenance, chat/scope filtering and closure approval freshness.
+
+DEPLOYMENT / INTEGRATION milestone — independently hosted checkpoint Worker + durable D1 deployed at
+  https://blackbox-checkpoint-utd2026.aerialoats1.chatgpt.site (private host access; separate read/write secrets).
+  Deployment appgdep_6aefd0dfc4988191a1c276e544499b70 succeeded; authenticated health 200 and local checkpoint
+  #100 stored at 2026-11-08 01:36:06 UTC. Existing local module configured and scheduler started; republished
+  with --delete-data=never. Hash formula unchanged. Module optional ANCHOR_GATE_TOKEN supports private host
+  service access; all credentials remain ignored/private. No independent timestamp-authority claim.
+  Vercel retained by owner decision; access pending. Maincloud target blackbox-utd2026-abbas9x NOT deployed:
+  local-server JWT rejected by cloud; account browser login required (initial login request expired).
+  Separate Maincloud CLI config preserves existing local owner credentials. No reset/migration/data deletion.
+  Vercel config and authenticated /api/pdf adapter implemented: fresh authorized get_record -> Rabeet renderer;
+  database token never forwarded to renderer. /api/integrations reports configuration readiness. Renderer URL
+  and optional private credential still required from Rabeet. No renderer/worker implementation duplicated.
+  Added agentRunStatus({runId}) read-only enrolled-incident endpoint: workers cannot read human trace views,
+  so poll status before tools to notice cancellation. Bindings regenerated; exact HTTP/SDK queue/trace and
+  PDF contracts plus configuration in DEPLOYMENT.md / AGENT_CONTRACT.md. Production service needs a cloud
+  identity/token, not the local JWT. Worker must honor mock/replay and cancellation; no NVIDIA calls (5/40).
+  Basic module typecheck/build/codegen, client production build and adapter syntax checks pass. No security
+  campaign run; Rabeet owns validation. Attack this: deployed checkpoint durability/immutability/provenance,
+  worker cancellation/session handling and authorized PDF snapshot/renderer integration.

@@ -1,5 +1,8 @@
 # External checkpoint store
 
+The independently hosted durable D1 implementation is now deployed from `hosted/`; see root DEPLOYMENT.md.
+The Node implementation below remains an alternative for a separately managed persistent volume.
+
 Deploy server.mjs separately from the database host/account, behind HTTPS, with a persistent volume.
 It needs Node 22+ and no packages. Set distinct ANCHOR_WRITE_TOKEN and ANCHOR_READ_TOKEN as deployment secrets,
 CHECKPOINT_FILE to the volume's JSONL file, and HOST/PORT for the deployment. No update/delete routes exist.

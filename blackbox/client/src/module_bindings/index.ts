@@ -62,6 +62,7 @@ import UpdateScopeItemReducer from "./update_scope_item_reducer";
 import UpdateSeverityReducer from "./update_severity_reducer";
 
 // Import all procedure arg schemas
+import * as AgentRunStatusProcedure from "./agent_run_status_procedure";
 import * as EvidenceRecordsProcedure from "./evidence_records_procedure";
 import * as GetRecordProcedure from "./get_record_procedure";
 import * as GetScopeProcedure from "./get_scope_procedure";
@@ -199,6 +200,7 @@ const reducersSchema = __reducers(
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("agent_run_status", AgentRunStatusProcedure.params, AgentRunStatusProcedure.returnType),
   __procedureSchema("evidence_records", EvidenceRecordsProcedure.params, EvidenceRecordsProcedure.returnType),
   __procedureSchema("get_record", GetRecordProcedure.params, GetRecordProcedure.returnType),
   __procedureSchema("get_scope", GetScopeProcedure.params, GetScopeProcedure.returnType),

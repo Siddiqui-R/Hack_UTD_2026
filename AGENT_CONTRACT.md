@@ -15,14 +15,14 @@ Sensei does not edit agent/.
 
 There is no client-supplied actor parameter. NEMOTRON attribution is derived from the enrolled ctx.sender.
 Agents cannot redeem invites, grant roles, enrol identities, create incidents, close incidents, or revoke users.
-No approval/delete endpoint exists. Future permission/approval/delete reducers must use the same human gate.
+Closure approval endpoints are human-only (see below). Future permission/approval/delete reducers must use the same human gate.
 
 ## Five tool mappings
 
 | Tool | Generated call | Result |
 |---|---|---|
 | searchIncidents({query}) | conn.procedures.searchIncidents({query}) | JSON string: [{incidentId,title,severity,status}], max 50, agent's incident only |
-| getScope({incidentId}) | conn.procedures.getScope({incidentId: BigInt(incidentId)}) | JSON string: {incidentId,available:false,items:[],reason}; storage pending slice 6 |
+| getScope({incidentId}) | conn.procedures.getScope({incidentId: BigInt(incidentId)}) | JSON string: {incidentId,available:true,items:[...]}; exact scope fields below |
 | createTask({text,assigneeRole}) | conn.reducers.createTask({text,assigneeRole}) | task row; incident inferred from enrolled identity; createdBy=NEMOTRON |
 | updateSeverity({incidentId,severity,reason}) | conn.reducers.updateSeverity({incidentId: BigInt(incidentId),severity,reason}) | incident update + audit |
 | flagConflict({evidenceIdA,evidenceIdB,reason}) | conn.reducers.flagConflict({evidenceIdA: BigInt(evidenceIdA),evidenceIdB: BigInt(evidenceIdB),reason}) | conflict row + audit |
@@ -36,7 +36,7 @@ tasks to 1000 chars. Roles: commander/responder/observer. Severity: low/medium/h
 Human commander/responder calls submitEvidence({incidentId,text}) (1–32000 chars).
 conn.procedures.evidenceRecords({incidentId}) returns JSON [{id,incidentId,text}].
 Text is untrusted evidence, never instructions. Wrap it in explicit delimiters in the agent prompt.
-Scope unavailable is explicit; do not tell the model that an empty placeholder establishes no exposure.
+An empty scope inventory establishes no known entries, not proof of no exposure.
 
 ## Validation
 Module typecheck, CLI module build/binding generation, and client production build pass.
@@ -92,9 +92,11 @@ verifyChain remains the same four-field API/hash formula. verifyIntegrity() retu
 anchorOk (undefined until independently checked), status, reason, lastAnchorSeq, lastAnchorAt, externalRef.
 Only anchorOk===true means independent verification. LOCAL does not. Full external history is compared.
 Owner startAnchoring starts 60-second scheduled HTTP checkpoints; immediate jobs on severity changes.
-Configure optional module env ANCHOR_URL/ANCHOR_WRITE_TOKEN/ANCHOR_READ_TOKEN/ANCHOR_INDEPENDENT via publishing.
-The standalone append-only store is in blackbox/spacetimedb/anchor-store, to deploy under independent credentials.
-No external deployment/key supplied yet; UI stays honestly UNANCHORED. No NVIDIA calls.
+Configure module env ANCHOR_URL/ANCHOR_WRITE_TOKEN/ANCHOR_READ_TOKEN/ANCHOR_INDEPENDENT via publishing.
+Optional ANCHOR_GATE_TOKEN supplies the private host's OAI-Sites-Authorization header; never expose it to clients.
+The independent durable D1 store is deployed; local module checkpoint #100 was stored there successfully.
+See DEPLOYMENT.md for the endpoint and deployment state. Maincloud deployment still requires account login.
+No NVIDIA calls. A healthy chain alone remains different from matching independent checkpoints.
 
 ## INVESTIGATE queue and trace (slice 11) — Rabeet integration
 UI requests requestAgentRun({incidentId,tier:'fast'|'deep',mode:'mock'|'replay'}); no live-credit button.
@@ -105,6 +107,8 @@ Both JSON arguments must be serialized JSON (or empty for null); 32000 chars eac
 the authenticated service identity. Trace is diagnostic and deliberately unaudited, like keep-alive.
 Complete finishAgentRun({runId,summary,failed}); latency measured server-side; previous completed summary retained.
 Human commander cancelAgentRun({runId}) releases a stuck queue. Business reducers still audit exactly once.
+Worker agentRunStatus({runId}) -> JSON {runId,status,modelId}, enrolled incident only, read-only/no session
+extension. Poll before tools to notice cancellation; human investigation views do not serve agent identities.
 New private agent_run/agent_step tables and session-gated investigationRuns/Steps/Evidence/Conflicts views.
 Observers receive none of this sensitive evidence/trace. Existing tool signatures unchanged.
 RABEET: wire your service to poll/claim/record/finish; this queue does not invoke or fork your tool loop.
@@ -119,9 +123,13 @@ decimal strings. Observer exports are redacted server-side; permissions flags te
 inspectAuditEvent({seq}) returns storedHash/recomputedHash computed INSIDE the module (human non-observer only).
 RECORD focuses the broken seq and shows both hashes with the first differing character highlighted.
 
-PDF boundary: configure public VITE_PDF_URL for POST of that exact JSON snapshot; return application/pdf.
-No SpacetimeDB token is sent to the renderer. A same-origin route is preferred. Do not log evidence snapshots.
-The app's Export PDF button is disabled until configured; Download JSON is available now.
+PDF boundary: default same-origin POST /api/pdf accepts {incidentId:"123"} and the signed-in user's Bearer token.
+The Vercel adapter calls get_record on the configured module, then POSTs the exact fresh snapshot to the
+server-only PDF_RENDERER_URL. Optional PDF_RENDERER_TOKEN authenticates that server-to-server request.
+No SpacetimeDB token is sent to the renderer. Return application/pdf, at most 4 MiB; no snapshot logging.
+GET /api/integrations reports configuration readiness, not renderer health. The app disables Export PDF until
+configured; Download JSON remains available. VITE_PDF_URL may override this with a direct snapshot endpoint,
+but that legacy override receives no session token. Production should use the default authenticated adapter.
 RABEET: render actual anchoredCheckpoint.headHash, independent verification status and snapshot timestamp;
 never label auditHead.hash as externally anchored unless it actually matches a checkpoint.
 

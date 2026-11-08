@@ -176,7 +176,7 @@ const closureApproval = table({ name: 'closure_approval' }, {
 });
 const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep, message, scopeItem, closureRequest, closureApproval }, { env: {
   ANCHOR_URL: t.option(t.string()), ANCHOR_WRITE_TOKEN: t.option(t.string()),
-  ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
+  ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_GATE_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
 } });
 export default spacetimedb;
 
@@ -678,7 +678,7 @@ export const writeAnchor = spacetimedb.procedure(
     if (!snapshot) return {};
     try {
       const response = ctx.http.fetch(`${url.replace(/\/$/, '')}/checkpoint`, {
-        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(ctx.env.ANCHOR_GATE_TOKEN ? { 'OAI-Sites-Authorization': `Bearer ${ctx.env.ANCHOR_GATE_TOKEN}` } : {}) },
         body: JSON.stringify({ database: ctx.databaseIdentity.toHexString(), seq: snapshot.seq.toString(), headHash: snapshot.headHash }),
         timeout: TimeDuration.fromMillis(4000),
       });
@@ -709,7 +709,7 @@ function checkExternalAnchor(ctx: ProcCtx) {
   if (!url || !token) return base;
   try {
     const response = ctx.http.fetch(`${url.replace(/\/$/, '')}/checkpoints?database=${ctx.databaseIdentity.toHexString()}`, {
-      headers: { authorization: `Bearer ${token}` }, timeout: TimeDuration.fromMillis(4000),
+      headers: { authorization: `Bearer ${token}`, ...(ctx.env.ANCHOR_GATE_TOKEN ? { 'OAI-Sites-Authorization': `Bearer ${ctx.env.ANCHOR_GATE_TOKEN}` } : {}) }, timeout: TimeDuration.fromMillis(4000),
     });
     if (response.status !== 200) return { ...base, status: 'unavailable', reason: 'External checkpoint store unavailable' };
     const records: unknown = JSON.parse(response.text());
@@ -755,6 +755,14 @@ export const nextAgentRun = spacetimedb.procedure(t.string(), ctx => ctx.withTx(
   if (!agent) throw new SenderError('agent identity required');
   const row = [...tx.db.agentRun.incidentId.filter(agent.incidentId)].filter(r => r.status === 'queued').sort((a,b) => a.id < b.id ? -1 : 1)[0];
   return canonicalJson(row ? { runId: row.id, incidentId: row.incidentId, tier: row.tier, mode: row.mode, modelId: row.modelId } : null);
+}));
+// Workers cannot subscribe to human investigation views. Read only their enrolled incident's run status.
+export const agentRunStatus = spacetimedb.procedure({ runId: t.u64() }, t.string(), (ctx, { runId }) => ctx.withTx(tx => {
+  const { agent } = requireReader(tx);
+  if (!agent) throw new SenderError('agent identity required');
+  const row = tx.db.agentRun.id.find(runId);
+  if (!row || row.incidentId !== agent.incidentId) throw new SenderError('run in enrolled incident required');
+  return canonicalJson({ runId: row.id, status: row.status, modelId: row.modelId });
 }));
 export const beginAgentRun = spacetimedb.reducer({ runId: t.u64(), modelId: t.string() }, (ctx, args) => {
   const agent = requireAgent(ctx);

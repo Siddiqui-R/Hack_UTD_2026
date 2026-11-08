@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useProcedure } from 'spacetimedb/react';
+import { useProcedure, useSpacetimeDB } from 'spacetimedb/react';
 import { procedures } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { useRun } from '../components/Toast';
-import { downloadSnapshot, exportPdf, PDF_ENDPOINT } from '../lib/pdfExport';
+import { downloadSnapshot, exportPdf, PDF_ENDPOINT, USE_PDF_PROXY } from '../lib/pdfExport';
 import { formatMicros, type RecordSnapshot } from '../lib/recordTypes';
 
 function Hash({ stored, recomputed }: { stored: string; recomputed: string }) {
@@ -11,6 +11,9 @@ function Hash({ stored, recomputed }: { stored: string; recomputed: string }) {
   return <div className="grid gap-3 font-mono text-[12px]"><div><div className="label mb-1">Stored hash</div><div className="break-all">{[...stored].map((c,i)=><span key={i} className={i===first?'bg-critical text-bg-0':''}>{c}</span>)}</div></div><div><div className="label mb-1">Recomputed in module</div><div className="break-all">{[...recomputed].map((c,i)=><span key={i} className={i===first?'bg-critical text-bg-0':''}>{c}</span>)}</div></div></div>;
 }
 export function RecordView({ incident, me }: { incident: Incident; me: TeamMember }) {
+  const {token}=useSpacetimeDB();
+  const [pdfReady,setPdfReady]=useState(!USE_PDF_PROXY && !!PDF_ENDPOINT);
+  useEffect(()=>{if(!USE_PDF_PROXY)return;let active=true;fetch('/api/integrations').then(r=>r.ok?r.json():{pdfReady:false}).then(v=>{if(active)setPdfReady(v.pdfReady===true)}).catch(()=>{if(active)setPdfReady(false)});return()=>{active=false}},[]);
   const load=useProcedure(procedures.getRecord),inspect=useProcedure(procedures.inspectAuditEvent),run=useRun();
   const [snapshot,setSnapshot]=useState<RecordSnapshot>(),[selected,setSelected]=useState<string>(),[detail,setDetail]=useState<{storedHash:string;recomputedHash:string;payloadJson:string}>(),[exporting,setExporting]=useState(false);
   const focused=useRef<HTMLButtonElement>(null);
@@ -23,8 +26,8 @@ export function RecordView({ incident, me }: { incident: Incident; me: TeamMembe
   const broken=snapshot.verification.brokenAt,anchor=snapshot.anchoredCheckpoint;
   const event=snapshot.audit.find(e=>e.seq===selected);
   return <div className="flex h-full min-h-0 flex-col">
-    <div className="flex items-center gap-3 border-b border-line px-6 py-4"><h1 className="flex-1 text-[20px] font-semibold">Incident record</h1><button className="btn" onClick={()=>void refresh()}>Refresh</button><button className="btn" onClick={()=>downloadSnapshot(snapshot)}>Download JSON</button><button className="btn btn-primary" disabled={!PDF_ENDPOINT||exporting} title={!PDF_ENDPOINT?'Rabeet PDF renderer not connected':undefined} onClick={async()=>{setExporting(true);await run(()=>exportPdf(snapshot));setExporting(false);}}>{exporting?'Exporting PDF':'Export PDF'}</button></div>
-    <div className="border-b border-line px-6 py-3 font-mono text-[11px] text-text-1">SNAPSHOT {formatMicros(snapshot.generatedAt)} · {snapshot.audit.length} INCIDENT EVENTS · {snapshot.verification.checked} GLOBAL RECORDS CHECKED{!PDF_ENDPOINT&&<span className="ml-3 text-text-2">PDF RENDERER NOT CONNECTED</span>}</div>
+    <div className="flex items-center gap-3 border-b border-line px-6 py-4"><h1 className="flex-1 text-[20px] font-semibold">Incident record</h1><button className="btn" onClick={()=>void refresh()}>Refresh</button><button className="btn" onClick={()=>downloadSnapshot(snapshot)}>Download JSON</button><button className="btn btn-primary" disabled={!pdfReady||exporting} title={!pdfReady?'Rabeet PDF renderer not connected':undefined} onClick={async()=>{setExporting(true);await run(()=>exportPdf(snapshot,token));setExporting(false);}}>{exporting?'Exporting PDF':'Export PDF'}</button></div>
+    <div className="border-b border-line px-6 py-3 font-mono text-[11px] text-text-1">SNAPSHOT {formatMicros(snapshot.generatedAt)} · {snapshot.audit.length} INCIDENT EVENTS · {snapshot.verification.checked} GLOBAL RECORDS CHECKED{!pdfReady&&<span className="ml-3 text-text-2">PDF RENDERER NOT CONNECTED</span>}</div>
     <div className="grid min-h-0 flex-1 grid-cols-[minmax(300px,1fr)_minmax(320px,1fr)]">
       <section className="min-h-0 overflow-y-auto border-r border-line"><div className="label sticky top-0 border-b border-line bg-bg-1 px-4 py-3">Audit timeline</div>{snapshot.audit.length===0&&<p className="p-4 text-text-2">No incident events recorded.</p>}{snapshot.audit.map(e=><button key={e.seq} ref={e.seq===broken?focused:undefined} onClick={()=>setSelected(e.seq)} aria-selected={selected===e.seq} className={`row w-full text-left ${broken&&e.seq!==broken?'opacity-25':''} ${e.seq===broken?'border-2 border-critical text-critical':''}`}><span className="w-12 shrink-0 font-mono text-[12px]">#{e.seq}</span><span className="w-20 shrink-0 font-mono text-[11px] text-text-2">{formatMicros(e.createdAt).slice(11,19)}</span><span className="truncate font-mono text-[12px]">{e.action}</span><span className="ml-auto font-mono text-[11px] text-text-2">{e.actor==='NEMOTRON'?'NEMOTRON':e.actor.slice(0,8)}</span></button>)}</section>
       <aside className="min-h-0 overflow-y-auto bg-bg-1 p-6">
