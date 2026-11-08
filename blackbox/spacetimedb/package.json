@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "build": "spacetime build",
-    "publish": "spacetime publish"
+    "publish": "spacetime publish",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,7 @@
     "spacetimedb": "2.14.*"
   },
   "devDependencies": {
-    "typescript": "~5.6.2"
+    "typescript": "~5.6.2",
+    "vitest": "3.2.4"
   }
 }
