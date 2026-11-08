@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useProcedure, useSpacetimeDB } from 'spacetimedb/react';
 import { procedures } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { useRun } from '../components/Toast';
 import { downloadSnapshot, exportPdf, PDF_ENDPOINT, USE_PDF_PROXY } from '../lib/pdfExport';
-import { formatMicros, type RecordSnapshot } from '../lib/recordTypes';
+import { formatMicros } from '../lib/recordTypes';
+import { useRecordSnapshot } from '../lib/useRecordSnapshot';
 import { eventLabel, incidentNumber } from '../lib/copy';
 import { enter } from '../lib/motion';
 
@@ -24,12 +25,11 @@ export function RecordView({ incident, me, focus }: { incident: Incident; me: Te
   const { token } = useSpacetimeDB();
   const [pdfReady, setPdfReady] = useState(!USE_PDF_PROXY && !!PDF_ENDPOINT);
   useEffect(() => { if (!USE_PDF_PROXY) return; let active = true; fetch('/api/integrations').then(r => (r.ok ? r.json() : { pdfReady: false })).then(v => { if (active) setPdfReady(v.pdfReady === true); }).catch(() => { if (active) setPdfReady(false); }); return () => { active = false; }; }, []);
-  const load = useProcedure(procedures.getRecord), inspect = useProcedure(procedures.inspectAuditEvent), run = useRun();
-  const [snapshot, setSnapshot] = useState<RecordSnapshot>(), [selected, setSelected] = useState<string | undefined>(focus), [exporting, setExporting] = useState(false);
+  const inspect = useProcedure(procedures.inspectAuditEvent), run = useRun();
+  const { snapshot, updatedAt, error: refreshError, refresh } = useRecordSnapshot(incident.id);
+  const [selected, setSelected] = useState<string | undefined>(focus), [exporting, setExporting] = useState(false);
   const [detail, setDetail] = useState<{ storedHash: string; recomputedHash: string; payloadJson: string }>();
   const focused = useRef<HTMLButtonElement>(null), chain = useRef<HTMLDivElement>(null);
-  const refresh = useCallback(() => run(async () => { const next = JSON.parse(await load({ incidentId: incident.id })) as RecordSnapshot; setSnapshot(next); }), [load, incident.id, run]);
-  useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [refresh]);
   useEffect(() => { if (focus) setSelected(focus); }, [focus]);
   useEffect(() => { if (snapshot?.verification.brokenAt) setSelected(snapshot.verification.brokenAt); }, [snapshot?.verification.brokenAt]);
   useEffect(() => { setDetail(undefined); if (!selected || me.role === 'observer') return; let active = true; void run(async () => { const next = JSON.parse(await inspect({ seq: BigInt(selected) })); if (active) setDetail(next); }); return () => { active = false; }; }, [selected, me.role, inspect, run, snapshot?.generatedAt]);
@@ -43,7 +43,7 @@ export function RecordView({ incident, me, focus }: { incident: Incident; me: Te
     <div className="kicker"><span>{incidentNumber(incident.id)}</span><span className="slash">/</span><span>INCIDENT RECORD</span></div>
     <div className="title-row"><div><h1>{incident.title}</h1><p>See what changed, who changed it, and what the history check shows.</p></div></div>
   </>;
-  if (!snapshot) return <>{hero}<p className="empty-note">Loading the incident record…</p></>;
+  if (!snapshot) return <>{hero}<p className="empty-note" role="status">{refreshError ? `Couldn’t load the incident record: ${refreshError}` : 'Loading the incident record…'}</p></>;
 
   const broken = snapshot.verification.brokenAt, anchor = snapshot.anchoredCheckpoint, ok = snapshot.verification.ok;
   const event = snapshot.audit.find(e => e.seq === selected);
@@ -76,6 +76,7 @@ export function RecordView({ incident, me, focus }: { incident: Incident; me: Te
     </section>
     <div className="action-row" style={{ marginTop: 25 }}>
       <button className="btn" onClick={() => void refresh()}>Refresh record</button>
+      <span className={`section-note ${refreshError ? 'red' : ''}`} role="status">{refreshError ? `Refresh failed (${refreshError}). Showing the record loaded at ${updatedAt ? new Date(updatedAt).toISOString().slice(11, 19) : '—'} UTC.` : updatedAt ? `Updated ${new Date(updatedAt).toISOString().slice(11, 19)} UTC` : ''}</span>
       <button className="btn" onClick={() => downloadSnapshot(snapshot)}>Download JSON</button>
       <button className="btn primary" disabled={!pdfReady || exporting} title={!pdfReady ? 'PDF renderer not connected' : undefined}
         onClick={async () => { setExporting(true); await run(() => exportPdf(snapshot, token)); setExporting(false); }}>{exporting ? 'Exporting PDF…' : 'Export PDF'}</button>

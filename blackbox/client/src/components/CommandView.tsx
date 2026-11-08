@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useProcedure, useTable } from 'spacetimedb/react';
-import { procedures, tables } from '../module_bindings';
+import { useEffect, useRef, useState } from 'react';
+import { useTable } from 'spacetimedb/react';
+import { tables } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
-import { useRun } from './Toast';
+import { useRecordSnapshot } from '../lib/useRecordSnapshot';
 import { Modal } from './Modal';
 import { UpdateIncidentForm } from './IncidentForms';
 import { ScopePanel } from './ScopePanel';
@@ -12,7 +12,7 @@ import { IncidentPicture, type NextStep } from './IncidentPicture';
 import { containmentLabel, displayValue, eventLabel, incidentNumber, statusLabel } from '../lib/copy';
 import { typeLabel } from '../lib/vocab';
 import { fmtUtc, tsToDate } from '../lib/format';
-import { formatMicros, type RecordSnapshot } from '../lib/recordTypes';
+import { formatMicros } from '../lib/recordTypes';
 import { enter } from '../lib/motion';
 
 export type Tab = 'overview' | 'tasks' | 'scope' | 'activity' | 'approvals' | 'details';
@@ -24,14 +24,13 @@ const actorName = (actor: string, team: readonly TeamMember[]) =>
 // Incident activity = this incident's audit events, read through the existing getRecord procedure.
 // Polls only while the Activity tab is open.
 function ActivityPanel({ incident, team }: { incident: Incident; team: readonly TeamMember[] }) {
-  const load = useProcedure(procedures.getRecord), run = useRun();
-  const [snapshot, setSnapshot] = useState<RecordSnapshot>();
-  const refresh = useCallback(() => run(async () => setSnapshot(JSON.parse(await load({ incidentId: incident.id })) as RecordSnapshot)), [load, incident.id, run]);
-  useEffect(() => { void refresh(); const t = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(t); }, [refresh]);
+  const { snapshot, updatedAt, error } = useRecordSnapshot(incident.id);
   return (
     <section className="focused-section">
-      <div className="section-head"><div><span className="eyebrow">INCIDENT HISTORY</span><h2>Activity</h2></div><span className="badge">FROM THE INCIDENT RECORD</span></div>
-      {!snapshot ? <p className="empty-note">Loading activity…</p> : !snapshot.audit.length ? <p className="empty-note">No activity recorded yet.</p> : (
+      <div className="section-head"><div><span className="eyebrow">INCIDENT HISTORY</span><h2>Activity</h2></div>
+        <span className={`badge ${error ? 'critical' : ''}`}>{error ? 'REFRESH FAILED · SHOWING LAST LOADED' : updatedAt ? `UPDATED ${new Date(updatedAt).toISOString().slice(11, 19)} UTC` : 'FROM THE INCIDENT RECORD'}</span></div>
+      {error && !snapshot && <p className="empty-note" role="status">Couldn’t load activity: {error}</p>}
+      {!snapshot ? (!error && <p className="empty-note">Loading activity…</p>) : !snapshot.audit.length ? <p className="empty-note">No activity recorded yet.</p> : (
         <div className="timeline">{[...snapshot.audit].reverse().map(e => (
           <div className="event" key={e.seq}>
             <time>{formatMicros(e.createdAt).slice(11, 16)} UTC</time>

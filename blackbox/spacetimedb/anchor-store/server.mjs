@@ -24,10 +24,13 @@ const server=http.createServer(async(req,res)=>{
   let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>4096)return reply(413,{error:'too large'});}
   const {database,seq,headHash}=JSON.parse(body);
   if(!/^[0-9a-f]{64}$/.test(database)||typeof seq!=='string'||!/^\d{1,20}$/.test(seq)||BigInt(seq)>18446744073709551615n||!/^[0-9a-f]{64}$/.test(headHash))return reply(400,{error:'invalid checkpoint'});
-  const prior=records.filter(r=>r.database===database),same=prior.find(r=>r.seq===seq);
-  if(same)return same.headHash===headHash?reply(200,same):reply(409,{error:'checkpoint immutable'});
-  if(prior.some(r=>BigInt(r.seq)>BigInt(seq)))return reply(409,{error:'checkpoint regressed'});
-  const row={database,seq,headHash,at:(BigInt(Date.now())*1000n).toString(),ref:`checkpoint:${database}:${seq}`};
+  // Sequences compare and persist numerically ("011" is 11). Rows stored under an alias before this fix are kept
+  // as history, never rewritten; any same-number row with a different hash makes the checkpoint conflict.
+  const canon=BigInt(seq).toString(),prior=records.filter(r=>r.database===database);
+  const same=prior.filter(r=>BigInt(r.seq)===BigInt(canon));
+  if(same.length)return same.every(r=>r.headHash===headHash)?reply(200,same[0]):reply(409,{error:'checkpoint immutable'});
+  if(prior.some(r=>BigInt(r.seq)>BigInt(canon)))return reply(409,{error:'checkpoint regressed'});
+  const row={database,seq:canon,headHash,at:(BigInt(Date.now())*1000n).toString(),ref:`checkpoint:${database}:${canon}`};
   writeSync(fd,JSON.stringify(row)+'\n');fsyncSync(fd);records.push(row);return reply(201,row);
  }catch{reply(400,{error:'checkpoint request failed'});}
 });

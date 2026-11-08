@@ -550,9 +550,10 @@ const AgentStatusRow = t.row('AgentStatusRow', {
 });
 
 // Read-only: lets signed-in humans see which service identities are enrolled and whether their
-// session is live. Agents get nothing. No write path or restriction changes.
+// session is live. Agents and revoked humans get nothing. No write path or restriction changes.
+// V1: views have no clock, so a lapsed (not yet swept) session still reads this for up to the 60 s sweep.
 export const agentStatus = spacetimedb.view({ name: 'agent_status', public: true }, t.array(AgentStatusRow), ctx => {
-  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender)) return [];
+  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender) || ctx.db.revokedIdentity.identity.find(ctx.sender)) return [];
   return [...ctx.db.agentIdentity.iter()].map(a => ({
     identity: a.identity,
     incidentId: a.incidentId,
