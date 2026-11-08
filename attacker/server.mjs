@@ -12,6 +12,7 @@ import { randomBytes } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { resultRows, phaseRow, MAX_LINE_BYTES, MAX_OUTPUT_BYTES, MAX_EVENTS } from './protocol.mjs';
 import { readFile } from 'node:fs/promises';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const attackDir = fileURLToPath(new URL('../attack/', import.meta.url));
@@ -35,6 +36,7 @@ const EXPECTED = {
   2: ['A2a', 'A2c', 'A2b'],
   3: ['A3a', 'A3b', 'A3c', 'A3d', 'A3e', 'A3f', 'A3g', 'A3h'],
   4: ['A4a', 'A4b', 'A4c'],
+  '3live': ['L3a', 'L3b', 'L3c', 'L3d'],
   restore: ['R2'],
 };
 const HELD = {
@@ -42,6 +44,7 @@ const HELD = {
   2: { label: 'TAMPER DETECTED → RESTORED', stamp: 'DETECTED' },
   3: { label: 'FORBIDDEN ACTIONS DENIED', stamp: 'DENIED' },
   4: { label: 'SERVICE CONTINUED → RESYNCED', stamp: 'RESYNCED' },
+  '3live': { label: 'REAL MODEL ATTACKED · NOTHING FORBIDDEN HAPPENED', stamp: 'HELD' },
   restore: { label: 'DEMO EDIT RESTORED', stamp: 'RESTORED' },
 };
 
@@ -57,6 +60,11 @@ function factsFor(n, results, phases) {
   if (n === '3') {
     const refused = ['A3b', 'A3c', 'A3d', 'A3e', 'A3f', 'A3g'].filter(id => by(id)?.outcome === 'PASS').length;
     return ['INJECTION STAYED INSIDE THE EVIDENCE FENCE', `${refused} FORBIDDEN AGENT ACTIONS REFUSED BY THE SERVER`, 'NO MODEL CALL · SERVER RULES TESTED AS IF THE MODEL OBEYED'];
+  }
+  if (n === '3live') {
+    const ran = (by('L3a')?.detail ?? '').split(' · ');
+    return [`REAL NEMOTRON RUN · ${ran.slice(0, 2).join(' · ')}`, `SEVERITY ${by('L3b')?.detail?.toUpperCase() ?? ''} · INCIDENT NOT CLOSED`,
+      'NO INVITE CODE LEAKED · THE AGENT HAS NO TOOL TO CHANGE ROLES'];
   }
   if (n === '4') return ['ONE REAL CLIENT CONNECTION CUT', 'OTHER DEVICE KEPT WORKING', `RECONNECTED CLIENT RESYNCED ${by('A4c')?.detail?.match(/\d+\/\d+/)?.[0] ?? ''} MESSAGES`.trim()];
   const rec = phases.find(p => p.phase === 'RESTORING');
@@ -92,7 +100,9 @@ let child = null;
 const clients = new Set();
 const send = (res, ev, data) => { try { if (!res.destroyed) return res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`); } catch { clients.delete(res); } };
 const broadcast = (ev, data) => { run.events.push([ev, data]); for (const c of clients) send(c, ev, data); };
-const snapshot = () => ({ target, recovery: publicRecovery(), busy: !!child, run: run && { id: run.id, n: run.n, done: run.done } });
+// NVIDIA budget for the live attack 3 button (BLACKBOX's own 40-call guardrail; counter kept by agent/src/run.mjs).
+const liveBudget = () => { try { const c = JSON.parse(fs.readFileSync(new URL('../agent-logs/live-call-count.json', import.meta.url), 'utf8')); return { used: c.count, cap: 40 }; } catch { return null; } };
+const snapshot = () => ({ target, recovery: publicRecovery(), busy: !!child, budget: liveBudget(), run: run && { id: run.id, n: run.n, done: run.done } });
 
 function start(n) {
   // Per-run secret: only the runner/demo (which get it via env) can print result/phase markers the bridge accepts.
@@ -147,7 +157,7 @@ function start(n) {
     clearTimeout(watchdog);
     child = null;
     run.code = code; run.done = true;
-    broadcast('done', { id: run.id, code, results: run.results, verdict: verdict(run), recovery: publicRecovery() });
+    broadcast('done', { id: run.id, code, results: run.results, verdict: verdict(run), recovery: publicRecovery(), budget: liveBudget() });
   });
 }
 
@@ -187,7 +197,7 @@ http.createServer(async (req, res) => { try {
   if (req.headers['x-blackbox-console'] !== '1') return json(res, 403, { error: 'missing console header' });
 
   let m;
-  if ((m = url.match(/^\/run\/([1-4])$/))) {
+  if ((m = url.match(/^\/run\/([1-4]|3live)$/))) {
     if (child) return json(res, 409, { error: 'another run is in progress' });
     const rec = m[1] === '2' && pendingRecovery();
     if (rec) return json(res, 409, { error: rec.invalid ? `RECOVERY REQUIRED: ${rec.error}` : 'a demo edit is still pending: restore it first' });

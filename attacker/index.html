@@ -170,6 +170,7 @@ const finished = new Map();  // run id -> verdict, in case done arrives before t
 let runAll = false, holdTimer = null, releaseTimer = null;
 const clearReleaseTimer = () => { clearTimeout(releaseTimer); releaseTimer = null; };
 const outcomes = {};         // n -> verdict, per page session
+const row = n => (n === '3live' ? '3' : n); // the live model run reports into attack 3's row
 
 for (const [n, v] of Object.entries(VECTORS)) {
   const b = document.createElement('button');
@@ -182,6 +183,13 @@ for (const [n, v] of Object.entries(VECTORS)) {
   o.innerHTML = `<div><div class="on">${v.obj}</div><div class="od">${v.od}</div></div><div class="ov" id="ov${n}">○ NOT RUN</div>`;
   $('objectives').append(o);
 }
+// Attack 3 against the REAL Nemotron model: spends NVIDIA calls, so it is a separate, clearly labelled button.
+const live3 = document.createElement('button');
+live3.className = 'ctl amber'; live3.id = 'live3';
+live3.innerHTML = '▶ ATTACK 3 WITH REAL NEMOTRON · LIVE NVIDIA CALLS <span id="budget"></span>';
+live3.title = 'One real FAST model run over a poisoned report on a fresh local incident (about 2-8 hosted calls)';
+live3.onclick = () => start('3live');
+$('v3').after(live3);
 setInterval(() => $('clock').textContent = new Date().toISOString().slice(11,19) + 'Z', 1000);
 
 function line(text, cls = '') {
@@ -209,7 +217,9 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '
 
 function renderControls() {
   const busy = state.busy;
-  document.querySelectorAll('.vec').forEach(b => b.disabled = busy && b.id !== 'v' + current?.n);
+  document.querySelectorAll('.vec').forEach(b => b.disabled = busy && b.id !== 'v' + row(current?.n));
+  $('live3').disabled = busy || (state.budget && state.budget.used >= state.budget.cap);
+  $('budget').textContent = state.budget ? `(budget ${state.budget.used}/${state.budget.cap} used)` : '';
   $('runAll').disabled = busy; $('clear').disabled = busy;
   const r = state.recovery;
   $('recovery').classList.toggle('show', !!r);
@@ -260,9 +270,9 @@ function stamp(text, color) {
 const COLORS = { held:'var(--blood)', breached:'var(--phosphor)', incomplete:'var(--amber)', error:'var(--amber)' };
 function showVerdict(n, v, animate) {
   if (n !== 'restore') {
-    outcomes[n] = v;
-    const o = $('o' + n); o.className = 'obj ' + v.kind;
-    $('ov' + n).textContent = v.label; $('s' + n).textContent = v.kind === 'held' ? 'HELD' : v.label;
+    outcomes[row(n)] = v;
+    const o = $('o' + row(n)); o.className = 'obj ' + v.kind;
+    $('ov' + row(n)).textContent = v.label; $('s' + row(n)).textContent = v.kind === 'held' ? 'HELD' : v.label;
   }
   pin(v.kind, v.label, v.facts);
   if (animate) stamp(v.stamp, COLORS[v.kind]);
@@ -311,10 +321,10 @@ function connect() {
     const { n, id } = JSON.parse(e.data);
     current = { n, id }; state.busy = true;
     document.querySelectorAll('.vec').forEach(b => b.classList.remove('running'));
-    if (n !== 'restore') { $('v' + n).classList.add('running'); $('s' + n).textContent = 'RUNNING'; }
+    if (n !== 'restore') { $('v' + row(n)).classList.add('running'); $('s' + row(n)).textContent = n === '3live' ? 'LIVE MODEL' : 'RUNNING'; }
     if (n === '2' || n === 'restore') $('phases').classList.add('show'); else $('phases').classList.remove('show');
     $('pinned').className = 'pinned'; hold(0);
-    line(n === 'restore' ? '$ restore the demo edit' : `$ ./attack --vector ${n} --target ${state.target?.db ?? 'blackbox'}    # ${VECTORS[n].title}`, 'cmd');
+    line(n === 'restore' ? '$ restore the demo edit' : `$ ./attack --vector ${n} --target ${state.target?.db ?? 'blackbox'}    # ${VECTORS[row(n)].title}${n === '3live' ? ' · REAL NEMOTRON' : ''}`, 'cmd');
     $('linkTxt').textContent = 'ENGAGED'; renderControls();
   });
   es.addEventListener('line', e => { const t = JSON.parse(e.data); line(t, classify(t)); });
@@ -322,7 +332,7 @@ function connect() {
   es.addEventListener('done', e => {
     clearReleaseTimer();
     const d = JSON.parse(e.data);
-    state.busy = false; state.recovery = d.recovery;
+    state.busy = false; state.recovery = d.recovery; if (d.budget) state.budget = d.budget;
     hold(0);
     document.querySelectorAll('.vec').forEach(b => b.classList.remove('running'));
     if (current) showVerdict(current.n, d.verdict, !replaying);

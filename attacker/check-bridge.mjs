@@ -18,6 +18,7 @@ async function harness(){
   if(spec==='node:child_process')return synthetic(spec,{spawn:fakeSpawn});
   if(spec==='node:crypto')return synthetic(spec,{randomBytes});
   if(spec==='node:fs/promises')return synthetic(spec,{readFile:async()=>'<html>fixture</html>'});
+  if(spec==='node:fs')return synthetic(spec,{default:{readFileSync:()=>{throw Error('no budget file in harness')}}});
   if(spec==='node:url')return synthetic(spec,{fileURLToPath});
   if(spec==='node:string_decoder'){const m=await import(spec);return synthetic(spec,{StringDecoder:m.StringDecoder})}
   if(spec.endsWith('/lib.mjs'))return synthetic('db',{TARGET:'http://127.0.0.1:3000',DB:'fixture-only',guardTarget:()=>{}});
