@@ -242,3 +242,11 @@ SLICE 11 UI milestone — INVESTIGATE workspace, evidence intake, FAST/Deep Anal
   Self-critique: bounded trace/evidence panes, expandable JSON, model provenance and mode remain explicit;
   reduced-motion fallback on revision/cursor. Attack this: observer trace visibility, queue cancellation and
   failed-run display; full end-to-end worker behavior belongs to Rabeet.
+
+SLICE 12 module/UI milestone — RECORD timeline, server-generated export snapshot v1, audit hash inspector,
+  broken-record focus and stored/recomputed hash display. Independent checkpoint and current head are separate.
+  Observer snapshot redaction enforced in module. JSON download works; PDF hook uses VITE_PDF_URL (POST snapshot
+  -> application/pdf). RABEET DEPENDENCY: your pdf/** renderer/endpoint; see recordTypes.ts and AGENT_CONTRACT.md.
+  PDF is visibly disabled until connected, not claimed complete. Client/module typecheck and codegen pass.
+  Self-critique: no client hashing, timeline dim/focus only on a real broken seq, snapshot time shown, unanchored
+  export remains explicit. Attack this: observer export redaction, PDF anchoring claims and snapshot consistency.

@@ -109,3 +109,18 @@ New private agent_run/agent_step tables and session-gated investigationRuns/Step
 Observers receive none of this sensitive evidence/trace. Existing tool signatures unchanged.
 RABEET: wire your service to poll/claim/record/finish; this queue does not invoke or fork your tool loop.
 Honor mode and tier in each request. Mock/replay badges are always visibly labelled, including Deep Analysis.
+
+## RECORD/PDF snapshot v1 — Rabeet owns pdf/**
+Human getRecord({incidentId}) returns JSON RecordSnapshot; TypeScript contract is
+blackbox/client/src/lib/recordTypes.ts. It includes server-generated timestamp, incident fields, full global
+verification state, database auditHead, anchoredCheckpoint (external seq/hash/ref/time and independence flag),
+incident audit events, tasks, permitted evidence/conflicts/investigations and scope. IDs/microseconds are
+decimal strings. Observer exports are redacted server-side; permissions flags tell the renderer what is omitted.
+inspectAuditEvent({seq}) returns storedHash/recomputedHash computed INSIDE the module (human non-observer only).
+RECORD focuses the broken seq and shows both hashes with the first differing character highlighted.
+
+PDF boundary: configure public VITE_PDF_URL for POST of that exact JSON snapshot; return application/pdf.
+No SpacetimeDB token is sent to the renderer. A same-origin route is preferred. Do not log evidence snapshots.
+The app's Export PDF button is disabled until configured; Download JSON is available now.
+RABEET: render actual anchoredCheckpoint.headHash, independent verification status and snapshot timestamp;
+never label auditHead.hash as externally anchored unless it actually matches a checkpoint.

@@ -70,6 +70,7 @@ export const AnchorVerification = __t.object("AnchorVerification", {
   reason: __t.string(),
   lastAnchorSeq: __t.option(__t.u64()),
   lastAnchorAt: __t.option(__t.timestamp()),
+  lastAnchorHash: __t.string(),
   externalRef: __t.string(),
 });
 export type AnchorVerification = __Infer<typeof AnchorVerification>;

@@ -57,7 +57,9 @@ import UpdateSeverityReducer from "./update_severity_reducer";
 
 // Import all procedure arg schemas
 import * as EvidenceRecordsProcedure from "./evidence_records_procedure";
+import * as GetRecordProcedure from "./get_record_procedure";
 import * as GetScopeProcedure from "./get_scope_procedure";
+import * as InspectAuditEventProcedure from "./inspect_audit_event_procedure";
 import * as NextAgentRunProcedure from "./next_agent_run_procedure";
 import * as SearchIncidentsProcedure from "./search_incidents_procedure";
 import * as VerifyChainProcedure from "./verify_chain_procedure";
@@ -154,7 +156,9 @@ const reducersSchema = __reducers(
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
   __procedureSchema("evidence_records", EvidenceRecordsProcedure.params, EvidenceRecordsProcedure.returnType),
+  __procedureSchema("get_record", GetRecordProcedure.params, GetRecordProcedure.returnType),
   __procedureSchema("get_scope", GetScopeProcedure.params, GetScopeProcedure.returnType),
+  __procedureSchema("inspect_audit_event", InspectAuditEventProcedure.params, InspectAuditEventProcedure.returnType),
   __procedureSchema("next_agent_run", NextAgentRunProcedure.params, NextAgentRunProcedure.returnType),
   __procedureSchema("search_incidents", SearchIncidentsProcedure.params, SearchIncidentsProcedure.returnType),
   __procedureSchema("verify_chain", VerifyChainProcedure.params, VerifyChainProcedure.returnType),

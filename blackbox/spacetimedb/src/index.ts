@@ -684,11 +684,11 @@ export const writeAnchor = spacetimedb.procedure(
 
 const AnchorVerification = t.object('AnchorVerification', {
   anchorOk: t.option(t.bool()), status: t.string(), reason: t.string(),
-  lastAnchorSeq: t.option(t.u64()), lastAnchorAt: t.option(t.timestamp()), externalRef: t.string(),
+  lastAnchorSeq: t.option(t.u64()), lastAnchorAt: t.option(t.timestamp()), lastAnchorHash: t.string(), externalRef: t.string(),
 });
 function checkExternalAnchor(ctx: ProcCtx) {
   const base = { anchorOk: undefined as boolean | undefined, status: 'unconfigured', reason: 'Independent anchoring not configured',
-    lastAnchorSeq: undefined as bigint | undefined, lastAnchorAt: undefined as Timestamp | undefined, externalRef: '' };
+    lastAnchorSeq: undefined as bigint | undefined, lastAnchorAt: undefined as Timestamp | undefined, lastAnchorHash: '', externalRef: '' };
   const url = ctx.env.ANCHOR_URL;
   const token = ctx.env.ANCHOR_READ_TOKEN;
   if (!url || !token) return base;
@@ -708,7 +708,7 @@ function checkExternalAnchor(ctx: ProcCtx) {
       if (c.seq === 0n) return c.hash !== GENESIS_HASH;
       return tx.db.audit.seq.find(c.seq)?.eventHash !== c.hash;
     }));
-    const meta = { lastAnchorSeq: latest.seq, lastAnchorAt: latest.at, externalRef: latest.ref };
+    const meta = { lastAnchorSeq: latest.seq, lastAnchorAt: latest.at, lastAnchorHash: latest.hash, externalRef: latest.ref };
     if (mismatch) return { ...base, ...meta, anchorOk: false, status: 'mismatch', reason: `Checkpoint #${mismatch.seq} does not match the database` };
     const local = ['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname);
     if (local || ctx.env.ANCHOR_INDEPENDENT !== '1') return { ...base, ...meta, status: 'local', reason: 'Checkpoint matches; deployment is not marked independent' };
@@ -799,3 +799,46 @@ export const investigationConflicts = spacetimedb.view({ public: true }, t.array
   const allowed = !!me && me.role !== 'observer' && !!ctx.db.session.identity.find(ctx.sender);
   return ctx.from.conflict.where(r => allowed ? r.id.gt(0n) : r.id.eq(0n));
 });
+
+export const getRecord = spacetimedb.procedure({ incidentId: t.u64() }, t.string(), (ctx, args) => {
+  ctx.withTx(tx => { const { human } = requireReader(tx); if (!human) throw new SenderError('human record reader required'); });
+  const external = checkExternalAnchor(ctx);
+  return ctx.withTx(tx => {
+    const { human } = requireReader(tx);
+    if (!human) throw new SenderError('human record reader required');
+    const row = tx.db.incident.id.find(args.incidentId);
+    if (!row) throw new SenderError('incident not found');
+    const restricted = human.role === 'observer';
+    const chain = checkChain(tx);
+    const events = [...tx.db.audit.iter()].filter(e => e.incidentId === row.id).sort((a,b) => a.seq < b.seq ? -1 : 1);
+    const head = tx.db.chainHead.id.find(0);
+    return canonicalJson({
+      schemaVersion: 1, generatedAt: tx.timestamp.microsSinceUnixEpoch,
+      incident: { id: row.id, title: row.title, severity: row.severity, status: row.status, type: row.incidentType,
+        containment: row.containmentStatus, systemsAffected: row.systemsAffected, detectedAt: row.detectedAt.microsSinceUnixEpoch,
+        createdAt: row.createdAt.microsSinceUnixEpoch, updatedAt: row.updatedAt.microsSinceUnixEpoch, reportedBy: row.reportedBy.toHexString() },
+      permissions: { canReadEvidence: !restricted, canReadScope: !restricted },
+      verification: { ...chain, anchorOk: external.anchorOk, anchorStatus: external.status, anchorReason: external.reason },
+      auditHead: { seq: head?.seq ?? 0n, hash: head?.headHash ?? GENESIS_HASH },
+      anchoredCheckpoint: external.lastAnchorSeq === undefined ? null : { seq: external.lastAnchorSeq, headHash: external.lastAnchorHash,
+        at: external.lastAnchorAt?.microsSinceUnixEpoch, externalRef: external.externalRef, independentlyVerified: external.anchorOk === true },
+      audit: events.map(e => ({ seq: e.seq, action: e.action, actor: e.actor, createdAt: e.createdAt.microsSinceUnixEpoch,
+        payloadJson: restricted ? '[restricted]' : e.payloadJson, prevHash: e.prevHash, eventHash: e.eventHash })),
+      tasks: [...tx.db.task.incidentId.filter(row.id)].map(r => ({ id: r.id, text: r.text, assigneeRole: r.assigneeRole, createdBy: r.createdBy })),
+      evidence: restricted ? [] : [...tx.db.evidence.incidentId.filter(row.id)].map(r => ({ id: r.id, text: r.text, submittedBy: r.submittedBy.toHexString(), createdAt: r.createdAt.microsSinceUnixEpoch })),
+      conflicts: restricted ? [] : [...tx.db.conflict.incidentId.filter(row.id)].map(r => ({ id: r.id, evidenceIdA: r.evidenceIdA, evidenceIdB: r.evidenceIdB, reason: r.reason })),
+      investigations: restricted ? [] : [...tx.db.agentRun.incidentId.filter(row.id)].map(r => ({ id: r.id, modelId: r.modelId, mode: r.mode, status: r.status,
+        summary: r.summary, previousSummary: r.previousSummary, latencyMs: r.latencyMs })),
+      scope: [], // filled when slice 6 lands
+    });
+  });
+});
+export const inspectAuditEvent = spacetimedb.procedure({ seq: t.u64() }, t.string(), (ctx, args) => ctx.withTx(tx => {
+  const { human } = requireReader(tx);
+  if (!human || human.role === 'observer') throw new SenderError('audit detail restricted');
+  const row = tx.db.audit.seq.find(args.seq);
+  if (!row) throw new SenderError('audit event not found');
+  const recomputedHash = sha256Hex(canonicalJson({ seq: row.seq, incidentId: row.incidentId, actor: row.actor, action: row.action,
+    payloadJson: row.payloadJson, prevHash: row.prevHash, createdAt: row.createdAt.microsSinceUnixEpoch }) + row.prevHash);
+  return canonicalJson({ ...row, actor: row.actor, createdAt: row.createdAt.microsSinceUnixEpoch, storedHash: row.eventHash, recomputedHash });
+}));
