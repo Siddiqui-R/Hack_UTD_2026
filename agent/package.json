@@ -1,0 +1,17 @@
+{
+  "name": "blackbox-agent",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.87",
+    "ai": "7.0.165",
+    "zod": "4.6.7"
+  },
+  "scripts": {
+    "agent": "node src/run.mjs",
+    "agent:live": "node src/run.mjs --live",
+    "agent:deep": "node src/run.mjs --live --deep",
+    "agent:replay": "node src/run.mjs --replay",
+    "dev:setup": "node scripts/dev-setup.mjs"
+  }
+}
