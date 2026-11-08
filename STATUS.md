@@ -325,3 +325,17 @@ DEPLOYMENT / INTEGRATION milestone — independently hosted checkpoint Worker + 
   Basic module typecheck/build/codegen, client production build and adapter syntax checks pass. No security
   campaign run; Rabeet owns validation. Attack this: deployed checkpoint durability/immutability/provenance,
   worker cancellation/session handling and authorized PDF snapshot/renderer integration.
+
+MAINCLOUD DEPLOY — module live as `blackbox-utd2026-abbas9x` (owner = hackathon-redeemed spacetimedb.com account
+  c2001ebc…). Fresh database, published with --delete-data=never; local data untouched and not migrated.
+  Anchor credentials present (start_anchoring refuses otherwise); owner started anchoring: external checkpoint
+  seq 1 stored 02:57:50Z, 60 s scheduler running. Cloud-pointed client connects and the cloud module rejects a
+  bogus invite (confirmed in cloud logs). No commander on Maincloud yet: owner issues the bootstrap code.
+  Note: an accidental `spacetime list` created an anonymous direct-server Maincloud login in the cloud config; it
+  owned no databases and was logged out before the account login. Nothing was published under it.
+  RABEET: production worker needs a NEW Maincloud-issued service identity + token, enrolled by a human commander
+    on the cloud DB (local JWTs are rejected there). HTTP base: https://maincloud.spacetimedb.com/v1/database/
+    blackbox-utd2026-abbas9x/call/<name>. Regenerate service bindings from current module; contract unchanged.
+  Still blocked: client hosting on Vercel (no Vercel CLI/login on this machine); PDF renderer URL + credential.
+  Attack this: the deployed cloud module — invite brute force over the public endpoint, unauthenticated reads of
+    private tables, owner-only bootstrap from a non-owner Maincloud identity, checkpoint provenance on cloud.

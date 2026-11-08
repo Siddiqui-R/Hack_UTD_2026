@@ -7,10 +7,29 @@
   Deployment `appgdep_6aefd0dfc4988191a1c276e544499b70` succeeded; authenticated health returned 200.
   The existing local module stored checkpoint #100 there at 2026-11-08 01:36:06 UTC.
 - Local module `blackbox` uses that service; published with `--delete-data=never`, scheduler started.
-- Maincloud target `blackbox-utd2026-abbas9x` is planned, NOT deployed yet. Account sign-in is pending.
-  The local server-issued JWT was rejected by Maincloud; local credentials/data were preserved.
+- **Maincloud module DEPLOYED** (2026-11-08 02:57 UTC): database `blackbox-utd2026-abbas9x`,
+  identity `c20052e93d7b67eac57ce1eccc1ab853762193ed5e0d89e3ad5d8ba8fb4cd6b7`,
+  dashboard https://spacetimedb.com/blackbox-utd2026-abbas9x. Published by the owner's spacetimedb.com account
+  identity `c2001ebc16189dd6043a7e15b4522fdd2b562ab6e4cf7f68096ea11546360bfb` (the account that redeemed the
+  hackathon code) via `deployment/publish.mjs maincloud` with `--delete-data=never`. Fresh database: no local data
+  was migrated. All five anchor env values present (`start_anchoring` succeeded; it refuses without them).
+  `start_anchoring` called by the owner: audit #1 `anchor.start`, external checkpoint seq 1 stored at
+  02:57:50Z, 60 s interval job scheduled.
+  Verified without writing data: a client built with `--mode cloud` connects (LINK UP), and a bogus invite is
+  rejected by the cloud module (cloud log: `redeem_invite: invalid or expired code`).
+  **No commander exists on Maincloud yet** — the owner issues the first bootstrap code (below) when ready.
 - Client stays on Vercel per owner instruction. Vercel access is pending; no production client URL yet.
   No local-to-cloud data migration has been performed or claimed.
+
+## First commander on Maincloud (owner only)
+
+```bash
+cd blackbox/spacetimedb
+"$LOCALAPPDATA/SpacetimeDB/bin/current/spacetimedb-cli.exe" --config-path .env.maincloud-cli.toml call blackbox-utd2026-abbas9x issue_bootstrap_invite '"XXXX-XXXX"' --server maincloud --no-config
+```
+Use 8 characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`; it expires in 30 minutes and works once.
+Local cloud-pointed client: `npm run dev -- --mode cloud` in blackbox/client (reads ignored `.env.cloud`:
+VITE_STDB_URI=wss://maincloud.spacetimedb.com, VITE_STDB_DB=blackbox-utd2026-abbas9x).
 
 ## Module publishing
 
@@ -35,13 +54,13 @@ Project root: `blackbox/client`. Framework Vite; install `npm ci`; build `npm ru
 
 | Variable | Intended production value | Visibility |
 |---|---|---|
-| VITE_STDB_URI | wss://maincloud.spacetimedb.com | Public; activate after module deployment |
-| VITE_STDB_DB | blackbox-utd2026-abbas9x | Public; target is pending deployment |
+| VITE_STDB_URI | wss://maincloud.spacetimedb.com | Public; module is deployed |
+| VITE_STDB_DB | blackbox-utd2026-abbas9x | Public; module is deployed |
 | VITE_PDF_URL | /api/pdf (or unset for default) | Public |
 | PDF_RENDERER_URL | Rabeet's deployed HTTPS rendering endpoint | Server only; pending |
 | PDF_RENDERER_TOKEN | Optional renderer shared credential, supplied privately | Server only; pending |
 
-Rebuild after changing VITE variables. Do not deploy a client pointing at the pending database.
+Rebuild after changing VITE variables. The Maincloud database is live, so the client may now point at it.
 `GET /api/integrations` returns `{pdfReady,moduleConfigured}` configuration flags; it does not probe the renderer.
 
 ## Queue and trace contract for Rabeet
@@ -52,7 +71,7 @@ identity for one incident via `enrollAgent({target,incidentId})`. Read-only poll
 session; re-enrol an expired idle identity through the human flow. Revocation is enforced server-side.
 
 For raw HTTP, POST JSON arrays with `Authorization: Bearer <service token>` to
-`https://maincloud.spacetimedb.com/v1/database/blackbox-utd2026-abbas9x/call/<name>` AFTER deployment.
+`https://maincloud.spacetimedb.com/v1/database/blackbox-utd2026-abbas9x/call/<name>` (deployed).
 For local integration use `http://127.0.0.1:3000/v1/database/blackbox/call/<name>` now.
 These URL database names are not incident IDs. Never send credentials in URLs or log Authorization headers.
 
