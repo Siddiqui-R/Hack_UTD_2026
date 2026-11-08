@@ -15,6 +15,9 @@
     "worker": "node src/worker.mjs",
     "worker:once": "node src/worker.mjs --once",
     "dev:setup": "node scripts/dev-setup.mjs",
-    "demo:check": "node scripts/demo-check.mjs"
+    "demo:check": "node scripts/demo-check.mjs",
+    "worker:cloud": "node src/worker.mjs --cloud",
+    "agent:cloud:live": "node src/run.mjs --live --cloud",
+    "agent:cloud:deep": "node src/run.mjs --live --deep --cloud"
   }
 }

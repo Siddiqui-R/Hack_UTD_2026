@@ -14,6 +14,8 @@ catch { console.error('Another worker holds this service identity. Check the wor
 process.once('exit', () => { fs.unlinkSync(lockFile); });
 process.once('SIGINT', () => process.exit(0));
 process.once('SIGTERM', () => process.exit(0));
+console.log(`BLACKBOX worker (${config.target}) ${config.stdbUrl} db=${config.stdbDb}`);
+console.log(`Service identity ${identity.identity}: mock/replay queue only, never live`);
 const json = value => {
   const text = JSON.stringify(value ?? null);
   return text.length <= 32000 ? text : JSON.stringify({ truncated: true, preview: text.slice(0, 30000) });
@@ -55,8 +57,21 @@ async function consume() {
   return true;
 }
 
+// Until a commander enrols this identity (and again after its 15-minute session lapses), the poll is refused.
+// Keep polling slowly instead of exiting, so a re-enrolment resumes work without a restart. This only repeats
+// the read-only poll; a claimed run is never retried and a refused claim is never executed.
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+let waiting = '';
 do {
-  try { await consume(); }
-  catch (err) { console.error(`Worker stopped: ${err.message}`); process.exitCode = 1; break; }
-  if (!once) await new Promise(resolve => setTimeout(resolve, config.pollMs));
+  try {
+    await consume();
+    if (waiting) { console.log('Enrolled: watching the queue'); waiting = ''; }
+  } catch (err) {
+    if (once) { console.error(`Worker stopped: ${err.message}`); process.exitCode = 1; break; }
+    if (err.message !== waiting) console.log(`Waiting (${new Date().toLocaleTimeString()}): ${err.message}`);
+    waiting = err.message;
+    await sleep(5000);
+    continue;
+  }
+  if (!once) await sleep(config.pollMs);
 } while (!once);
