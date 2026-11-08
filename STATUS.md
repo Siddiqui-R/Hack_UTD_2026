@@ -613,3 +613,11 @@ CLIENT UI MIGRATION — 2026-11-08. Reconciled the existing uncommitted migratio
   Attack this: live create/subscription timing with simultaneous teammates; observer privacy; native dialog focus and
     errors on phones; pending-action double clicks; reduced-motion preference changes; real differing recorded
     assessments; fresh authenticated PDF export and reconnect behavior on the existing production environment.
+
+CLIENT DEPLOYMENT VERIFIED — UI commit 649c5fc9c93029dccf42781a3abf13a246f032a1 pushed after rebasing Rabeet's
+  7ebd95d handoff update. Existing Vercel Git integration completed deployment BCcMEPj9QAujCSNLFukx1kJkNjHC:
+  https://blackbox-utd2026.vercel.app (rabeet1/blackbox-utd2026). Public production now serves index-C-k48W1l.js
+  and index-C7rLvdaq.css; the CSS matches the verified build. Public JS confirms the unchanged Maincloud URI/database
+  and migrated workspace copy. Production browser reaches LINK UP with no console errors; integrations still return
+  pdfReady:true,moduleConfigured:true. Previous deployment reference is recorded above. Authenticated workflows,
+  real recorded revisions and end-to-end PDF remain the explicit limitations above. Attack this: those live flows.
