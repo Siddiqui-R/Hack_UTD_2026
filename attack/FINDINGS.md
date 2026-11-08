@@ -3,7 +3,7 @@
 Reproduce with `cd attack && npm run attack` (local server only). Unit tests: `cd blackbox/spacetimedb && npm test`.
 Fix code for anything open: `FIXES.md`.
 
-**Status @ `3d339f8` (slice 3.5 hardened):** 88 attacks, **88 held**, 0 succeeded · unit tests 4/4 pass, 4 todo.
+**Status @ `8550679` (slice 4):** 98 attacks, **98 held**, 0 succeeded · unit tests 6 pass, 2 todo.
 
 ## Open
 
@@ -35,6 +35,7 @@ Fix code for anything open: `FIXES.md`.
 - **3.5 (25):** only commanders enroll agents, never a human identity · the agent is refused **every** human operation (create incident, invite, role, revoke, redeem, close, enroll, submit evidence) · no role can be granted to the agent · agent can't touch another incident's severity, evidence, scope, conflicts or search results · humans can't call agent tools (no fake NEMOTRON) · agent can't write hidden chars · observers can't read scope · only agent tool actions are attributed to NEMOTRON · revoked agent dead and can't be re-enrolled ·
   agent can't lower severity · observers can't read evidence · owner can't be enrolled as agent · agent revocation is
   permanent even for the owner · a revoked commander's invites die with them.
+- **4 (10):** `verify_chain` refuses outsiders, revoked and expired sessions · matches the independent verifier on a clean chain · writes no audit rows · names the exact seq for an edited payload, rewritten actor, broken prev_hash and corrupt chain_head · clean again after repair.
 
 ## Notes, not bugs yet
 - **Pitch honesty until slice 9:** an owner who rewrites a row *and* recomputes later hashes passes verification. Say "tamper-evident within the database".

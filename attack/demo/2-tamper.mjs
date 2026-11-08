@@ -1,8 +1,8 @@
 // On-stage attack 2: the attacker owns the database and quietly edits one audit row.
 // The hash chain must name the edited row. The row is always restored afterwards so this re-runs.
-// TODO(slice 4): also call the module's verifyChain and expect the same brokenAt (and the red bar in the UI).
+// Also checks the module's own verifyChain (slice 4), which drives the red bar in the UI.
 // TODO(slice 9): rewrite the WHOLE chain consistently, then expect the anchor mismatch to catch it.
-import { ownerSql, auditRows, verifyChainIndependent, record, write, signIn, runTag, color as C } from '../lib.mjs';
+import { ownerSql, auditRows, verifyChainIndependent, verifyChainRemote, getCommander, record, write, signIn, runTag, color as C } from '../lib.mjs';
 
 export const label = 'ATTACK 2';
 export const title = 'Rewrite the audit log as the database owner';
@@ -34,6 +34,9 @@ export async function run() {
     const caught = !after.ok && after.brokenAt === seq;
     record('A2a', 'edited audit row is named by the chain', caught ? 'PASS' : 'VULN',
       caught ? `DETECTED: broken at seq ${seq} (${after.reason})` : `not detected (${JSON.stringify(after)})`);
+    const mod = await verifyChainRemote(await getCommander());
+    if (mod.called) record('A2c', "module's verifyChain names the same row (red bar)", mod.ok === false && mod.brokenAt === seq ? 'PASS' : 'VULN',
+      `module: brokenAt ${mod.brokenAt}, ${mod.reason}`);
   } finally {
     ownerSql(`UPDATE audit SET action = ${q(target.action)} WHERE seq = ${seq}`);
   }

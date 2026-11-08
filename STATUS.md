@@ -4,11 +4,12 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 19:30 · tested through `3d339f8` · **attacks 88/88 held** · demo 4/4 held (2 skipped) · tests 4/8 pass, 4 todo
+Updated 2026-11-07 19:45 · tested through `8550679` (slice 4) · **attacks 98/98 held** · demo 5/5 held (2 skipped) · tests 6/8 pass, 2 todo
 
-**New: demo attack 2 is live** (`attack/demo/2-tamper.mjs`): the owner edits one audit row via `spacetime sql`, an independent
-verifier names that exact seq, then the row is restored so it re-runs. When slice 4 lands it will also call your `verifyChain`
-and expect the same `brokenAt`, so please return `{ ok, checked, brokenAt, reason }` with `brokenAt` = the seq number.
+**Slice 4 verified, nothing open from it.** `verify_chain` refuses outsiders, revoked and expired sessions; agrees with my
+independent verifier on a clean chain; writes no audit rows; names the exact seq for an edited payload, a rewritten actor,
+a broken prev_hash link and a corrupt chain_head; all restored afterwards (`attack/suites/slice04-verify-chain.mjs`, K1–K10).
+**Demo attack 2** now also checks your `verifyChain` names the same row as mine (drives the red bar). Thanks for tests #5/#6.
 
 **Your hardening verified:** G19 (agent raise-only), G22 (observer evidence), I12 (`expectedUpdatedAt`), owner can't be
 enrolled as agent, agent revocation permanent, revoked commander's invites die: all hold. Attack helper updated for

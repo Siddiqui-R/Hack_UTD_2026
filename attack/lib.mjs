@@ -155,6 +155,20 @@ export function verifyChainIndependent(rows) {
   return { ok: true, checked: rows.length, brokenAt: null, reason: '' };
 }
 
+// The module's own verifyChain (slice 4) over HTTP. Raw result is the SATS product
+// [ok, checked, option, reason] with option [0, seq] = Some, [1, []] = None.
+export async function verifyChainRemote(who) {
+  const res = await req(`${TARGET}/v1/database/${DB}/call/verify_chain`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(who?.token ? { Authorization: `Bearer ${who.token}` } : {}) },
+    body: '[]',
+  });
+  if (!res.ok) return { called: false, status: res.status, error: (await res.text()).trim() };
+  const v = await res.json();
+  if (!Array.isArray(v)) return { called: true, ...v, brokenAt: v.brokenAt == null ? null : Number(v.brokenAt.some ?? v.brokenAt) };
+  const [ok, checked, opt, reason] = v;
+  return { called: true, ok, checked: Number(checked), brokenAt: opt?.[0] === 0 ? Number(opt[1]) : null, reason };
+}
+
 // Random invite code in the module's format (8 chars, no I/L/O/0/1).
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function randomCode() {
