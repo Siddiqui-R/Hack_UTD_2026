@@ -1,8 +1,10 @@
 // The 8 security tests from the brief (max 8 — delete any that get slow or flaky).
 // Each `it.todo` is filled in when its slice lands.
 import { describe, it, expect } from 'vitest';
-import { ConnectionId, TimeDuration } from 'spacetimedb';
-import { createModuleTestHarness, TestAuth } from 'spacetimedb/server/test-utils';
+import { ConnectionId, TimeDuration, Timestamp } from 'spacetimedb';
+import type { InferSchema } from 'spacetimedb/server';
+import { createModuleTestHarness, createProcedureTestHooks, TestAuth } from 'spacetimedb/server/test-utils';
+import { sha256Hex, canonicalJson } from '../src/crypto';
 import spacetimedb, * as mod from '../src/index';
 
 let nextConn = 1n;
@@ -20,7 +22,12 @@ function setup() {
   const commander = as('cmd');
   const responder = as('resp');
   const observer = as('obs');
-  const tx = (auth: TestAuth, fn: (ctx: any) => void) => test.withReducerTx(auth, fn);
+  // The portable harness has no env_get syscall yet. Supply an explicitly unconfigured anchor
+  // environment on test contexts; real configured anchoring is exercised by the live suites.
+  const tx = (auth: TestAuth, fn: (ctx: any) => void) => test.withReducerTx(auth, ctx => {
+    Object.defineProperty(ctx, 'env', { value: {} });
+    return fn(ctx);
+  });
 
   tx(owner, ctx => mod.init(ctx, {}));
   tx(owner, ctx => mod.issueBootstrapInvite(ctx, { code: CODES.cmd }));
@@ -35,7 +42,21 @@ function setup() {
 }
 
 describe('BLACKBOX security', () => {
-  it.todo('1. observer cannot read scope_item rows (slice 6)');
+  it('1. observer cannot read scope through views or procedures', () => {
+    const { test, tx, commander, observer } = setup();
+    tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Scope privacy', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'DB-1', containmentStatus: 'none',
+    }));
+    const inc = [...test.db.incident.iter()][0];
+    tx(commander, ctx => mod.addScopeItem(ctx, {
+      incidentId: inc.id, asset: 'private database', dataType: 'customer records',
+      state: 'exfiltrated', confidence: 'confirmed', records: 40000n, note: 'restricted evidence',
+    }));
+    expect(test.runQuery(mod.scopeItems(test.viewContext(commander)))).toHaveLength(1);
+    expect(test.runQuery(mod.scopeItems(test.viewContext(observer)))).toEqual([]);
+    expect(() => mod.getScope(test.procedureContext(observer), { incidentId: inc.id })).toThrow('observer cannot read scope');
+  });
   // There is no delete reducer at all, so "close" is the live check.
   it('2. responder cannot close an incident', () => {
     const { test, tx, commander, responder } = setup();
@@ -106,17 +127,91 @@ describe('BLACKBOX security', () => {
     expect(verify()).toMatchObject({ ok: false, brokenAt: head.seq, reason: 'chain head hash mismatch' });
     tx(commander, ctx => ctx.db.chainHead.id.update(head));
     expect(verify().ok).toBe(true);
+    if ((globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env.BLACKBOX_PROBE_ANCHOR_RACE === '1') {
+      // Optional deterministic reproduction: DB owner rewrites the entire chain after the
+      // external comparison transaction, before the final verification transaction.
+      let commits = 0;
+      const hooks = createProcedureTestHooks<InferSchema<typeof spacetimedb>>().afterTxCommit(() => {
+        if (++commits !== 2) return;
+        tx(commander, ctx => {
+          let previous = '0'.repeat(64);
+          for (const original of rows) {
+            const r = { ...original, payloadJson: '{"rewritten":true}', prevHash: previous };
+            const eventHash = sha256Hex(canonicalJson({ seq:r.seq,incidentId:r.incidentId,actor:r.actor,action:r.action,
+              payloadJson:r.payloadJson,prevHash:r.prevHash,createdAt:r.createdAt.microsSinceUnixEpoch }) + r.prevHash);
+            ctx.db.audit.seq.update({ ...r, eventHash }); previous = eventHash;
+          }
+          ctx.db.chainHead.id.update({ ...head, headHash: previous });
+        });
+      });
+      const ctx = test.procedureContextBuilder(commander).hooks(hooks).http(() => ({
+        code: 200, headers: { entries: [] }, version: { tag:'Http11' },
+        body: JSON.stringify([{seq:head.seq.toString(),headHash:head.headHash,at:'0',ref:'test:checkpoint'}]),
+      })).build();
+      Object.defineProperty(ctx, 'env', { value: { ANCHOR_URL:'https://checkpoint.invalid',ANCHOR_READ_TOKEN:'test',ANCHOR_INDEPENDENT:'1' } });
+      const result = mod.verifyIntegrity(ctx, {});
+      expect(result.chain.ok).toBe(true);
+      expect(result.anchor.anchorOk, `anchor probe commits=${commits} status=${result.anchor.status} reason=${result.anchor.reason}`).toBe(false);
+    }
   });
-  it.todo('7. destructive action with one approver stays pending (slice 10)');
+  it('7. closure needs two distinct non-requester humans; one approver stays pending', () => {
+    const { test, tx, commander, responder, observer } = setup();
+    tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Closure review', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'DB-1', containmentStatus: 'none',
+    }));
+    const inc = [...test.db.incident.iter()][0];
+    tx(commander, ctx => mod.requestClosure(ctx, { incidentId: inc.id, reason: 'Contained', expectedUpdatedAt: inc.updatedAt }));
+    const request = [...test.db.closureRequest.iter()][0];
+    const approve = (auth: TestAuth) => tx(auth, ctx => mod.approveClosure(ctx, { requestId: request.id }));
+    expect(() => approve(commander)).toThrow('requester cannot approve');
+    expect(() => approve(observer)).toThrow('not permitted');
+    approve(responder);
+    expect(test.db.closureRequest.id.find(request.id)?.status).toBe('pending');
+    expect(test.db.incident.id.find(inc.id)?.status).toBe('triage');
+    expect(() => approve(responder)).toThrow('already approved');
+    tx(commander, ctx => mod.createInvite(ctx, { code: CODES.extra, role: 'responder' }));
+    const reviewer = as('second-reviewer');
+    tx(reviewer, ctx => mod.redeemInvite(ctx, { code: CODES.extra, displayName: 'reviewer' }));
+    approve(reviewer);
+    expect(test.db.closureRequest.id.find(request.id)?.status).toBe('approved');
+    expect(test.db.incident.id.find(inc.id)?.status).toBe('closed');
+    tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Expired closure request', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'DB-2', containmentStatus: 'none',
+    }));
+    const fresh = [...test.db.incident.iter()].find(r => r.id !== inc.id)!;
+    tx(commander, ctx => mod.requestClosure(ctx, { incidentId:fresh.id, reason:'Expiry check', expectedUpdatedAt:fresh.updatedAt }));
+    const late = [...test.db.closureRequest.iter()].find(r => r.id !== request.id)!;
+    test.clock.advance(TimeDuration.fromMillis(31 * 60 * 1000));
+    // Give the reviewer a live session so this exercises REQUEST expiry, not session expiry.
+    const reviewerId = test.viewContext(reviewer).sender;
+    tx(reviewer, ctx => {
+      const session = ctx.db.session.identity.find(reviewerId);
+      ctx.db.session.identity.update({ ...session, expiresAt:new Timestamp(ctx.timestamp.microsSinceUnixEpoch + 60_000_000n) });
+    });
+    expect(() => tx(reviewer, ctx => mod.approveClosure(ctx, { requestId:late.id }))).toThrow('live pending closure request required');
+    expect(test.db.closureRequest.id.find(late.id)?.status).toBe('pending');
+  });
 
   // 8 (partial until slice 8 adds the NEMOTRON actor): a non-commander cannot grant a role.
   it('8. permission-granting reducer rejects non-commanders', () => {
-    const { test, tx, id, responder, observer } = setup();
+    const { test, tx, id, commander, responder, observer } = setup();
     const target = id(observer);
     expect(() => tx(responder, ctx => mod.setRole(ctx, { target, role: 'commander' }))).toThrow(/not permitted/);
     expect(() => tx(observer, ctx => mod.createInvite(ctx, { code: CODES.extra, role: 'commander' })))
       .toThrow(/not permitted/);
     expect(test.db.user.identity.find(target)?.role).toBe('observer');
-    // TODO(slice 8): repeat as the NEMOTRON actor and expect rejection.
+    tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Agent permission boundary', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'DB-1', containmentStatus: 'none',
+    }));
+    const agent = as('agent');
+    const agentId = id(agent), incidentId = [...test.db.incident.iter()][0].id;
+    tx(commander, ctx => mod.enrollAgent(ctx, { target: agentId, incidentId }));
+    const before = test.db.audit.count();
+    expect(() => tx(agent, ctx => mod.setRole(ctx, { target, role: 'commander' }))).toThrow('NEMOTRON');
+    expect(() => tx(agent, ctx => mod.createInvite(ctx, { code: CODES.extra, role: 'commander' }))).toThrow('NEMOTRON');
+    expect(test.db.audit.count()).toBe(before);
   });
 });
