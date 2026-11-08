@@ -21,7 +21,47 @@
 - Client stays on Vercel per owner instruction. Vercel access is pending; no production client URL yet.
   No local-to-cloud data migration has been performed or claimed.
 
-## Releasing branch `feat/task-workflow` (needs the owner; nothing is live yet)
+## Releasing Q1 run binding (branch `fix/q1-run-binding`; needs the owner, nothing is live yet)
+
+Changes signatures the agent worker calls; the browser client calls none of them (its bindings change type only).
+`record_agent_step` takes a required run id first; `create_task`, `update_severity` and `flag_conflict` take an
+optional run id last. No table changes: the local publish over existing data showed an empty migration plan.
+
+| Endpoint | Before | After (positional HTTP JSON) |
+|---|---|---|
+| record_agent_step | [kind,name,inputJson,outputJson] | [runId,kind,name,inputJson,outputJson] |
+| create_task | [text,assigneeRole] | [text,assigneeRole,runId?] |
+| update_severity | [incidentId,severity,reason] | [incidentId,severity,reason,runId?] |
+| flag_conflict | [evidenceIdA,evidenceIdB,reason] | [evidenceIdA,evidenceIdB,reason,runId?] |
+
+`runId?` is `{"some":<runId>}` from the queue worker or `{"none":[]}` from a standalone CLI run.
+
+The module and the Maincloud worker must change together. A mismatched pair fails closed: an old worker on the new
+module (or the reverse) has its traces and tool writes refused for the wrong argument count, so the run ends as
+failed and nothing is written. A run in that gap is lost, never corrupted.
+1. **Owner publishes the module from this branch:** `git fetch origin && git checkout fix/q1-run-binding`, then
+   `node blackbox/spacetimedb/deployment/publish.mjs maincloud` (deletion disabled).
+2. **Rabeet restarts the Maincloud worker immediately after**, on this branch's code: Ctrl+C the running
+   `npm run worker:cloud` (its exit handler removes the lock), then `cd agent && npm run worker:cloud`. If the old
+   process was killed hard and the new one reports "Another worker holds this service identity", confirm the old PID
+   is gone, then delete that `agent-logs/worker-<hash>.lock`. The service identity and its enrolment are unchanged.
+3. **Then merge the PR into `main`.** Vercel redeploys the client; its behaviour is unchanged.
+4. Smoke test signed in on Maincloud: re-enrol the worker if its session lapsed, press Start investigation (mock),
+   and check the run completes with its trace; Activity shows the task, conflict and severity rows.
+
+Rollback: publish the module from `main` before this merge (`f998a95`) the same way, then restart the worker from
+that commit (for example `git worktree add ../bb-rollback f998a95`, then `npm ci` and `npm run worker:cloud` in its
+`agent/`, reusing the same token file via `AGENT_TOKEN_FILE`). Same pairing rule: module first, worker right after.
+The client needs no rollback; if wanted, Vercel's instant rollback target is the PR #3 deployment below.
+
+## Released: task workflow (PR #3)
+
+The owner published the module to Maincloud (task reducers, `task_state`, `task_progress` present; existing data
+intact). PR #3 merged to `main` as `f998a95` (2026-11-08 16:00 UTC). Vercel deployment
+https://vercel.com/rabeet1/blackbox-utd2026/Fqpkaz59jDdqhrxkETYdjiqpFnRD succeeded; production serves
+`index-ChuajBAu.js`, which contains the task reducers and the unchanged Maincloud URI/database. Routes return 200,
+`/api/integrations` reports `pdfReady:true,moduleConfigured:true`, and unauthenticated `/api/pdf` gets 401.
+Signed-in smoke test (below) not yet done on Maincloud. Release notes as written before the merge:
 
 The branch adds the human task workflow (one additive private table `task_state`, one view `task_progress`, four
 reducers, additive getRecord fields), the agent_status revocation check, the A2 local-store fix, record refresh
@@ -103,7 +143,7 @@ These URL database names are not incident IDs. Never send credentials in URLs or
 | next_agent_run | [] | JSON-encoded string containing null or {runId,incidentId,tier,mode,modelId} |
 | agent_run_status | [runId] | JSON-encoded string containing {runId,status,modelId}; enrolled incident only |
 | begin_agent_run | [runId,actualModelId] | Reducer, no result payload |
-| record_agent_step | [kind,name,inputJson,outputJson] | Reducer; active run inferred from caller |
+| record_agent_step | [runId,kind,name,inputJson,outputJson] | Reducer; refused unless runId is the caller's running run on its enrolled incident |
 | finish_agent_run | [runId,summary,failed] | Reducer; server measures elapsed time |
 
 SDK argument for begin is `{runId,modelId}`; `actualModelId` above describes its value, not a parameter name.
@@ -115,7 +155,9 @@ UI queue requests are mock/replay only: honor each request's mode and tier; neve
 Use the same existing five-tool loop. Mock results must remain visibly mock and cannot imply a model call.
 Claim failure means do not execute. Stop work when cancelled; do not keep applying tools after cancellation.
 Poll agentRunStatus({runId}) before tool execution and stop on cancelled/failed/completed; it does not extend
-the session. Human investigation subscriptions are unavailable to agent identities. The UI displays the actual model
+the session. The server enforces this anyway: the tool writes create_task/update_severity/flag_conflict take the run
+id as an optional last argument, filled in by the worker (never by the model); a write naming a run that is no
+longer running is refused, and a run-less write is refused while the incident has a queued or running run. Human investigation subscriptions are unavailable to agent identities. The UI displays the actual model
 and server latency, and retains the previous completed summary for self-correction. Flag FAST full-run latency
 over roughly 8 seconds when future authorized live measurements are made. No new model calls are authorized here.
 

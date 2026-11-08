@@ -4,6 +4,16 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
+**Branch `fix/q1-run-binding` (2026-11-08 10:10, on main 928f266, NOT on Maincloud):** Q1 per the owner's decision.
+Queue traces and agent tool writes now name their run; the server accepts them only for the worker's own running run,
+so a stale trace or a write after cancel is refused. Standalone CLI runs (incl. --live) stay run-less but are refused
+while a UI run is queued or running. Live stays out of the queue. **526 held, both Q1 probes exit 0, demo 16/16,
+unit 8/8, injection 20/20, client build/lint, module tsc/build; a mock run from the real UI on blackbox-attack
+completed with full trace. Zero NVIDIA calls.** Release: owner publishes the module, Rabeet restarts worker:cloud
+right after (an old worker fails closed on the new signatures), then merge. Order and rollback in DEPLOYMENT.md.
+**Attack this:** a delayed write from an old worker process after a cancel; a standalone run started just before a UI
+run is queued; the worker restart window on Maincloud.
+
 **RELEASED 2026-11-08 10:00:** module published to Maincloud by the owner, then PR #3 merged as `f998a95`; Vercel
 production `blackbox-utd2026-p7zlht9f9` is live (rollback target `blackbox-utd2026-nbdq6z5d3`). Verified live without a
 login: Maincloud schema has the four task reducers with the expected arguments and unchanged agent reducers;
@@ -18,7 +28,7 @@ people at once, Export PDF). Pre-release: 486 held, demo 16/16, unit 8/8, client
 - Fixed: A2 (local store aliases), agent_status revoked check (V1, bounded by the 60 s sweep), Activity/RECORD refresh
   races and freshness/error display, /api/pdf 4 MiB read cap, activity labels now match real audit action names.
 - Hosted PDF renderer redeployed: prints task status, assignee and completion; observer PDFs omit notes (verified).
-- Deferred with reasons in FINDINGS.md: Q1 (needs an agreed run context for standalone live runs), P1, D1 (only a
+- Deferred with reasons in FINDINGS.md: Q1 (fixed since on `fix/q1-run-binding`, see above), P1, D1 (only a
   major vitest upgrade fixes it).
 - **Attack this:** two people claiming the same task in the live UI; a stale dialog submit after someone else changed
   the task; observer JSON/PDF export of a task with notes; Activity while switching incidents quickly.
@@ -640,3 +650,17 @@ CLIENT DEPLOYMENT VERIFIED — UI commit 649c5fc9c93029dccf42781a3abf13a246f032a
   and migrated workspace copy. Production browser reaches LINK UP with no console errors; integrations still return
   pdfReady:true,moduleConfigured:true. Previous deployment reference is recorded above. Authenticated workflows,
   real recorded revisions and end-to-end PDF remain the explicit limitations above. Attack this: those live flows.
+
+Q1 RUN BINDING (Rabeet, branch fix/q1-run-binding on main 928f266, 2026-11-08 10:10 CT) — owner decision implemented.
+  Module: record_agent_step({runId,...}) requires the caller's running run on its enrolled incident (no inference);
+    create_task/update_severity/flag_conflict take runId: Option<u64> last. Some = same check, atomic with the write;
+    None = only while the incident has no queued/running run. requireAgent first, one audit row per write (now with
+    runId when given), existing validation and "cannot lower severity" kept. No table changes (empty migration plan).
+  Agent: worker passes runId to traces and, via executeRun/makeTools, to every tool write; the model never sees it.
+    Standalone run.mjs passes None. Bindings regenerated (4 files, runId fields only). All attack callers updated.
+  Verified locally on blackbox-attack: 526 held (slice 14: 39 new checks), probes run-attribution and cancelled-tool
+    exit 0, demo 16/16, unit 8/8, injection 20/20, client build + lint, module tsc + build. Real client in Chrome:
+    signed in, Start investigation → mock worker completed run with call/result/revision/summary and three run-bound
+    writes. Real standalone mock run.mjs completes when idle, refused while a UI run is queued. Zero NVIDIA calls.
+  Release: owner publishes the module from this branch, Rabeet restarts worker:cloud immediately after, then merge.
+  Attack this: old-worker writes after cancel; standalone vs. UI race on Maincloud; the restart window.

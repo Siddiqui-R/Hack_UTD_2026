@@ -40,8 +40,8 @@ an explicitly labelled synthetic fixture; this is not a golden transcript from a
 Open module findings are separately reproducible (see FINDINGS.md), so a passing regression run does not close them:
 
 ```powershell
-node attack/probes/run-attribution.mjs # from repo root: Q1, exits 1 while vulnerable
-node attack/probes/cancelled-tool.mjs  # Q1: tool write after cancellation, exits 1 while vulnerable
+node attack/probes/run-attribution.mjs # from repo root: Q1 stale trace; exits 0 (fixed), 1 if accepted, 2 if refused for another reason
+node attack/probes/cancelled-tool.mjs  # Q1: tool write after cancellation; same exit codes (slice 14 covers both by default)
 node attack/probes/checkpoint-alias.mjs # A2: local store numeric sequence alias, exits 1 while vulnerable
 cd blackbox/spacetimedb
 $env:BLACKBOX_PROBE_ANCHOR_RACE='1'

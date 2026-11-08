@@ -23,9 +23,15 @@ Closure approval endpoints are human-only (see below). Future permission/approva
 |---|---|---|
 | searchIncidents({query}) | conn.procedures.searchIncidents({query}) | JSON string: [{incidentId,title,severity,status}], max 50, agent's incident only |
 | getScope({incidentId}) | conn.procedures.getScope({incidentId: BigInt(incidentId)}) | JSON string: {incidentId,available:true,items:[...]}; exact scope fields below |
-| createTask({text,assigneeRole}) | conn.reducers.createTask({text,assigneeRole}) | task row; incident inferred from enrolled identity; createdBy=NEMOTRON |
-| updateSeverity({incidentId,severity,reason}) | conn.reducers.updateSeverity({incidentId: BigInt(incidentId),severity,reason}) | incident update + audit |
-| flagConflict({evidenceIdA,evidenceIdB,reason}) | conn.reducers.flagConflict({evidenceIdA: BigInt(evidenceIdA),evidenceIdB: BigInt(evidenceIdB),reason}) | conflict row + audit |
+| createTask({text,assigneeRole}) | conn.reducers.createTask({text,assigneeRole,runId}) | task row; incident inferred from enrolled identity; createdBy=NEMOTRON |
+| updateSeverity({incidentId,severity,reason}) | conn.reducers.updateSeverity({incidentId: BigInt(incidentId),severity,reason,runId}) | incident update + audit |
+| flagConflict({evidenceIdA,evidenceIdB,reason}) | conn.reducers.flagConflict({evidenceIdA: BigInt(evidenceIdA),evidenceIdB: BigInt(evidenceIdB),reason,runId}) | conflict row + audit |
+
+`runId` (Q1) is `Option<u64>`, added by the worker's tool wrapper and never part of a tool's input, so the model
+cannot choose it. Some(runId): accepted only while that run is `running`, on the agent's enrolled incident, with
+worker == caller; anything else (cancelled, finished, another worker's or incident's run) is refused with no change
+and no audit row. None: a standalone CLI run (`run.mjs`, including `--live` and the golden recording), accepted only
+while the incident has no queued or running run. The audit payload records `runId` when one was given.
 
 All u64 IDs in JSON responses are decimal strings. Reject unsafe numeric IDs before converting tool numbers to bigint.
 Reducers resolve without a result payload. Use subscriptions for tasks; procedures return JSON to parse once.
@@ -102,15 +108,17 @@ No NVIDIA calls. A healthy chain alone remains different from matching independe
 UI requests requestAgentRun({incidentId,tier:'fast'|'deep',mode:'mock'|'replay'}); no live-credit button.
 Worker polls nextAgentRun() -> JSON null or {runId,incidentId,tier,mode,modelId}.
 Claim with beginAgentRun({runId,modelId: actual model ID}); one running run per enrolled incident.
-Call requested recordAgentStep({kind,name,inputJson,outputJson}) for each call/result/revision/error/summary.
-Both JSON arguments must be serialized JSON (or empty for null); 32000 chars each. Context/run inferred from
-the authenticated service identity. Trace is diagnostic and deliberately unaudited, like keep-alive.
+Call requested recordAgentStep({runId,kind,name,inputJson,outputJson}) for each call/result/revision/error/summary.
+Both JSON arguments must be serialized JSON (or empty for null); 32000 chars each. runId is required and must be
+the caller's running run on its enrolled incident (Q1), so a delayed trace from a cancelled run is refused instead
+of landing on a later one. Standalone CLI runs write no trace. Trace is diagnostic and deliberately unaudited, like keep-alive.
 Complete finishAgentRun({runId,summary,failed}); latency measured server-side; previous completed summary retained.
 Human commander cancelAgentRun({runId}) releases a stuck queue. Business reducers still audit exactly once.
 Worker agentRunStatus({runId}) -> JSON {runId,status,modelId}, enrolled incident only, read-only/no session
 extension. Poll before tools to notice cancellation; human investigation views do not serve agent identities.
 New private agent_run/agent_step tables and session-gated investigationRuns/Steps/Evidence/Conflicts views.
-Observers receive none of this sensitive evidence/trace. Existing tool signatures unchanged.
+Observers receive none of this sensitive evidence/trace. Tool inputs the model sees are unchanged; the three
+write reducers carry the worker-supplied optional runId described under "Five tool mappings".
 RABEET: wire your service to poll/claim/record/finish; this queue does not invoke or fork your tool loop.
 Honor mode and tier in each request. Mock/replay badges are always visibly labelled, including Deep Analysis.
 
@@ -159,7 +167,7 @@ Read-only view agent_status (signed-in humans only): [{identity, incidentId, enr
 Revoked humans now get an empty agent_status as well (branch feat/task-workflow).
 
 ## Human task workflow (branch feat/task-workflow, 2026-11-08) — humans only
-The agent's `createTask({text, assigneeRole})` and its NEMOTRON provenance are unchanged. Progress lives in a private
+The agent's `createTask({text, assigneeRole, runId})` and its NEMOTRON provenance are unchanged by this workflow. Progress lives in a private
 `task_state` row keyed by task id; a task with no row is open, unassigned, version 0. Agents are refused on all of these.
 | Reducer | Arguments | Who |
 |---|---|---|
