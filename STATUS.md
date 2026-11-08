@@ -694,3 +694,13 @@ QA SWEEP + FIRST LIVE RUN SINCE PROBES (owner-approved, 2026-11-08 ~16:40 CT) �
   STILL UNVERIFIED ON PRODUCTION: signed-in PDF export, signed-in task workflow, signed-in investigation + cancellation
   (production was only checked without a login: site up, no console errors, /api/pdf 401 without/with bad session).
   Attack this: ULTRA live run + replay of it; production PDF as commander AND observer; two humans on production tasks.
+
+PRODUCTION SIGNED-IN CHECKS (owner code, commander "Ops QA", 2026-11-08 ~16:50 CT) — at `7324b4a`. Mock only, no NVIDIA.
+  Chain status on production: "History check passed · 59 records · Anchored #58" (independent checkpoint live).
+  INC-002 tasks: create -> claim -> start -> done with note, counter 2/3 -> 3/4 done. Cloud agent session had lapsed
+  (expected after 15 min idle); "Renew authorisation" re-enrolled 0xc200de27… and the worker resumed within seconds.
+  Investigation: mock FAST run #6 completed, 12 steps, 3.5 s; agent.begin/task.create/conflict.flag/incident.severity/
+  agent.finish all carry runId 6. Run #7 started then stopped by commander: audit has only agent.request + agent.cancel.
+  PDF: Export PDF on INC-002 returned BLACKBOX-INC-2.pdf, application/pdf, 138 KB, %PDF-1.4, 12 pages (captured
+  in-page, not saved). STILL NOT DONE: observer PDF redaction on production, two humans on production tasks, ULTRA live.
+  Demo note: renew the agent right before presenting; its session lapses after 15 min without agent activity.
