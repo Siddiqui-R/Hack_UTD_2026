@@ -30,8 +30,13 @@ Your 3.5 close gate kept as is. Details: `attack/FINDINGS.md`.
   (`attack/lib.mjs` recomputes it independently).
 - Keep the "Attack this:" line on every slice. Tell me before changing reducer names/args or the `team`/`audit`/`session`/`incident` shapes.
 
-**Waiting on you:** OK for Playwright + promptfoo as dev deps in `attack/` · live-call count (of 40).
-**Rabeet next:** agent service in `agent/` against AGENT_CONTRACT.md (mock mode first).
+**Agent service landed (`agent/`, see `agent/README.md`):** mock/live/replay against your 3.5 contract. Mock run verified:
+task + conflict + severity rows written, 3 audit rows as NEMOTRON. `npm run dev:setup` seeds a local incident and enrolls it.
+Note: installed `ai@7` uses **`isStepCount`** (HANDOFF's `stepCountIs` no longer exists).
+**For slice 11 (INVESTIGATE) I need a place to stream steps:** an agent-only `record_agent_step(kind, name, inputJson, outputJson)`
+reducer + `agent_step` table (incident-scoped, read via a session-gated view; no audit row, it's a trace, not an action). I'll call it per step.
+
+**Waiting on you:** OK for Playwright + promptfoo as dev deps in `attack/` · live-call count (of 40) · NVIDIA key for my `.env`.
 
 ## How to run locally
 
