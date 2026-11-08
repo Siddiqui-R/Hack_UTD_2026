@@ -53,6 +53,27 @@ export function write(who, title = 'atk write', over = {}) {
   return call(who, 'create_incident', [a.title, a.type, a.severity, a.detectedAt, a.systems, a.containment]);
 }
 
+// Call a read procedure. Procedures return a JSON string; parsed into `data` when ok.
+export async function proc(who, name, args = []) {
+  const r = await call(who, name, args);
+  if (!r.ok) return { ...r, data: null };
+  const res = await req(`${TARGET}/v1/database/${DB}/call/${name}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(who?.token ? { Authorization: `Bearer ${who.token}` } : {}) },
+    body: JSON.stringify(args),
+  });
+  const body = await res.json();
+  return { ...r, data: typeof body === 'string' ? JSON.parse(body) : body };
+}
+
+// A fresh service identity enrolled as NEMOTRON for `incidentId` by the run's commander.
+export async function enrollAgent(incidentId) {
+  const cmd = await getCommander();
+  const ag = await newIdentity();
+  const r = await call(cmd, 'enroll_agent', [{ __identity__: ag.identity }, incidentId]);
+  if (!r.ok) throw new Error(`enroll_agent failed: ${r.error}`);
+  return ag;
+}
+
 // Run SQL as `who` (or anonymous). Returns { ok, rows, cols, error }.
 export async function sql(who, query) {
   const headers = { 'Content-Type': 'text/plain' };
