@@ -78,7 +78,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
               }}
             />
           ) : selected ? (
-            <IncidentDetail incident={selected} team={team} canWrite={canWrite} />
+            <IncidentDetail incident={selected} team={team} canWrite={canWrite} me={me} />
           ) : (
             <p className="p-6 text-text-2">
               {incidents.length === 0

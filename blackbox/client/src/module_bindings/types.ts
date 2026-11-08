@@ -102,6 +102,33 @@ export const ChainVerification = __t.object("ChainVerification", {
 });
 export type ChainVerification = __Infer<typeof ChainVerification>;
 
+export const ClosureApproval = __t.object("ClosureApproval", {
+  id: __t.u64(),
+  requestId: __t.u64(),
+  approver: __t.identity(),
+  approvedAt: __t.timestamp(),
+});
+export type ClosureApproval = __Infer<typeof ClosureApproval>;
+
+export const ClosureApprovals = __t.object("ClosureApprovals", {});
+export type ClosureApprovals = __Infer<typeof ClosureApprovals>;
+
+export const ClosureRequest = __t.object("ClosureRequest", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  requestedBy: __t.identity(),
+  reason: __t.string(),
+  status: __t.string(),
+  requestedAt: __t.timestamp(),
+  expiresAt: __t.timestamp(),
+  expectedUpdatedAt: __t.timestamp(),
+  completedAt: __t.option(__t.timestamp()),
+});
+export type ClosureRequest = __Infer<typeof ClosureRequest>;
+
+export const ClosureRequests = __t.object("ClosureRequests", {});
+export type ClosureRequests = __Infer<typeof ClosureRequests>;
+
 export const Conflict = __t.object("Conflict", {
   id: __t.u64(),
   incidentId: __t.u64(),

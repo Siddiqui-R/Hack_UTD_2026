@@ -67,7 +67,7 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 | 7 | Agent service, read-only tools (`searchIncidents`, `getScope`) | injection payloads | [ ] |
 | 8 | Agent write tools (`createTask`, `updateSeverity`, `flagConflict`) | NEMOTRON escalating itself / self-approving | [ ] |
 | 9 | External anchor + `anchorOk` + anchor-mismatch UI | rewrite the whole chain | [ ] |
-| 10 | Two-person approval on destructive actions | self-approve, same user twice | [ ] |
+| 10 | Two-person approval on destructive actions | self-approve, same user twice | [x] |
 | 11 | INVESTIGATE view: live tool calls + self-correction diff | conflict flow correctness | [ ] |
 | 12 | RECORD view + PDF export with anchored head hash | report integrity | [ ] |
 | 13 | Duress PIN · TOTP · scenario presets · seed data | polish | [ ] |
@@ -257,3 +257,12 @@ SLICES 5 + 6 implementation — selected-incident subscribed chat in TEAM/CHAT r
   enrolled-incident restricted. RECORD/PDF snapshot includes permitted scope. Module/client typechecks pass.
   Existing workspace-wide human incident access is unchanged (no membership redesign); Rabeet owns validation.
   Attack this: chat incident filters, observer scope denial, stale scope edits, agent scope context.
+
+SLICE 10 implementation — commander requests closure against expectedUpdatedAt; two distinct non-requester
+  human commanders/responders approve. One approval stays pending. Requester/duplicate/agent approvals denied;
+  only live unrevoked eligible reviewer sessions count at execution. 30-minute request expiry and stale-version
+  rejection. Approval audit exactly once; final approval closes incident and requests external checkpoint.
+  Direct updateIncident close/reopen remains blocked. Cancel/re-request UI; snapshot includes approval provenance.
+  This deliberately requires requester + two other human reviewers. Basic module/client checks pass; no tests
+  beyond build/typecheck (Rabeet owns validation). Attack this: self/duplicate/agent approval, stale/expired
+  requests, reviewer revocation, exactly-one audit row and immediate checkpoint enqueue.

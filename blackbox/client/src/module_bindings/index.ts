@@ -35,8 +35,10 @@ import {
 
 // Import all reducer arg schemas
 import AddScopeItemReducer from "./add_scope_item_reducer";
+import ApproveClosureReducer from "./approve_closure_reducer";
 import BeginAgentRunReducer from "./begin_agent_run_reducer";
 import CancelAgentRunReducer from "./cancel_agent_run_reducer";
+import CancelClosureReducer from "./cancel_closure_reducer";
 import CreateIncidentReducer from "./create_incident_reducer";
 import CreateInviteReducer from "./create_invite_reducer";
 import CreateTaskReducer from "./create_task_reducer";
@@ -47,6 +49,7 @@ import IssueBootstrapInviteReducer from "./issue_bootstrap_invite_reducer";
 import RecordAgentStepReducer from "./record_agent_step_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
 import RequestAgentRunReducer from "./request_agent_run_reducer";
+import RequestClosureReducer from "./request_closure_reducer";
 import RevokeSessionReducer from "./revoke_session_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SetRoleReducer from "./set_role_reducer";
@@ -69,6 +72,8 @@ import * as VerifyChainProcedure from "./verify_chain_procedure";
 import * as VerifyIntegrityProcedure from "./verify_integrity_procedure";
 
 // Import all table schema definitions
+import ClosureApprovalsRow from "./closure_approvals_table";
+import ClosureRequestsRow from "./closure_requests_table";
 import IncidentsRow from "./incidents_table";
 import InvestigationConflictsRow from "./investigation_conflicts_table";
 import InvestigationEvidenceRow from "./investigation_evidence_table";
@@ -83,6 +88,20 @@ import TeamRow from "./team_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  closureApprovals: __table({
+    name: 'closure_approvals',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, ClosureApprovalsRow),
+  closureRequests: __table({
+    name: 'closure_requests',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, ClosureRequestsRow),
   incidents: __table({
     name: 'incidents',
     indexes: [
@@ -151,8 +170,10 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_scope_item", AddScopeItemReducer),
+  __reducerSchema("approve_closure", ApproveClosureReducer),
   __reducerSchema("begin_agent_run", BeginAgentRunReducer),
   __reducerSchema("cancel_agent_run", CancelAgentRunReducer),
+  __reducerSchema("cancel_closure", CancelClosureReducer),
   __reducerSchema("create_incident", CreateIncidentReducer),
   __reducerSchema("create_invite", CreateInviteReducer),
   __reducerSchema("create_task", CreateTaskReducer),
@@ -163,6 +184,7 @@ const reducersSchema = __reducers(
   __reducerSchema("record_agent_step", RecordAgentStepReducer),
   __reducerSchema("redeem_invite", RedeemInviteReducer),
   __reducerSchema("request_agent_run", RequestAgentRunReducer),
+  __reducerSchema("request_closure", RequestClosureReducer),
   __reducerSchema("revoke_session", RevokeSessionReducer),
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("set_role", SetRoleReducer),

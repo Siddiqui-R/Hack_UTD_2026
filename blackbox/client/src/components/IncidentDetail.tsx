@@ -4,6 +4,7 @@ import { reducers, tables } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { Chip } from './Chip';
 import { ScopePane } from './ScopePane';
+import { ClosurePane } from './ClosurePane';
 import { useRun } from './Toast';
 import { CONTAINMENT, CONTAINMENT_TONE, SEVERITIES, SEVERITY_TONE, STATUSES, STATUS_TONE, typeLabel } from '../lib/vocab';
 import { fmtUtc, tsToDate } from '../lib/format';
@@ -36,7 +37,7 @@ function Control({ label, value, options, onPick, disabled }: {
   );
 }
 
-export function IncidentDetail({ incident, team, canWrite }: { incident: Incident; team: readonly TeamMember[]; canWrite: boolean }) {
+export function IncidentDetail({ incident, team, canWrite, me }: { incident: Incident; team: readonly TeamMember[]; canWrite: boolean; me: TeamMember }) {
   const [taskRows] = useTable(tables.tasks);
   const incidentTasks = taskRows.filter(task => task.incidentId === incident.id);
   const updateIncident = useReducer(reducers.updateIncident);
@@ -89,7 +90,7 @@ export function IncidentDetail({ incident, team, canWrite }: { incident: Inciden
           <span className="label">Update</span>
           {!canWrite && <span className="font-mono text-[11px] text-text-2">READ-ONLY · OBSERVER</span>}
         </div>
-        <Control label="Severity" value={incident.severity} options={SEVERITIES} disabled={!canWrite} onPick={v => update({ severity: v })} />
+        <Control label="Severity" value={incident.severity} options={SEVERITIES} disabled={!canWrite || incident.status==='closed'} onPick={v => update({ severity: v })} />
         <Control label="Status" value={incident.status} options={STATUSES.filter(s => s !== 'closed')} disabled={!canWrite} onPick={v => update({ status: v })} />
         <Control label="Containment" value={incident.containmentStatus} options={CONTAINMENT} disabled={!canWrite} onPick={v => update({ containmentStatus: v })} />
         <form
@@ -101,12 +102,13 @@ export function IncidentDetail({ incident, team, canWrite }: { incident: Inciden
         >
           <span className="label">Systems</span>
           <input className="field font-mono" value={systems} maxLength={500} disabled={!canWrite} onChange={e => setSystems(e.target.value)} placeholder="None recorded" />
-          <button className="btn" type="submit" disabled={!canWrite || systems === incident.systemsAffected}>
+          <button className="btn" type="submit" disabled={!canWrite || incident.status==='closed' || systems === incident.systemsAffected}>
             Save
           </button>
         </form>
       </div>
 
+      <ClosurePane key={`closure-${incident.id}`} incident={incident} me={me} />
       <ScopePane key={incident.id.toString()} incidentId={incident.id} canWrite={canWrite} />
       <div className="flex flex-col gap-2 px-6 py-4">
         <span className="label">Tasks</span>

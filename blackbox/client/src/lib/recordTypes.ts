@@ -10,6 +10,7 @@ export interface RecordSnapshot {
   evidence: { id: string; text: string; submittedBy: string; createdAt: string }[];
   conflicts: { id: string; evidenceIdA: string; evidenceIdB: string; reason: string }[];
   investigations: { id: string; modelId: string; mode: string; status: string; summary: string; previousSummary: string; latencyMs: string }[];
+  closures: {id:string;status:string;reason:string;requestedBy:string;requestedAt:string;expiresAt:string;approvals:{approver:string;at:string}[]}[];
   scope: { id: string; asset: string; dataType: string; state: string; confidence: string; records: string }[];
 }
 export const formatMicros = (value: string) => new Date(Number(BigInt(value)/1000n)).toISOString().replace('T',' ').replace('.000Z','Z');

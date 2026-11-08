@@ -131,3 +131,11 @@ IDs/counts decimal strings. Existing tool signature unchanged. Observers denied;
 Scope mutations are human-only and audited; updateScopeItem uses expectedUpdatedAt. RECORD snapshot.scope is populated.
 Messages are private and exposed through a session-gated messages view; UI subscribes by selected incident ID.
 Human workspace incident-access policy remains unchanged; no cross-workspace membership model introduced.
+
+## Closure approval endpoints (slice 10)
+requestClosure({incidentId,reason,expectedUpdatedAt}) human commander only. approveClosure({requestId}) requires
+commander/responder, rejects requester and repeated identity. Two distinct non-requester eligible humans are
+required (requester + two reviewers). Expiry 30min; unchanged incident version required. Invalid/revoked/expired
+reviewers do not count. Second valid approval atomically closes and appends one approval audit row; anchor job
+is queued on every approval. cancelClosure({requestId}) commander-only. Closure views require live human session.
+No agent can request/approve/cancel; direct closure/reopening remains blocked. Snapshot.closures includes provenance.

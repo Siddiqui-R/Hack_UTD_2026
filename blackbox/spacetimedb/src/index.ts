@@ -166,7 +166,15 @@ const scopeItem = table({ name: 'scope_item' }, {
   id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), asset: t.string(), dataType: t.string(),
   state: t.string(), confidence: t.string(), records: t.u64(), note: t.string(), updatedAt: t.timestamp(),
 });
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep, message, scopeItem }, { env: {
+const closureRequest = table({ name: 'closure_request' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), requestedBy: t.identity(),
+  reason: t.string(), status: t.string(), requestedAt: t.timestamp(), expiresAt: t.timestamp(),
+  expectedUpdatedAt: t.timestamp(), completedAt: t.option(t.timestamp()),
+});
+const closureApproval = table({ name: 'closure_approval' }, {
+  id: t.u64().primaryKey().autoInc(), requestId: t.u64().index('btree'), approver: t.identity(), approvedAt: t.timestamp(),
+});
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep, message, scopeItem, closureRequest, closureApproval }, { env: {
   ANCHOR_URL: t.option(t.string()), ANCHOR_WRITE_TOKEN: t.option(t.string()),
   ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
 } });
@@ -836,6 +844,9 @@ export const getRecord = spacetimedb.procedure({ incidentId: t.u64() }, t.string
       conflicts: restricted ? [] : [...tx.db.conflict.incidentId.filter(row.id)].map(r => ({ id: r.id, evidenceIdA: r.evidenceIdA, evidenceIdB: r.evidenceIdB, reason: r.reason })),
       investigations: restricted ? [] : [...tx.db.agentRun.incidentId.filter(row.id)].map(r => ({ id: r.id, modelId: r.modelId, mode: r.mode, status: r.status,
         summary: r.summary, previousSummary: r.previousSummary, latencyMs: r.latencyMs })),
+      closures: [...tx.db.closureRequest.incidentId.filter(row.id)].map(r => ({id:r.id,status:r.status,reason:r.reason,
+        requestedBy:r.requestedBy.toHexString(),requestedAt:r.requestedAt.microsSinceUnixEpoch,expiresAt:r.expiresAt.microsSinceUnixEpoch,
+        approvals:[...tx.db.closureApproval.requestId.filter(r.id)].map(a=>({approver:a.approver.toHexString(),at:a.approvedAt.microsSinceUnixEpoch}))})),
       scope: restricted ? [] : [...tx.db.scopeItem.incidentId.filter(row.id)].map(r => ({ id:r.id,asset:r.asset,dataType:r.dataType,state:r.state,confidence:r.confidence,records:r.records,note:r.note })),
     });
   });
@@ -885,4 +896,51 @@ export const scopeItems = spacetimedb.view({public:true},t.array(scopeItem.rowTy
   const me=ctx.db.user.identity.find(ctx.sender);
   const allowed=!!me&&me.role!=='observer'&&!!ctx.db.session.identity.find(ctx.sender);
   return ctx.from.scopeItem.where(r=>allowed?r.id.gt(0n):r.id.eq(0n));
+});
+
+export const requestClosure = spacetimedb.reducer({incidentId:t.u64(),reason:t.string(),expectedUpdatedAt:t.timestamp()},(ctx,args)=>{
+  requireRole(ctx,['commander']);
+  const row=ctx.db.incident.id.find(args.incidentId);
+  if(!row||row.status==='closed')throw new SenderError('open incident required');
+  if(row.updatedAt.microsSinceUnixEpoch!==args.expectedUpdatedAt.microsSinceUnixEpoch)throw new SenderError('incident changed; review latest version');
+  if([...ctx.db.closureRequest.incidentId.filter(row.id)].some(r=>r.status==='pending'&&!isExpired(ctx,r.expiresAt)))throw new SenderError('closure already pending');
+  const reason=cleanText('closure reason',args.reason,1,2000);
+  const request=ctx.db.closureRequest.insert({id:0n,incidentId:row.id,requestedBy:ctx.sender,reason,status:'pending',requestedAt:ctx.timestamp,
+    expiresAt:inFuture(ctx,30n*60n*1_000_000n),expectedUpdatedAt:row.updatedAt,completedAt:undefined});
+  appendAudit(ctx,'closure.request',{requestId:request.id,reason,requiredApprovals:2},row.id);
+});
+export const approveClosure = spacetimedb.reducer({requestId:t.u64()},(ctx,args)=>{
+  requireRole(ctx,['commander','responder']);
+  const request=ctx.db.closureRequest.id.find(args.requestId);
+  if(!request||request.status!=='pending'||isExpired(ctx,request.expiresAt))throw new SenderError('live pending closure request required');
+  if(request.requestedBy.isEqual(ctx.sender))throw new SenderError('requester cannot approve');
+  const row=ctx.db.incident.id.find(request.incidentId);
+  if(!row||row.status==='closed'||row.updatedAt.microsSinceUnixEpoch!==request.expectedUpdatedAt.microsSinceUnixEpoch)throw new SenderError('incident changed; cancel and request fresh approval');
+  const approvals=[...ctx.db.closureApproval.requestId.filter(request.id)];
+  if(approvals.some(a=>a.approver.isEqual(ctx.sender)))throw new SenderError('already approved by this identity');
+  // Revoked/expired reviewers do not count toward execution.
+  const valid=approvals.filter(a=>['commander','responder'].includes(ctx.db.user.identity.find(a.approver)?.role ?? '')&&!isRevoked(ctx,a.approver)&&!!ctx.db.session.identity.find(a.approver)&&!isExpired(ctx,ctx.db.session.identity.find(a.approver)!.expiresAt));
+  ctx.db.closureApproval.insert({id:0n,requestId:request.id,approver:ctx.sender,approvedAt:ctx.timestamp});
+  const executed=valid.length+1>=2;
+  if(executed){
+    ctx.db.incident.id.update({...row,status:'closed',updatedAt:ctx.timestamp});
+    ctx.db.closureRequest.id.update({...request,status:'approved',completedAt:ctx.timestamp});
+  }
+  appendAudit(ctx,'closure.approve',{requestId:request.id,approvals:valid.length+1,executed},row.id);
+  requestAnchor(ctx);
+});
+export const cancelClosure = spacetimedb.reducer({requestId:t.u64()},(ctx,args)=>{
+  requireRole(ctx,['commander']);
+  const request=ctx.db.closureRequest.id.find(args.requestId);
+  if(!request||request.status!=='pending')throw new SenderError('pending request required');
+  ctx.db.closureRequest.id.update({...request,status:'cancelled',completedAt:ctx.timestamp});
+  appendAudit(ctx,'closure.cancel',{requestId:request.id},request.incidentId);
+});
+export const closureRequests = spacetimedb.view({public:true},t.array(closureRequest.rowType),ctx=>{
+  const allowed=!!ctx.db.user.identity.find(ctx.sender)&&!!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.closureRequest.where(r=>allowed?r.id.gt(0n):r.id.eq(0n));
+});
+export const closureApprovals = spacetimedb.view({public:true},t.array(closureApproval.rowType),ctx=>{
+  const allowed=!!ctx.db.user.identity.find(ctx.sender)&&!!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.closureApproval.where(r=>allowed?r.id.gt(0n):r.id.eq(0n));
 });
