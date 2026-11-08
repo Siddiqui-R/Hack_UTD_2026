@@ -12,6 +12,8 @@
     "agent:live": "node src/run.mjs --live",
     "agent:deep": "node src/run.mjs --live --deep",
     "agent:replay": "node src/run.mjs --replay",
+    "worker": "node src/worker.mjs",
+    "worker:once": "node src/worker.mjs --once",
     "dev:setup": "node scripts/dev-setup.mjs"
   }
 }

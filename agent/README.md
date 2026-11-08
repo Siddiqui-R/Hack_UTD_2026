@@ -10,6 +10,8 @@ npm run agent          # mock: scripted tool sequence, real DB writes, 400 ms st
 npm run agent:live     # one real run on MODEL_FAST (spends credits, budget-capped)
 npm run agent:deep     # one real run on MODEL_DEEP
 npm run agent:replay   # replays the latest recorded live run's tool calls (no credits): use this at judging
+npm run worker         # poll the INVESTIGATE queue until stopped (mock/replay only)
+npm run worker:once    # consume at most one queued request, then exit
 ```
 
 Every run prints a live trace (`[14:32:07] → searchIncidents("Payroll")`), ends with a model badge
@@ -21,7 +23,9 @@ The service uses its own SpacetimeDB identity, stored in `agent/.agent-token` (g
 
 ## Credit discipline
 - `maxRetries: 0`, `maxOutputTokens: 4096` (these models reason first), at most 8 steps, `temperature 1.0 / top_p 0.95`.
-- Each model step increments `agent-logs/live-call-count.json`, and the step cap shrinks to the remaining budget (40 total).
+- Each model step reserves a call in `agent-logs/live-call-count.json` BEFORE requesting the provider, including failed
+  requests. The step cap shrinks to the remaining budget (40 total). A missing counter starts at the known 5 probe calls;
+  carry forward higher counts from other machines before using live mode.
 - A malformed tool call (fails Zod validation) ends the run instead of being retried.
 - The budget only applies when `NVIDIA_BASE_URL` is `integrate.api.nvidia.com`. Point it at a self-hosted OpenAI-compatible
   endpoint (NIM or vLLM on Brev, e.g. `http://<host>:8000/v1`, with `MODEL_FAST` set to the served model name) and live runs
@@ -32,7 +36,22 @@ The service uses its own SpacetimeDB identity, stored in `agent/.agent-token` (g
    The system prompt says it's untrusted data, and that embedded instructions are a finding to report.
 2. The server refuses the agent every human operation (role, invite, revoke, enroll, close, create incident): 25 attacks in
    `attack/suites/slice03b-agent-contract.mjs`.
-3. Agent-side policy: a severity **downgrade** is refused unless this run flagged an evidence conflict. That blocks the
-   "mark this resolved" injection while still allowing a real evidence-backed revision. Server-side version: finding G19.
+3. Agent-side policy: every severity downgrade requires human review, matching the server's raise-only policy.
+
+## Queue integration and cancellation
+Use the dedicated enrolled service identity. The existing UI queues mock/replay requests; the worker honors the request's
+tier even when AGENT_MODE differs, claims with the actual mock/model identity, publishes awaited call/result/revision/
+summary/error traces, and finishes completed/failed runs. Trace rejection stops before the next tool action. A missing
+or model/incident-mismatched live recording fails replay; it never calls NVIDIA. Set AGENT_REPLAY_FILE for a specific
+recording. Recordings must match the incident/model; evidence IDs are never silently rebound to unrelated records.
+
+One process per service identity is enforced by an exclusive worker-*.lock under ignored agent-logs/. Separate workers
+need separate identities/tokens (AGENT_TOKEN_FILE). After a hard kill, verify the PID in a stale lock is no longer running
+before removing that lock. Sessions still expire after 15 minutes idle; a commander must re-enroll an idle service.
+
+Q1 remains a module contract gap: recordAgentStep infers the currently running run. A cancelled old worker sharing an
+identity with a newly claimed run can misattribute a delayed trace. The local process lock mitigates ordinary duplicate
+workers; server enforcement needs an agreed expected runId argument. No signatures were changed in this integration.
+Cancellation cannot roll back a tool action that has already committed or atomically guard the existing write reducers.
 
 AI SDK note: installed `ai@7`. The step limit helper is **`isStepCount`** (`stepCountIs` no longer exists); tools use `inputSchema`.
