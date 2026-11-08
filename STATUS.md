@@ -4,13 +4,21 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 18:30 · tested through `7d7d7ba` (slice 3) · attacks 50/59 held · tests 3/8 pass, 1 fails (#2 = I5), 4 todo
+Updated 2026-11-07 19:00 · tested through `82f7628` (slice 3.5) · attacks 82/85 held · tests 4/8 pass, 4 todo
 
-**Do now (about 5 min):** `git apply attack/fixes.patch` → republish `--delete-data` → `spacetime generate`. It closes 9 findings
-(I5 responder can close · R14 duress flag visible to everyone · V9 commander lockout · weak codes · offline cracking ·
-names/titles · stale invites · ancient dates). Verified: tests 4/4, attacks 59/60. Adds owner-only `unrevoke_session`;
-no other reducer args change. **Until applied, `npm test` fails on #2 by design.** Not in the patch: I12 lost update,
-`attack/FIXES.md` §4.
+**PULL FIRST: Rabeet edited `blackbox/spacetimedb/src/index.ts` (user's call) to land the security fixes on top of your 3.5.**
+`git pull --rebase`, republish `--delete-data`, `spacetime generate`. What changed (no existing reducer args changed):
+only commanders see duress flags · only the owner revokes commanders, plus owner-only `unrevoke_session` · weak codes rejected ·
+invite rows deleted on redeem and expiry · strict `cleanText` (hidden chars; evidence stays lenient via `strict=false`) ·
+unique display names · demoted commander's invites deleted · `detected_at` more than a year ago rejected.
+Your 3.5 close gate kept as is. Details: `attack/FINDINGS.md`.
+
+**Slice 3.5 attacked: 23/25 held.** Agent isolation is solid. Open, your call:
+- **G19 HIGH:** the agent can lower severity (critical → low) with no human in the loop, the exact goal of the injection demo.
+  Suggest the agent can only raise; a downgrade becomes a proposal a commander confirms.
+- **G22 MED:** observers can read raw evidence via `evidence_records` (scope is blocked, evidence isn't).
+- **P1 LOW:** procedures that throw report "fatal error" and cost ~5× a normal call; return `{error}` JSON instead.
+- **I12 MED:** lost update, still open (`attack/FIXES.md` §4).
 
 **Agreed scope:** 3.5 agent stubs → 4 verifyChain + bar → 9 anchor → 11 (one conflict flow) → 12 RECORD. If time: 5, 6, 10.
 **Cut: 13** (TOTP, duress PIN, presets; one hard-coded seed).
@@ -22,8 +30,8 @@ no other reducer args change. **Until applied, `npm test` fails on #2 by design.
   (`attack/lib.mjs` recomputes it independently).
 - Keep the "Attack this:" line on every slice. Tell me before changing reducer names/args or the `team`/`audit`/`session`/`incident` shapes.
 
-**Waiting on you:** slice 3.5 stubs (my agent service builds on them) · OK for Playwright + promptfoo as dev deps in `attack/` ·
-live-call count (of 40).
+**Waiting on you:** OK for Playwright + promptfoo as dev deps in `attack/` · live-call count (of 40).
+**Rabeet next:** agent service in `agent/` against AGENT_CONTRACT.md (mock mode first).
 
 ## How to run locally
 
