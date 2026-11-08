@@ -731,3 +731,6 @@ LIGHT MODE (Rabeet, branch feat/light-mode on main c3cbe5c, 2026-11-08 11:08 CST
   drawer, dialog, playback phases, 600px masthead and a simulated broken chain. Client tsc, build, lint (no new warnings).
   Attack this: anything colored outside bb.css (new inline colors render dark-on-light); the failed-check banner and
   integrity rupture in light on a real tampered chain; a judge's laptop with storage blocked (falls back to dark).
+LIGHT MODE RELEASED (Rabeet, 2026-11-08 11:15 CST / 17:15 UTC): PR #5 merged as cadc5e7 (client only, no publish).
+  Vercel production index-BQJ9SaNY.js live: LINK UP, switch flips and survives reload, no console errors (headless Chrome).
+  Attack this: a signed-in production session in light (incident picture, record chain, PDF export unaffected).
