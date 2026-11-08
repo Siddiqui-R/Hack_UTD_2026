@@ -39,7 +39,7 @@ cd client && npm install && npm run dev                    # http://localhost:51
 `issue_bootstrap_invite` only works from the CLI identity that published the database (the owner).
 Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 `--no-config` is needed because `spacetime.json` defaults to Maincloud. Inspect data with
-`spacetime sql --server local --no-config blackbox "SELECT * FROM ping"`.
+`spacetime sql --server local --no-config blackbox "SELECT * FROM incident"`.
 
 ## Slices
 
@@ -49,6 +49,7 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 | 1 | Users + roles + `ctx.sender` checks on one write | acting as the wrong role | [x] |
 | 2 | Invite codes → real session identity → role | replay, reuse, expiry, forged code | [x] |
 | 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [x] |
+| 3.5 | Agent contract: tables, reducers, reads, generated bindings | agent privilege escalation and incident escape | [x] |
 | 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [ ] |
 | 5 | Real-time chat | cross-incident message leakage | [ ] |
 | 6 | Scope items | observer reading scope | [ ] |
@@ -151,3 +152,16 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
     directly via SQL as non-owner; expired session still seeing incidents after the sweep.
 
 ## Known, not fixing
+
+SLICE 3.5 — agent module contract DONE (see AGENT_CONTRACT.md).
+  Private agent_identity/task/evidence/conflict tables; commander enrollAgent binds a dedicated service identity
+  to one incident and a 15-minute session. createTask/updateSeverity/flagConflict derive NEMOTRON from ctx.sender.
+  searchIncidents/getScope/evidenceRecords are authenticated read procedures. getScope explicitly reports
+  unavailable until slice 6. submitEvidence is human-only. Tasks render through a session-gated subscription.
+  Agent denied by all existing human/permission endpoints; setRole cannot grant a human role to an agent;
+  revokeSession also kills agent identities. Closing is blocked server-side and removed from UI pending slice 10.
+  Verified: SDK harness assertions, module typecheck/build, generated bindings, client production build.
+  No server running, so no publish or database wipe. No NVIDIA calls; budget remains 5/40.
+  RABEET: pull, read AGENT_CONTRACT.md, build only in your owned folders. Do not use a human token for the service.
+  Attack this: enrolled agent calls permission reducers; cross-incident severity/conflict/read; revoked agent
+  writes; expired agent session; forged actor via calls (no actor parameter accepted).

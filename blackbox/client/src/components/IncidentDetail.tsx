@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useReducer } from 'spacetimedb/react';
-import { reducers } from '../module_bindings';
+import { useReducer, useTable } from 'spacetimedb/react';
+import { reducers, tables } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { Chip } from './Chip';
 import { useRun } from './Toast';
@@ -36,6 +36,8 @@ function Control({ label, value, options, onPick, disabled }: {
 }
 
 export function IncidentDetail({ incident, team, canWrite }: { incident: Incident; team: readonly TeamMember[]; canWrite: boolean }) {
+  const [taskRows] = useTable(tables.tasks);
+  const incidentTasks = taskRows.filter(task => task.incidentId === incident.id);
   const updateIncident = useReducer(reducers.updateIncident);
   const run = useRun();
   const [systems, setSystems] = useState(incident.systemsAffected);
@@ -86,7 +88,7 @@ export function IncidentDetail({ incident, team, canWrite }: { incident: Inciden
           {!canWrite && <span className="font-mono text-[11px] text-text-2">READ-ONLY · OBSERVER</span>}
         </div>
         <Control label="Severity" value={incident.severity} options={SEVERITIES} disabled={!canWrite} onPick={v => update({ severity: v })} />
-        <Control label="Status" value={incident.status} options={STATUSES} disabled={!canWrite} onPick={v => update({ status: v })} />
+        <Control label="Status" value={incident.status} options={STATUSES.filter(s => s !== 'closed')} disabled={!canWrite} onPick={v => update({ status: v })} />
         <Control label="Containment" value={incident.containmentStatus} options={CONTAINMENT} disabled={!canWrite} onPick={v => update({ containmentStatus: v })} />
         <form
           className="grid grid-cols-[112px_1fr_auto] items-center gap-3"
@@ -109,7 +111,13 @@ export function IncidentDetail({ incident, team, canWrite }: { incident: Inciden
       </div>
       <div className="flex flex-col gap-2 px-6 py-4">
         <span className="label">Tasks</span>
-        <p className="text-text-2">No tasks assigned.</p>
+        {incidentTasks.length === 0 ? <p className="text-text-2">No tasks assigned.</p> : incidentTasks.map(task => (
+          <div key={task.id.toString()} className="flex gap-3 border-b border-line py-2">
+            <span className="font-mono text-[12px] text-text-1">#{task.id.toString()}</span>
+            <span className="flex-1">{task.text}</span>
+            <span className="font-mono text-[11px] uppercase text-text-1">{task.assigneeRole} · {task.createdBy}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

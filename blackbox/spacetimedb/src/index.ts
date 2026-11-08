@@ -127,7 +127,22 @@ const incident = table(
   }
 );
 
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident });
+const agentIdentity = table({ name: 'agent_identity' }, {
+  identity: t.identity().primaryKey(), incidentId: t.u64(), enrolledBy: t.identity(), createdAt: t.timestamp(),
+});
+const task = table({ name: 'task' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), text: t.string(),
+  assigneeRole: t.string(), createdBy: t.string(), createdAt: t.timestamp(),
+});
+const evidence = table({ name: 'evidence' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), text: t.string(),
+  submittedBy: t.identity(), createdAt: t.timestamp(),
+});
+const conflict = table({ name: 'conflict' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'),
+  evidenceIdA: t.u64(), evidenceIdB: t.u64(), reason: t.string(), createdBy: t.string(), createdAt: t.timestamp(),
+});
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict });
 export default spacetimedb;
 
 type Ctx = ReducerCtx<InferSchema<typeof spacetimedb>>;
@@ -183,6 +198,7 @@ function isRevoked(ctx: Ctx, who: Identity) {
 // Throws unless the caller is not revoked, has a user row, a live session, and one of the allowed roles.
 // A successful check counts as activity and extends the session.
 function requireRole(ctx: Ctx, allowed: readonly Role[]) {
+  rejectAgent(ctx);
   if (isRevoked(ctx, ctx.sender)) throw new SenderError('access revoked');
   const me = ctx.db.user.identity.find(ctx.sender);
   if (!me) throw new SenderError('not registered');
@@ -191,6 +207,20 @@ function requireRole(ctx: Ctx, allowed: readonly Role[]) {
   if (!allowed.includes(me.role as Role)) throw new SenderError(`role ${me.role} not permitted`);
   ctx.db.session.identity.update({ ...s, expiresAt: inFuture(ctx, SESSION_TTL_MICROS) });
   return me;
+}
+
+function rejectAgent(ctx: Ctx) {
+  if (ctx.db.agentIdentity.identity.find(ctx.sender)) throw new SenderError('NEMOTRON cannot perform human operations');
+}
+
+function requireAgent(ctx: Ctx) {
+  if (isRevoked(ctx, ctx.sender)) throw new SenderError('access revoked');
+  const agent = ctx.db.agentIdentity.identity.find(ctx.sender);
+  const active = ctx.db.session.identity.find(ctx.sender);
+  if (!agent || !active || isExpired(ctx, active.expiresAt)) throw new SenderError('agent session required');
+  if (!ctx.db.incident.id.find(agent.incidentId)) throw new SenderError('incident not found');
+  ctx.db.session.identity.update({ ...active, expiresAt: inFuture(ctx, SESSION_TTL_MICROS) });
+  return agent;
 }
 
 function storeInvite(ctx: Ctx, code: string, role: Role) {
@@ -254,6 +284,7 @@ export const team = spacetimedb.view({ name: 'team', public: true }, t.array(Tea
 
 // Owner-only (run from the CLI). The only way the first commander comes into existence.
 export const issueBootstrapInvite = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
+  rejectAgent(ctx);
   const o = ctx.db.owner.id.find(0);
   if (!o || !o.identity.isEqual(ctx.sender)) throw new SenderError('owner only');
   storeInvite(ctx, code, 'commander');
@@ -270,6 +301,7 @@ export const createInvite = spacetimedb.reducer({ code: t.string(), role: t.stri
 // Binds the caller's identity to the invite's role and starts a 15-minute session.
 // Every failure mode returns the same error so the response is not an oracle.
 export const redeemInvite = spacetimedb.reducer({ code: t.string(), displayName: t.string() }, (ctx, { code, displayName }) => {
+  rejectAgent(ctx);
   const name = displayName.trim();
   if (!name || name.length > 40) throw new SenderError('display name must be 1-40 chars');
   if (isRevoked(ctx, ctx.sender)) throw new SenderError(BAD_CODE);
@@ -300,6 +332,7 @@ export const setRole = spacetimedb.reducer({ target: t.identity(), role: t.strin
   requireRole(ctx, ['commander']);
   if (!ROLES.includes(role as Role)) throw new SenderError('unknown role');
   if (target.isEqual(ctx.sender)) throw new SenderError('cannot change your own role');
+  if (ctx.db.agentIdentity.identity.find(target)) throw new SenderError('cannot grant roles to NEMOTRON');
   if (isRevoked(ctx, target)) throw new SenderError('target is revoked');
   const row = ctx.db.user.identity.find(target);
   if (!row) throw new SenderError('target not registered');
@@ -313,11 +346,12 @@ export const revokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx,
   requireRole(ctx, ['commander']);
   if (target.isEqual(ctx.sender)) throw new SenderError('cannot revoke yourself');
   const row = ctx.db.user.identity.find(target);
-  if (!row) throw new SenderError('target not registered');
+  const agent = ctx.db.agentIdentity.identity.find(target);
+  if (!row && !agent) throw new SenderError('target not registered');
   if (isRevoked(ctx, target)) throw new SenderError('already revoked');
   ctx.db.session.identity.delete(target);
   ctx.db.revokedIdentity.insert({ identity: target, revokedBy: ctx.sender, revokedAt: ctx.timestamp });
-  appendAudit(ctx, 'user.revoke', { target: target.toHexString(), displayName: row.displayName, role: row.role });
+  appendAudit(ctx, 'user.revoke', { target: target.toHexString(), displayName: row?.displayName ?? 'NEMOTRON', role: row?.role ?? 'agent' });
 });
 
 function oneOf<T extends string>(field: string, value: string, allowed: readonly T[]): T {
@@ -383,6 +417,7 @@ export const updateIncident = spacetimedb.reducer(
   { incidentId: t.u64(), severity: t.string(), status: t.string(), containmentStatus: t.string(), systemsAffected: t.string() },
   (ctx, args) => {
     requireRole(ctx, ['commander', 'responder']);
+    if (args.status === 'closed') throw new SenderError('closing requires two-person approval');
     const row = ctx.db.incident.id.find(args.incidentId);
     if (!row) throw new SenderError('incident not found');
     const next = {
@@ -400,3 +435,92 @@ export const updateIncident = spacetimedb.reducer(
     appendAudit(ctx, 'incident.update', changes, row.id);
   }
 );
+
+// Human commander binds a dedicated service identity to one incident.
+export const enrollAgent = spacetimedb.reducer({ target: t.identity(), incidentId: t.u64() }, (ctx, args) => {
+  requireRole(ctx, ['commander']);
+  if (isRevoked(ctx, args.target)) throw new SenderError('target is revoked');
+  if (ctx.db.user.identity.find(args.target)) throw new SenderError('agent requires a separate identity');
+  if (!ctx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
+  const row = { identity: args.target, incidentId: args.incidentId, enrolledBy: ctx.sender, createdAt: ctx.timestamp };
+  if (ctx.db.agentIdentity.identity.find(args.target)) ctx.db.agentIdentity.identity.update(row);
+  else ctx.db.agentIdentity.insert(row);
+  const active = { identity: args.target, startedAt: ctx.timestamp, expiresAt: inFuture(ctx, SESSION_TTL_MICROS) };
+  if (ctx.db.session.identity.find(args.target)) ctx.db.session.identity.update(active);
+  else ctx.db.session.insert(active);
+  appendAudit(ctx, 'agent.enroll', { target: args.target.toHexString() }, args.incidentId);
+});
+
+export const createTask = spacetimedb.reducer({ text: t.string(), assigneeRole: t.string() }, (ctx, args) => {
+  const agent = requireAgent(ctx);
+  const text = cleanText('task', args.text, 1, 1000);
+  const assigneeRole = oneOf('assignee role', args.assigneeRole, ROLES);
+  const row = ctx.db.task.insert({ id: 0n, incidentId: agent.incidentId, text, assigneeRole, createdBy: 'NEMOTRON', createdAt: ctx.timestamp });
+  appendAudit(ctx, 'task.create', { id: row.id, text, assigneeRole, sender: ctx.sender.toHexString() }, agent.incidentId, 'NEMOTRON');
+});
+
+export const updateSeverity = spacetimedb.reducer({ incidentId: t.u64(), severity: t.string(), reason: t.string() }, (ctx, args) => {
+  const agent = requireAgent(ctx);
+  if (args.incidentId !== agent.incidentId) throw new SenderError('agent incident mismatch');
+  const row = ctx.db.incident.id.find(args.incidentId)!;
+  const severity = oneOf('severity', args.severity, SEVERITIES);
+  const reason = cleanText('reason', args.reason, 1, 2000);
+  ctx.db.incident.id.update({ ...row, severity, updatedAt: ctx.timestamp });
+  appendAudit(ctx, 'incident.severity', { from: row.severity, to: severity, reason, sender: ctx.sender.toHexString() }, row.id, 'NEMOTRON');
+});
+
+export const submitEvidence = spacetimedb.reducer({ incidentId: t.u64(), text: t.string() }, (ctx, args) => {
+  requireRole(ctx, ['commander', 'responder']);
+  if (!ctx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
+  const text = cleanText('evidence', args.text, 1, 32000);
+  const row = ctx.db.evidence.insert({ id: 0n, incidentId: args.incidentId, text, submittedBy: ctx.sender, createdAt: ctx.timestamp });
+  appendAudit(ctx, 'evidence.submit', { id: row.id, text }, args.incidentId);
+});
+
+export const flagConflict = spacetimedb.reducer({ evidenceIdA: t.u64(), evidenceIdB: t.u64(), reason: t.string() }, (ctx, args) => {
+  const agent = requireAgent(ctx);
+  const a = ctx.db.evidence.id.find(args.evidenceIdA);
+  const b = ctx.db.evidence.id.find(args.evidenceIdB);
+  if (!a || !b || a.id === b.id || a.incidentId !== agent.incidentId || b.incidentId !== agent.incidentId) {
+    throw new SenderError('two distinct evidence records in the agent incident required');
+  }
+  const reason = cleanText('reason', args.reason, 1, 2000);
+  const row = ctx.db.conflict.insert({ id: 0n, incidentId: agent.incidentId, evidenceIdA: a.id, evidenceIdB: b.id, reason, createdBy: 'NEMOTRON', createdAt: ctx.timestamp });
+  appendAudit(ctx, 'conflict.flag', { id: row.id, evidenceIdA: a.id, evidenceIdB: b.id, reason, sender: ctx.sender.toHexString() }, agent.incidentId, 'NEMOTRON');
+});
+
+// Read procedures return JSON with decimal-string u64 IDs. They do not mutate session state.
+function requireReader(ctx: Ctx) {
+  if (isRevoked(ctx, ctx.sender)) throw new SenderError('access revoked');
+  const active = ctx.db.session.identity.find(ctx.sender);
+  if (!active || isExpired(ctx, active.expiresAt)) throw new SenderError('session expired');
+  const agent = ctx.db.agentIdentity.identity.find(ctx.sender);
+  const human = ctx.db.user.identity.find(ctx.sender);
+  if (!agent && !human) throw new SenderError('not registered');
+  return { agent, human };
+}
+export const searchIncidents = spacetimedb.procedure({ query: t.string() }, t.string(), (ctx, args) => ctx.withTx(tx => {
+  const { agent } = requireReader(tx);
+  const query = args.query.trim().toLowerCase();
+  if (query.length > 200) throw new SenderError('query too long');
+  const rows = agent ? [...tx.db.incident.iter()].filter(r => r.id === agent.incidentId) : [...tx.db.incident.iter()];
+  return canonicalJson(rows.filter(r => r.title.toLowerCase().includes(query)).slice(0, 50).map(r => ({
+    incidentId: r.id, title: r.title, severity: r.severity, status: r.status,
+  })));
+}));
+export const getScope = spacetimedb.procedure({ incidentId: t.u64() }, t.string(), (ctx, args) => ctx.withTx(tx => {
+  const { agent, human } = requireReader(tx);
+  if (human?.role === 'observer') throw new SenderError('observer cannot read scope');
+  if (agent && agent.incidentId !== args.incidentId) throw new SenderError('agent incident mismatch');
+  if (!tx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
+  return canonicalJson({ incidentId: args.incidentId, available: false, items: [], reason: 'Scope storage arrives in slice 6' });
+}));
+export const evidenceRecords = spacetimedb.procedure({ incidentId: t.u64() }, t.string(), (ctx, args) => ctx.withTx(tx => {
+  const { agent } = requireReader(tx);
+  if (agent && agent.incidentId !== args.incidentId) throw new SenderError('agent incident mismatch');
+  return canonicalJson([...tx.db.evidence.incidentId.filter(args.incidentId)].map(r => ({ id: r.id, incidentId: r.incidentId, text: r.text })));
+}));
+export const tasks = spacetimedb.view({ public: true }, t.array(task.rowType), ctx => {
+  const allowed = !!ctx.db.user.identity.find(ctx.sender) && !!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.task.where(row => allowed ? row.id.gt(0n) : row.id.eq(0n));
+});

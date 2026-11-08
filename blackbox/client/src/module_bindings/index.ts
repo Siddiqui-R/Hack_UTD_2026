@@ -36,17 +36,26 @@ import {
 // Import all reducer arg schemas
 import CreateIncidentReducer from "./create_incident_reducer";
 import CreateInviteReducer from "./create_invite_reducer";
+import CreateTaskReducer from "./create_task_reducer";
+import EnrollAgentReducer from "./enroll_agent_reducer";
+import FlagConflictReducer from "./flag_conflict_reducer";
 import IssueBootstrapInviteReducer from "./issue_bootstrap_invite_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
 import RevokeSessionReducer from "./revoke_session_reducer";
 import SetRoleReducer from "./set_role_reducer";
+import SubmitEvidenceReducer from "./submit_evidence_reducer";
 import TouchSessionReducer from "./touch_session_reducer";
 import UpdateIncidentReducer from "./update_incident_reducer";
+import UpdateSeverityReducer from "./update_severity_reducer";
 
 // Import all procedure arg schemas
+import * as EvidenceRecordsProcedure from "./evidence_records_procedure";
+import * as GetScopeProcedure from "./get_scope_procedure";
+import * as SearchIncidentsProcedure from "./search_incidents_procedure";
 
 // Import all table schema definitions
 import IncidentsRow from "./incidents_table";
+import TasksRow from "./tasks_table";
 import TeamRow from "./team_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -60,6 +69,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, IncidentsRow),
+  tasks: __table({
+    name: 'tasks',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, TasksRow),
   team: __table({
     name: 'team',
     indexes: [
@@ -73,16 +89,24 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("create_incident", CreateIncidentReducer),
   __reducerSchema("create_invite", CreateInviteReducer),
+  __reducerSchema("create_task", CreateTaskReducer),
+  __reducerSchema("enroll_agent", EnrollAgentReducer),
+  __reducerSchema("flag_conflict", FlagConflictReducer),
   __reducerSchema("issue_bootstrap_invite", IssueBootstrapInviteReducer),
   __reducerSchema("redeem_invite", RedeemInviteReducer),
   __reducerSchema("revoke_session", RevokeSessionReducer),
   __reducerSchema("set_role", SetRoleReducer),
+  __reducerSchema("submit_evidence", SubmitEvidenceReducer),
   __reducerSchema("touch_session", TouchSessionReducer),
   __reducerSchema("update_incident", UpdateIncidentReducer),
+  __reducerSchema("update_severity", UpdateSeverityReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("evidence_records", EvidenceRecordsProcedure.params, EvidenceRecordsProcedure.returnType),
+  __procedureSchema("get_scope", GetScopeProcedure.params, GetScopeProcedure.returnType),
+  __procedureSchema("search_incidents", SearchIncidentsProcedure.params, SearchIncidentsProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

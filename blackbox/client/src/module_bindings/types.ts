@@ -10,6 +10,14 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AgentIdentity = __t.object("AgentIdentity", {
+  identity: __t.identity(),
+  incidentId: __t.u64(),
+  enrolledBy: __t.identity(),
+  createdAt: __t.timestamp(),
+});
+export type AgentIdentity = __Infer<typeof AgentIdentity>;
+
 export const Audit = __t.object("Audit", {
   seq: __t.u64(),
   incidentId: __t.u64(),
@@ -28,6 +36,26 @@ export const ChainHead = __t.object("ChainHead", {
   headHash: __t.string(),
 });
 export type ChainHead = __Infer<typeof ChainHead>;
+
+export const Conflict = __t.object("Conflict", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  evidenceIdA: __t.u64(),
+  evidenceIdB: __t.u64(),
+  reason: __t.string(),
+  createdBy: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type Conflict = __Infer<typeof Conflict>;
+
+export const Evidence = __t.object("Evidence", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  text: __t.string(),
+  submittedBy: __t.identity(),
+  createdAt: __t.timestamp(),
+});
+export type Evidence = __Infer<typeof Evidence>;
 
 export const Incident = __t.object("Incident", {
   id: __t.u64(),
@@ -84,6 +112,19 @@ export const SessionSweep = __t.object("SessionSweep", {
   scheduledAt: __t.scheduleAt(),
 });
 export type SessionSweep = __Infer<typeof SessionSweep>;
+
+export const Task = __t.object("Task", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  text: __t.string(),
+  assigneeRole: __t.string(),
+  createdBy: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type Task = __Infer<typeof Task>;
+
+export const Tasks = __t.object("Tasks", {});
+export type Tasks = __Infer<typeof Tasks>;
 
 export const Team = __t.object("Team", {});
 export type Team = __Infer<typeof Team>;

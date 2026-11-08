@@ -6,5 +6,14 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as EvidenceRecordsProcedure from "../evidence_records_procedure";
+import * as GetScopeProcedure from "../get_scope_procedure";
+import * as SearchIncidentsProcedure from "../search_incidents_procedure";
 
+export type EvidenceRecordsArgs = __Infer<typeof EvidenceRecordsProcedure.params>;
+export type EvidenceRecordsResult = __Infer<typeof EvidenceRecordsProcedure.returnType>;
+export type GetScopeArgs = __Infer<typeof GetScopeProcedure.params>;
+export type GetScopeResult = __Infer<typeof GetScopeProcedure.returnType>;
+export type SearchIncidentsArgs = __Infer<typeof SearchIncidentsProcedure.params>;
+export type SearchIncidentsResult = __Infer<typeof SearchIncidentsProcedure.returnType>;
 
