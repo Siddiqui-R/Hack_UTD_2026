@@ -50,6 +50,16 @@ recording. Recordings must match the incident/model; evidence IDs are never sile
 One process per service identity is enforced by an exclusive worker-*.lock under ignored agent-logs/. Separate workers
 need separate identities/tokens (AGENT_TOKEN_FILE). After a hard kill, verify the PID in a stale lock is no longer running
 before removing that lock. Sessions still expire after 15 minutes idle; a commander must re-enroll an idle service.
+While unenrolled or lapsed, the worker keeps polling every 5 s and prints `Waiting: <reason>`; after a re-enrol it
+resumes without a restart. Only the read-only poll repeats: a claimed run is never retried. `--once` still exits.
+
+## Production (Maincloud)
+`npm run worker:cloud` targets `https://maincloud.spacetimedb.com`, database `blackbox-utd2026-abbas9x`, with its own
+token file `agent/.agent-token.maincloud` (gitignored as `.agent-token*`; local and production identities never share
+storage). The first run mints the identity and prints it. A commander pastes that hex into the INVESTIGATE
+"AGENT SERVICE" box to enrol it for one incident. Any agent command takes `--cloud` (or `STDB_TARGET=maincloud`):
+`npm run agent:cloud:live` / `agent:cloud:deep` record a real run on the enrolled Maincloud incident (spends credits;
+ask first), which becomes that incident's replay transcript. `npm run demo:check -- --cloud` preflights production.
 
 Q1 remains a module contract gap: recordAgentStep infers the currently running run. A cancelled old worker sharing an
 identity with a newly claimed run can misattribute a delayed trace. The local process lock mitigates ordinary duplicate

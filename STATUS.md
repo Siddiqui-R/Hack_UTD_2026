@@ -4,18 +4,32 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 · security/integration fixes validated on top of `098d049` for push.
-**408 live regression checks held, 0 VULN/errors · unit tests 8/8 · module typecheck and client production build pass.**
-Fixed two missed authority transitions in index.ts: only the owner may demote a commander (blocks demote-then-revoke
-lockout), and reauthentication as a lower role discards former-commander invites. Both reproduced before the fixes.
-New checks exercise all 21 private tables, role/session/view withdrawal and prior reviewer demotion/expiry.
-Full report: attack/DEEP_SWEEP.md. Local module republished with --delete-data=never; schema/contracts unchanged.
-Demo: all 16 checks held, zero skips/errors, on 10 consecutive rehearsals of Claude's demo scripts.
-Network test is SDK disconnect/reconnect/catch-up, not a physical hotspot/browser test. Injection test covers
-prompt fencing and server refusals, not real model behavior. No data reset or NVIDIA calls.
-Added `cd agent && npm run demo:check`: read-only database/enrollment/replay/budget/PDF HTTP preflight.
-Demo agent renewed on local incident #196. NVIDIA_API_KEY, real FAST recording and production account config are missing.
-Local UI/PDF endpoints already listen on 5173/4400. Maincloud CLI lists no databases; none deployed here.
+Updated 2026-11-07 22:45 CT · tested through `813c13f` (enrolment UI, `agent_status`) plus Rabeet's `c9cd0fe..0c97bd8`.
+**421 live regression checks held, 0 VULN/errors, 10 consecutive clean runs · unit tests 8/8 · demo 16/16 on 10 rehearsals.**
+
+**MAINCLOUD WORKER IS RUNNING, waiting for enrolment.** `cd agent && npm run worker:cloud` targets
+`blackbox-utd2026-abbas9x` as service identity `0xc200de27ebc6e3b71f0eca84b26faa5055062d30769af56a77b063ca20eacf96`
+(token in gitignored `agent/.agent-token.maincloud`, separate from local). Enrol it with the INVESTIGATE "AGENT SERVICE"
+box (paste the hex). No restart needed any more: refused polls (not enrolled, session lapsed) wait and resume after a
+re-enrol; a claimed run is never retried. Log: `agent-logs/worker-cloud.log`. Mock/replay queue only, never live.
+**a769de9 closure rule broke unit test 7 and two slice-10 checks; tests updated, module unchanged.** Covered: request
+alone stays pending; requester + one live reviewer closes; a lapsed requester does not count (one approver stays
+pending, a second distinct one closes); duplicate, revoked, demoted and expired approvals never count.
+**813c13f attacked (new slice 11/enrol, 11 checks):** observer/responder/outsider cannot enrol; human, owner and revoked
+identities refused; `agent_status` shows nothing to agents, outsiders, swept or revoked humans. Not covered:
+hidden-tab keep-alive must still expire (needs a browser).
+**Local test database moved to `blackbox-attack`.** A Maincloud `spacetime login` on this machine replaced the CLI
+token that owned local `blackbox`. The suite now owns `blackbox-attack` through gitignored `attack/.env.owner-cli.toml`:
+`cd attack && npm run local:publish` (republish keeps data). Local `blackbox` is untouched but has no owner login here.
+**Attack 2 shows ANCHOR MISMATCH only on the deployed module.** SpacetimeDB refuses procedure HTTP to loopback, so a
+local checkpoint store cannot work, and the hosted store's credentials stay off this machine. The terminal attack shows
+INTEGRITY BROKEN, the module's red bar and the restore; show ANCHOR MISMATCH on the live site (step 8).
+**Injection:** `node attack/injection/run.mjs`, 7 payloads (override, fake system, fake tool result, base64, split
+across two entries, invite exfiltration, fence forgery): fence 7/7, server 13/13 refusals. Model layer (`--live`, one
+FAST run, ~6-8 calls) not run: no NVIDIA_API_KEY on this machine. Results in `attack/INJECTION_RESULTS.md`.
+**PDF renderer not deployed yet:** needs an HTTPS host with Chrome, or a tunnel from this laptop (Rabeet deciding).
+`PDF_PUBLIC=1` now refuses to start without a 32+ character `PDF_RENDERER_TOKEN`.
+**NVIDIA:** zero live calls this session; budget 5/40.
 
 **Worker connected:** `cd agent && npm run worker` (or `worker:once`). Poll/claim/trace/finish via existing contract;
 mock/replay only, respects tier, publishes call/result/revision/summary/error, carries previous conclusion and stops
@@ -59,8 +73,9 @@ Worker never falls back to live. Standalone live calls reserve budget before pro
 
 **Waiting on owner:** agreement on Q1 runId/atomic-action contract; A2 local-store sequence canonicalization;
 independent deployment verification and production integrations. No independence claim until verified.
-**Attack this:** A1 is now covered by default unit test 6; Q1 stale-run/cancelled-tool and A2 numeric-alias probes
-remain expected failures. Rerun the 408-check gate after coordinated contract changes.
+**Attack this:** enrol the Maincloud worker, let its session lapse (15 min idle), re-enrol: it must resume without a
+restart and never re-run a claimed run. Hidden-tab keep-alive must still expire. `node attack/injection/run.mjs --live`
+once the key is in. Q1 stale-run/cancelled-tool and A2 numeric-alias probes remain expected failures.
 
 ## How to run locally
 

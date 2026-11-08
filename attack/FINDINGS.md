@@ -3,7 +3,7 @@
 Reproduce with `cd attack && npm run attack` (local server only). Unit tests: `cd blackbox/spacetimedb && npm test`.
 Fix code for anything open: `FIXES.md`.
 
-**Status @ `813c13f`, 2026-11-07 23:10:** **421 live regression checks held** on 10 consecutive runs, 0 succeeded/errors;
+**Status @ `813c13f`, 2026-11-07 22:45:** **421 live regression checks held** on 10 consecutive runs, 0 succeeded/errors;
 unit tests **8/8**; demo **16 held / 0 skipped** on 10 rehearsals; injection harness **20/20** (fence + server layers;
 model layer not run, no key). Database: local `blackbox-attack` (see attack/README.md, "Owner login and database").
 Separate targeted probes reproduce open findings; they are not included in the passing checks.

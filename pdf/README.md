@@ -9,6 +9,8 @@ The existing Export PDF button posts the unmodified RecordSnapshot v1 JSON and d
 The renderer receives no SpacetimeDB token and makes no NVIDIA requests. No contract changes are required.
 For deployment, install Chromium on the renderer host, use HTTPS, set `PDF_ALLOWED_ORIGINS` to the exact client
 origin, and prefer a same-origin `/record.pdf` reverse proxy. The local endpoint is not a deployed service.
+On any internet-reachable host set `PDF_PUBLIC=1`: the server then refuses to start without a `PDF_RENDERER_TOKEN`
+of at least 32 characters (e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
 
 The owner's newer authenticated Vercel adapter (`4eb367f`) is supported without signature changes: set its
 server-only PDF_RENDERER_URL to this service's HTTPS `/record.pdf`. Set the same PDF_RENDERER_TOKEN on both
