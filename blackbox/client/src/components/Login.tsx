@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useReducer, useSpacetimeDB } from 'spacetimedb/react';
 import { reducers } from '../module_bindings';
+import { ThemeToggle } from './ThemeToggle';
 
 // Must match the module's CODE_ALPHABET / CODE_LENGTH.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -75,14 +76,17 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
   };
 
   return (
-    <div className="relative flex h-full flex-col bg-[#07090b]">
+    <div className="relative flex h-full flex-col bg-bg-deep">
       <div className="scanlines" aria-hidden />
 
       <header className="flex h-11 items-center justify-between px-4">
         <span className="font-mono text-[13px] font-semibold tracking-[0.2em] text-text-0">BLACKBOX</span>
-        <span className="font-mono text-[12px]" style={{ color: isActive ? 'var(--color-text-2)' : 'var(--color-critical)' }}>
-          {isActive ? 'LINK UP' : 'LINK DOWN'}
-        </span>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <span className="font-mono text-[12px]" style={{ color: isActive ? 'var(--color-text-2)' : 'var(--color-critical)' }}>
+            {isActive ? 'LINK UP' : 'LINK DOWN'}
+          </span>
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4">

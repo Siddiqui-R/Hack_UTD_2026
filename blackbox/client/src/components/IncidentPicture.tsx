@@ -162,7 +162,7 @@ export function IncidentPicture({ incident, scope, canReadScope, conflicts, evid
         <div className="network-scene" ref={scene} onPointerMove={onPointer}>
           {shown.length ? (
             <svg viewBox={`0 0 ${width} 210`} role="group" aria-label={`Systems listed on ${incidentNumber(incident.id)}`}>
-              <defs><pattern id="map-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#34465a" /></pattern></defs>
+              <defs><pattern id="map-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" style={{ fill: 'var(--lt-34465a, #34465a)' }} /></pattern></defs>
               <rect width={width} height="210" fill="url(#map-grid)" opacity=".45" />
               <path className="network-link review" d={`M40 192 H${width - 40}`} />
               <text className="edge-label" x="40" y="186">LISTED ON THIS INCIDENT · NO NETWORK LINKS RECORDED</text>

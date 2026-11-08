@@ -722,3 +722,12 @@ ATTACKER CONSOLE: LIVE ATTACK 3 (owner request: show the real model under attack
 ULTRA LIVE + REPLAY (owner-approved, ~17:05 CT): first live ULTRA 550B run (local incident #84): 71.7 s, 7 calls,
   getScope + flagConflict + updateSeverity(critical) + 3 createTask, all ok. Replay of it: 2.5 s, 0 calls, identical tool
   sequence. NVIDIA BUDGET NOW 21/40. Demo: ULTRA live is too slow for stage (~70 s); use replay or FAST live (~10-25 s).
+
+LIGHT MODE (Rabeet, branch feat/light-mode on main c3cbe5c, 2026-11-08 11:08 CST / 17:08 UTC) — client only, no module change.
+  DARK / LIGHT switch in the masthead and on the login screen; dark stays the default, choice saved per browser.
+  bb.css / bb-app.css literals became var(--lt-<hex>, <hex>) slots (dark = original value); light values in
+  src/styles/light.css. Verified on blackbox-attack in headless Chrome: dark computed colors of every element on login,
+  Command, Investigate and Record identical before/after (dev and production build); light checked on all views,
+  drawer, dialog, playback phases, 600px masthead and a simulated broken chain. Client tsc, build, lint (no new warnings).
+  Attack this: anything colored outside bb.css (new inline colors render dark-on-light); the failed-check banner and
+  integrity rupture in light on a real tampered chain; a judge's laptop with storage blocked (falls back to dark).

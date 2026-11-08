@@ -9,6 +9,7 @@ import App from './App.tsx';
 import './index.css';
 import './styles/bb.css';
 import './styles/bb-app.css';
+import './styles/light.css';
 
 const connectionBuilder = DbConnection.builder()
   .withUri(SPACETIMEDB_URI)

@@ -47,7 +47,7 @@ export default function App() {
     };
   }, [signedIn, touchSession]);
 
-  if (!teamReady && isActive) return <div className="h-full bg-[#07090b]" />;
+  if (!teamReady && isActive) return <div className="h-full bg-bg-deep" />;
   if (!me || holdLogin) return <Login onHold={setHoldLogin} />;
   return <Command me={me} team={team} />;
 }

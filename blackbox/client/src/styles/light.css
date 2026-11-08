@@ -1,0 +1,272 @@
+/* Light theme. Dark is the default and the design target (DESIGN.md §3); light is opt-in from the
+   masthead or login switch and only applies under <html data-theme="light"> (src/lib/theme.ts).
+
+   How it stays out of dark mode's way: every hard-coded color in bb.css / bb-app.css is written as
+   var(--lt-<dark hex>, <dark hex>). Nothing defines --lt-* in dark, so the original value is used as is.
+   This file defines each slot for light. Slot values were derived from the dark value by flipping its
+   OKLCH lightness (hue kept, chroma calmed near white); the core tokens were tuned by hand.
+   A new color in bb.css needs a slot here, or it will stay dark-on-light. */
+
+/* Global tokens (Tailwind @theme in index.css): login, toasts, chips. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-bg-deep: #f6f8fa;
+  --color-bg-0: #f8f9fc;
+  --color-bg-1: #f0f3f7;
+  --color-bg-2: #e8ecf1;
+  --color-line: #d5dbe3;
+  --color-line-hi: #b9c3cf;
+  --color-text-0: #161a20;
+  --color-text-1: #4a5563;
+  --color-text-2: #687485;
+  --color-accent: #0a66c2;
+  --color-critical: #c81e2a;
+  --color-high: #b04f00;
+  --color-medium: #8a6400;
+  --color-low: #4a5c70;
+  --color-ok: #007a45;
+  --color-unknown: #687485;
+}
+:root[data-theme='light'] .scanlines {
+  background-image: repeating-linear-gradient(to bottom, #000 0 1px, transparent 1px 4px);
+}
+
+/* Workspace tokens (.bb in bb.css). */
+:root[data-theme='light'] .bb {
+  color-scheme: light;
+  --bg: #f6f8fb;
+  --panel: #eff3f7;
+  --raised: #e6ebf1;
+  --line: #d3dae3;
+  --text: #161a20;
+  --muted: #46515e;
+  --dim: #637083;
+  --blue: #2c62b0;
+  --red: #c4283a;
+  --amber: #8c5e00;
+  --green: #1f7350;
+}
+
+/* The decorative WebGL field paints a dark scene; invert it rather than fork the shader. */
+:root[data-theme='light'] .bb .response-field {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Slots for the reference stylesheet's literals, in the order they appear in bb.css. */
+:root[data-theme='light'] .bb {
+  --lt-white: #0d0d0d;
+  --lt-ffffff07: #0000000a;
+  --lt-19222d: #e0e7ee;
+  --lt-b0c4de: #2f3f55;
+  --lt-304052: #b5c4d5;
+  --lt-92a4ba: #49596d;
+  --lt-30483f: #aec4bb;
+  --lt-0e1217: #f3f6f9;
+  --lt-18202b: #e3e8f0;
+  --lt-2c394a: #c0cbda;
+  --lt-344354: #b2c0d1;
+  --lt-3b495c: #aab8cb;
+  --lt-354253: #b4c1d1;
+  --lt-141c26: #e7edf4;
+  --lt-b6d3ff: #1b3255;
+  --lt-101b2b: #e6eef9;
+  --lt-d1e3ff: #162337;
+  --lt-6b343b: #dfa7ab;
+  --lt-201318: #f8eef1;
+  --lt-66383c: #d9aaac;
+  --lt-29191e: #f1e6e9;
+  --lt-335449: #9abaaf;
+  --lt-574635: #c3b2a1;
+  --lt-1c1915: #f0eeeb;
+  --lt-6a533b: #b69d83;
+  --lt-edc590: #805d29;
+  --lt-b9a78f: #5e4e39;
+  --lt-b4bfcd: #39424e;
+  --lt-2a3747: #c3cedc;
+  --lt-75889f: #5e7086;
+  --lt-526579: #8195ab;
+  --lt-354c64: #a1b8d0;
+  --lt-2a171c: #f4e6e9;
+  --lt-783942: #dc989f;
+  --lt-d5a1a5: #693d42;
+  --lt-0008: #0000003d;
+  --lt-10161e: #eff3f9;
+  --lt-384658: #aebcce;
+  --lt-0003: #00000017;
+  --lt-202b38: #d4dce6;
+  --lt-a7bdd6: #33465b;
+  --lt-354356: #b2bfd2;
+  --lt-131a23: #eaeff6;
+  --lt-3b4a5e: #a8b7cc;
+  --lt-0009: #00000045;
+  --lt-02050bba: #02050b4a;
+  --lt-0d1219: #f2f6fb;
+  --lt-334154: #b5c2d4;
+  --lt-263344: #c8d3e1;
+  --lt-4b617c: #829ab8;
+  --lt-e1eaf6: #161d25;
+  --lt-1d2531: #dde3eb;
+  --lt-344355: #b2c0d1;
+  --lt-a7bbd6: #35465d;
+  --lt-57272f: #e9bdc2;
+  --lt-9cc3ff: #42659b;
+  --lt-6d819a: #62768f;
+  --lt-192532: #dce4ed;
+  --lt-b8d5ff: #1a3152;
+  --lt-303d4e: #bbc7d6;
+  --lt-141b24: #e9eef4;
+  --lt-0e151e: #eff4fb;
+  --lt-2c3a4b: #becbda;
+  --lt-263548: #c4d1e1;
+  --lt-9eafc4: #415062;
+  --lt-60748f: #6d819d;
+  --lt-8697ac: #546477;
+  --lt-ff7479: #b8323f;
+  --lt-adbdce: #384553;
+  --lt-101823: #ebf1f9;
+  --lt-516981: #7892ab;
+  --lt-92656a: #9f7176;
+  --lt-a88b55: #7e622c;
+  --lt-74879f: #5e7188;
+  --lt-17222f: #dfe7f0;
+  --lt-405267: #9baec5;
+  --lt-1e3043: #cad8e7;
+  --lt-99bce7: #46658c;
+  --lt-17241f33: #e0e9e533;
+  --lt-517969: #658e7d;
+  --lt-91a8c2: #42576e;
+  --lt-dce7f6: #18202a;
+  --lt-88a9d3: #47658c;
+  --lt-f59b9b: #9a494c;
+  --lt-8bc3a8: #3a7058;
+  --lt-233144: #cad5e5;
+  --lt-687c95: #677a93;
+  --lt-859ab6: #4e617b;
+  --lt-2a384a: #c1cddd;
+  --lt-a8bcd6: #35465b;
+  --lt-8599b2: #506279;
+  --lt-a9c9f4: #213b5f;
+  --lt-a0b2c8: #3e4e61;
+  --lt-86b69f: #2f5c48;
+  --lt-5f7691: #69809c;
+  --lt-d9b881: #7c5e28;
+  --lt-d9b88115: #7c5e2815;
+  --lt-60718a: #72849d;
+  --lt-52647c: #8295af;
+  --lt-354a54: #a8bcc6;
+  --lt-344255: #b3c1d3;
+  --lt-b89760: #7d5e27;
+  --lt-172330: #dee6ef;
+  --lt-35485e: #a8bbd1;
+  --lt-8da4bf: #455a72;
+  --lt-d1dce9: #222a34;
+  --lt-30271c: #e3dcd4;
+  --lt-7e623a: #a5885f;
+  --lt-bd9656: #825e19;
+  --lt-192e27: #d2e0db;
+  --lt-638f7a: #507b67;
+  --lt-8bc9aa: #357256;
+  --lt-93bba6: #305543;
+  --lt-426084: #7c9cc4;
+  --lt-a9ceff: #446591;
+  --lt-768ca7: #586d87;
+  --lt-29384b: #c0cdde;
+  --lt-111a25: #e9eff7;
+  --lt-6685b1: #54729d;
+  --lt-1a293d: #d4dfed;
+  --lt-3b4c62: #a4b5cc;
+  --lt-9ab2d1: #394e69;
+  --lt-3c5b4f: #90b1a3;
+  --lt-8ec6a8: #3a7056;
+  --lt-1b2b25: #d7e2de;
+  --lt-729ad1: #406699;
+  --lt-c4dbfa: #1a2c43;
+  --lt-7f95ae: #52667e;
+  --lt-7891af: #526986;
+  --lt-83b59c: #2e5e48;
+  --lt-bbd4f8: #1e324e;
+  --lt-324861: #a6bbd4;
+  --lt-adceff: #486590;
+  --lt-10201a: #e4eeea;
+  --lt-2d4b3e: #a9c4b7;
+  --lt-81b99c: #3a7056;
+  --lt-284135: #b8cdc2;
+  --lt-839b8b: #53695b;
+  --lt-2a394b: #bfccdc;
+  --lt-15202d: #e1e9f2;
+  --lt-3a4d63: #a2b5cc;
+  --lt-8cadd8: #47658c;
+  --lt-90b5e4: #446690;
+  --lt-1e2e43: #cdd9e9;
+  --lt-7e96b2: #4f6580;
+  --lt-dbe6f5: #19212b;
+  --lt-6e87a6: #597290;
+  --lt-7296c3: #446690;
+  --lt-426280: #7b9dbd;
+  --lt-86abd9: #446690;
+  --lt-ad636b: #a85e66;
+  --lt-f18c95: #a14450;
+  --lt-bb6b77: #a05360;
+  --lt-321d26: #eddee3;
+  --lt-e498a2: #914d58;
+  --lt-dc8292: #9b4859;
+  --lt-6b829e: #5f7691;
+  --lt-526a87: #768fad;
+  --lt-3b5069: #9cb2cc;
+  --lt-56708e: #6d88a7;
+  --lt-90b7e6: #426691;
+  --lt-29394d: #beccde;
+  --lt-8c9eb4: #4e5e72;
+  --lt-536781: #7c92ad;
+  --lt-7d95b3: #4f6682;
+  --lt-d2e5ff: #142235;
+  --lt-22364f: #bfd0e5;
+  --lt-466282: #7c9abd;
+  --lt-314b6b: #9eb8d8;
+  --lt-33455b: #adbed3;
+  --lt-8398b1: #50637b;
+  --lt-0e1825: #eaf2fb;
+  --lt-26384f: #becde1;
+  --lt-142030f5: #e0e9f4f5;
+  --lt-526d8c: #708cac;
+  --lt-0006: #0000002e;
+  --lt-90a3ba: #495a6f;
+  --lt-172638ee: #d8e3f0ee;
+  --lt-48607b: #839dba;
+  --lt-b4d4fa: #193452;
+  --lt-1f354d: #c1d2e6;
+  --lt-fff: #0d0d0d;
+  --lt-35212d: #e8d9e1;
+  --lt-d17a87: #9a4857;
+  --lt-19352f: #c7dbd5;
+  --lt-83b59f: #2e5e4b;
+  --lt-352c21: #ddd6cd;
+  --lt-c0a06c: #7c5e2b;
+  --lt-da8695: #974a5a;
+  --lt-e5ba6e: #855e00;
+  --lt-2b3e56: #b5c6dc;
+  --lt-101b29: #e6eef8;
+  --lt-22384f: #bdcfe3;
+  --lt-98bff4: #426695;
+  --lt-4d6b8e: #6f8eb3;
+  --lt-dbe9f9: #151f2a;
+  --lt-829ab8: #4c627d;
+  --lt-607c9e: #5f7b9d;
+  --lt-3a536f: #94aecc;
+  --lt-91aa9f: #465d53;
+  --lt-769d87: #496e5a;
+  --lt-c6defc: #172940;
+  --lt-8db8f0: #3f6699;
+  --lt-aacdfa: #46658d;
+  --lt-536d8d: #708bac;
+  --lt-675138: #b9a085;
+  --lt-dab57c: #7f5e24;
+  --lt-b0946f: #745a37;
+  --lt-8598b0: #516379;
+  --lt-60728b: #70839c;
+  --lt-8da3c0: #465a74;
+  --lt-4d6583: #7b95b5;
+  --lt-7b94b2: #4f6783;
+  --lt-3d6b58: #74a38e;
+  --lt-34465a: #acbdd1; /* IncidentPicture map grid */
+}

@@ -14,6 +14,7 @@ import { agentStateFor } from '../lib/agentState';
 import { displayValue } from '../lib/copy';
 import { enter, spring } from '../lib/motion';
 import { createdIncident, type IncidentInput, type PendingIncident } from '../lib/incidentSelection';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
@@ -124,6 +125,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
             {integrity.label}{integrity.anchorNote && <small> · {integrity.anchorNote}</small>}
           </button>
           <button className="team-trigger" onClick={() => setDrawer('team')}>◉ <span>{online}</span> signed in · Team</button>
+          <ThemeToggle />
           <span className="identity">{initials} <span>{me.displayName}<small>{displayValue(me.role)}</small></span></span>
         </div>
       </header>

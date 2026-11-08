@@ -6,8 +6,9 @@
 @import '@fontsource/jetbrains-mono/600.css';
 @import 'tailwindcss';
 
-/* Tokens — DESIGN.md §3. Dark only. */
+/* Tokens — DESIGN.md §3. Dark is the default; the opt-in light values are in styles/light.css. */
 @theme {
+  --color-bg-deep: #07090b; /* login backdrop */
   --color-bg-0: #0a0c0f;
   --color-bg-1: #11151a;
   --color-bg-2: #171c23;

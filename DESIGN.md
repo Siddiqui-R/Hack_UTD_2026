@@ -90,7 +90,8 @@ These read as AI-generated. Judges will have seen two hundred by Sunday.
 
 ## 3. COLOR
 
-Dark only. No light mode — we have no time and it's wrong for the context.
+Dark is the default and the design target. An opt-in light theme was added on 2026-11-08 (see Decision
+log): everything below is specified for dark, and light mirrors it.
 
 ```css
 --bg-0:    #0A0C0F   /* app background */
@@ -353,6 +354,16 @@ Only what the sources actually state is recorded; where only an abstract was rea
    reachable only by a remembered command.
 
 ### Decision log
+
+- **Opt-in light theme.** (2026-11-08) Reverses "dark only" in §3 on request. Dark stays the default.
+  A DARK / LIGHT switch sits in the masthead and on the login screen; the choice is remembered per browser
+  (`localStorage['bb-theme']`, applied in `index.html` before first paint). Light values live in
+  `blackbox/client/src/styles/light.css`. Each hard-coded color in `bb.css` / `bb-app.css` is now written as
+  `var(--lt-<hex>, <hex>)`: dark never defines the slot, so it renders the original value. Verified by comparing
+  every element's computed colors on login, Command, Investigate and Record before and after (dev and production
+  builds): no differences. Light slot values come from flipping each dark color's OKLCH lightness (hue kept); the core
+  tokens and status colors were tuned by hand for contrast. The decorative WebGL field is CSS-inverted in light.
+  A new color in `bb.css` needs a slot in `light.css`, or it stays dark in light mode.
 
 - **`--low` changed from `#4D9FFF` to `#8FA3B8`.** (2026-11-07, slice 3)
   The spec gave `--low` the same value as `--accent`, contradicting its own rule "One accent color.
