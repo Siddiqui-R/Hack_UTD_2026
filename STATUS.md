@@ -410,3 +410,16 @@ ATTACKER CONSOLE — `attacker/` (index.html, server.mjs, runner.mjs): a CRT-sty
   Note: port 4400 is also the local pdf/ renderer's port; don't run both at once.
   Attack this: /run/:n with concurrent requests (busy flag), client disconnect mid-run (child killed), a demo that
     hangs (no timeout), ATTACK_TARGET pointed at a non-local host (runner must refuse).
+
+ATTACK STAGE LAUNCHER — `node attacker/stage.mjs` (repo root): one command for the attack segment. Pins
+  ATTACK_TARGET/ATTACK_DB to 127.0.0.1:3000 / blackbox-attack (refuses ATTACK_ALLOW_REMOTE or any other target),
+  publishes blackbox-attack on first run, mints a single-use commander code as the blackbox-attack owner, then starts
+  a Vite client on http://127.0.0.1:5180 with VITE_STDB_URI/VITE_STDB_DB forced to the local test DB, plus the console
+  on http://127.0.0.1:4400. Refuses if 5180 or 4400 is already taken on 127.0.0.1 or [::1] (a stale dev server on
+  [::1] silently answered "localhost" with the wrong database during testing). Nothing points at Maincloud.
+  Verified: client config resolves to ws://127.0.0.1:3000 / blackbox-attack; commander code signs in; during RUN ALL
+  the judges' window gained incidents 6->8 and audit records 76->99 live; console 4/4 blocked.
+  RABEET: attack 2 restores the edited audit row in <1 s but the client re-verifies every 2 s, so INTEGRITY BROKEN
+    rarely appears on screen. Holding the edit ~4 s before restoring in demo/2-tamper.mjs would make it visible.
+  Attack this: stage with ATTACK_TARGET set to a remote host (must refuse), client env drift back to blackbox or
+    Maincloud, a reused/expired commander code, port squatting on [::1].
