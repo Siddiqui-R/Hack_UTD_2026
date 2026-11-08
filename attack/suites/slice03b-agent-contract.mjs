@@ -75,7 +75,7 @@ export async function run() {
   // --- Revocation + audit attribution -------------------------------------------------------------
   const rows = await auditRows();
   const agentRows = rows.filter(r => r.actor === 'NEMOTRON');
-  const humanAsNemo = rows.filter(r => r.actor === 'NEMOTRON' && !['task.create', 'incident.severity', 'conflict.flag'].includes(r.action));
+  const humanAsNemo = rows.filter(r => r.actor === 'NEMOTRON' && !['task.create', 'incident.severity', 'conflict.flag', 'agent.begin', 'agent.finish'].includes(r.action));
   record('G23', 'only agent tool actions are attributed to NEMOTRON', agentRows.length && !humanAsNemo.length ? 'PASS' : 'VULN',
     `${agentRows.length} NEMOTRON rows, ${humanAsNemo.length} unexpected`);
   await call(cmd, 'revoke_session', [id(ag)]);

@@ -58,14 +58,13 @@ export function write(who, title = 'atk write', over = {}) {
 
 // Call a read procedure. Procedures return a JSON string; parsed into `data` when ok.
 export async function proc(who, name, args = []) {
-  const r = await call(who, name, args);
-  if (!r.ok) return { ...r, data: null };
   const res = await req(`${TARGET}/v1/database/${DB}/call/${name}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(who?.token ? { Authorization: `Bearer ${who.token}` } : {}) },
     body: JSON.stringify(args),
   });
+  if (!res.ok) return { ok: false, status: res.status, error: (await res.text()).trim(), data: null };
   const body = await res.json();
-  return { ...r, data: typeof body === 'string' ? JSON.parse(body) : body };
+  return { ok: true, status: res.status, error: '', data: typeof body === 'string' ? JSON.parse(body) : body };
 }
 
 // A fresh service identity enrolled as NEMOTRON for `incidentId` by the run's commander.
