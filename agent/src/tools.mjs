@@ -9,8 +9,11 @@ const SEVERITY = ['low', 'medium', 'high', 'critical'];
 const ROLE = ['commander', 'responder', 'observer'];
 const rank = s => SEVERITY.indexOf(s);
 
-// `run` carries per-run state: the incident, the trace callback, and whether a conflict was flagged.
+// `run` carries per-run state: the incident, the trace callback, whether a conflict was flagged, and the queue
+// run id (undefined for a standalone CLI run). The run id is added here, outside every tool's input schema,
+// so the model can never choose it; the server refuses a write whose run is not this worker's running run.
 export function makeTools(run) {
+  const runArg = () => run.runId === undefined ? { none: [] } : { some: u64(run.runId, 'runId') };
   const step = async (name, input, fn) => {
     // A refused trace (cancelled/revoked/rebound worker) must stop before the business action.
     await run.trace({ kind: 'call', name, input });
@@ -41,7 +44,7 @@ export function makeTools(run) {
     createTask: tool({
       description: 'Create one concrete task for a responder role. Use short imperative text.',
       inputSchema: z.object({ text: z.string().min(1).max(1000), assigneeRole: z.enum(ROLE) }),
-      execute: input => step('createTask', input, () => reducer('create_task', [input.text, input.assigneeRole])),
+      execute: input => step('createTask', input, () => reducer('create_task', [input.text, input.assigneeRole, runArg()])),
     }),
 
     updateSeverity: tool({
@@ -51,7 +54,7 @@ export function makeTools(run) {
         if (rank(input.severity) < rank(run.incident.severity)) {
           throw new Error('downgrade refused: lowering severity requires human review. Create a task asking a human to review instead.');
         }
-        const r = await reducer('update_severity', [u64(input.incidentId, 'incidentId'), input.severity, input.reason]);
+        const r = await reducer('update_severity', [u64(input.incidentId, 'incidentId'), input.severity, input.reason, runArg()]);
         run.incident.severity = input.severity;
         return r;
       }),
@@ -61,7 +64,7 @@ export function makeTools(run) {
       description: 'Flag two evidence records that contradict each other, and say what changed in your conclusion.',
       inputSchema: z.object({ evidenceIdA: z.number().int(), evidenceIdB: z.number().int(), reason: z.string().min(1).max(2000) }),
       execute: input => step('flagConflict', input, async () => {
-        const r = await reducer('flag_conflict', [u64(input.evidenceIdA, 'evidenceIdA'), u64(input.evidenceIdB, 'evidenceIdB'), input.reason]);
+        const r = await reducer('flag_conflict', [u64(input.evidenceIdA, 'evidenceIdA'), u64(input.evidenceIdB, 'evidenceIdB'), input.reason, runArg()]);
         run.flaggedConflict = true;
         await run.trace({ kind: 'revision', name: 'conflicting evidence', output: { evidenceIdA: input.evidenceIdA, evidenceIdB: input.evidenceIdB, reason: input.reason } });
         return r;

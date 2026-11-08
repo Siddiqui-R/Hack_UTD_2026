@@ -11,6 +11,7 @@ import {
 } from "spacetimedb";
 
 export default {
+  runId: __t.u64(),
   kind: __t.string(),
   name: __t.string(),
   inputJson: __t.string(),

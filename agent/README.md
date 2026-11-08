@@ -61,10 +61,12 @@ storage). The first run mints the identity and prints it. A commander pastes tha
 `npm run agent:cloud:live` / `agent:cloud:deep` record a real run on the enrolled Maincloud incident (spends credits;
 ask first), which becomes that incident's replay transcript. `npm run demo:check -- --cloud` preflights production.
 
-Q1 remains a module contract gap: recordAgentStep infers the currently running run. A cancelled old worker sharing an
-identity with a newly claimed run can misattribute a delayed trace. The local process lock mitigates ordinary duplicate
-workers; server enforcement needs an agreed expected runId argument. No signatures were changed in this integration.
-Cancellation cannot roll back a tool action that has already committed or atomically guard the existing write reducers.
+Q1 (fixed for the queue): the worker passes its claimed runId to `record_agent_step` and, through `makeTools`, to every
+tool write. The model never sees or chooses it. The server accepts them only while that run is still this worker's
+running run, so a delayed trace or write after cancellation is refused atomically. Standalone `run.mjs` runs (mock,
+`--live`, the golden recording) pass no run id: they write no trace, and their writes are refused while the incident
+has a queued or running UI run. Cancellation still cannot undo a tool action that committed before it.
+The module and the Maincloud worker must be updated together (see DEPLOYMENT.md).
 
 AI SDK note: installed `ai@7`. The step limit helper is **`isStepCount`** (`stepCountIs` no longer exists); tools use `inputSchema`.
 

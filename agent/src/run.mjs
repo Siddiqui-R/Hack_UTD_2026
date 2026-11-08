@@ -33,7 +33,9 @@ export function replayRecording(model, incidentId, file = config.replayFile) {
   throw new Error('No recorded live run matches this incident and requested model; replay never falls back to live.');
 }
 
-export async function executeRun({ mode, modelId, incidentId, recording, onTrace = async () => {} }) {
+// runId: the claimed queue run (worker only). A standalone CLI run passes none; its writes are run-less, and the
+// server refuses them while the incident has a queued or running investigation.
+export async function executeRun({ mode, modelId, incidentId, runId, recording, onTrace = async () => {} }) {
 if (!['mock', 'replay', 'live'].includes(mode)) throw new Error('Unknown agent mode');
 
 // ---- context -----------------------------------------------------------------------------
@@ -51,6 +53,7 @@ try {
 }
 
 const run = {
+  runId,
   incident: { ...incident },
   flaggedConflict: false,
   events: [],

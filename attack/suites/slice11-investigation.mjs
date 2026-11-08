@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getCommander, signIn, newIdentity, enrollAgent, call, sql, ownerSql, TARGET, DB } from '../lib.mjs';
+import { getCommander, signIn, newIdentity, enrollAgent, call, sql, ownerSql, auditRows, TARGET, DB } from '../lib.mjs';
 import { incident, rows, read, check, must, denied, audited, ident } from '../slice-helpers.mjs';
 export const slice = '11';
 export const title = 'Run queue, worker trace, replay failure and cancellation';
@@ -48,18 +48,18 @@ export async function run() {
   await denied('Q-human-claim', 'human cannot claim worker run',cmd,'begin_agent_run',[req.id,'mock']);
   await audited('Q-begin', 'worker claim audited once',ag,'begin_agent_run',[req.id,'mock']);
   await denied('Q-race', 'second worker cannot claim running request',rival,'begin_agent_run',[req.id,'mock']);
-  await denied('Q-rival-step', 'other worker cannot forge trace',rival,'record_agent_step',['call','fake','{}','{}']);
-  await audited('Q-step', 'trace stored with zero audit rows',ag,'record_agent_step',['call','getScope','{}','{}'],0);
+  await denied('Q-rival-step', 'other worker cannot forge trace',rival,'record_agent_step',[req.id,'call','fake','{}','{}']);
+  await audited('Q-step', 'trace stored with zero audit rows',ag,'record_agent_step',[req.id,'call','getScope','{}','{}'],0);
   const [step] = await rows(`SELECT * FROM agent_step WHERE run_id = ${req.id}`);
   check('Q-attribution', 'step run and incident derived on server', String(step.incident_id)===String(home.id) && String(step.run_id)===String(req.id));
-  await denied('Q-bad-json', 'malformed trace JSON rolled back',ag,'record_agent_step',['call','bad','{','{}']);
+  await denied('Q-bad-json', 'malformed trace JSON rolled back',ag,'record_agent_step',[req.id,'call','bad','{','{}']);
   for (const table of ['investigation_runs','investigation_steps','investigation_evidence','investigation_conflicts']) {
     check(`Q-observer-${table}`, `observer cannot read ${table}`, (await rows(`SELECT * FROM ${table}`,obs)).length===0);
     check(`Q-outsider-${table}`, `outsider cannot read ${table}`, (await rows(`SELECT * FROM ${table}`,outsider)).length===0);
   }
   await denied('Q-rival-finish', 'other worker cannot complete run',rival,'finish_agent_run',[req.id,'forged',false]);
   await audited('Q-finish', 'worker completion audited once',ag,'finish_agent_run',[req.id,'Baseline conclusion',false]);
-  await denied('Q-finished-trace', 'finished run accepts no more trace',ag,'record_agent_step',['call','late','{}','{}']);
+  await denied('Q-finished-trace', 'finished run accepts no more trace',ag,'record_agent_step',[req.id,'call','late','{}','{}']);
 
   // Real child worker, isolated service identity. Compare the persisted hosted-call counter byte-for-byte.
   const logs=path.join(root,'agent-logs');
@@ -75,12 +75,16 @@ export async function run() {
     must(await call(cmd,'submit_evidence',[home.id,'Record A: public key login']));
     must(await call(cmd,'submit_evidence',[home.id,'Record B: phishing login']));
     const mock = await request('deep');
+    const auditBefore=Number((await auditRows()).at(-1).seq);
     active=worker(tokenFile); const result=await active.done; active=undefined;
     const [completed]=await rows(`SELECT * FROM agent_run WHERE id = ${mock.id}`);
     check('Q-worker-complete', 'real worker completes mock request', result.code===0 && completed.status==='completed', result.code===0?completed.status:result.output);
     check('Q-worker-tier', 'deep mock tier and previous conclusion preserved',completed.model_id.startsWith('mock:') && completed.model_id.includes('ultra') && completed.previous_summary==='Baseline conclusion');
     const trace=await rows(`SELECT * FROM agent_step WHERE run_id = ${mock.id}`);
     check('Q-worker-trace', 'worker publishes tool call/result, revision and summary', ['call','result','revision','summary'].every(k=>trace.some(s=>s.kind===k)));
+    const writes=(await auditRows()).filter(r=>String(r.incident_id)===String(home.id) && ['task.create','incident.severity','conflict.flag'].includes(r.action) && Number(r.seq)>auditBefore);
+    check('Q-worker-bound', 'every worker tool write names its own run in the audit row',
+      writes.length===3 && writes.every(r=>JSON.parse(r.payload_json).runId===String(mock.id)), `${writes.length} writes`);
     // Synthetic fixture exercises transport only; it is explicitly labelled, never saved as a golden/live run.
     const fixture=path.join(dir,'synthetic-replay.json');
     const fixtureSummary='Synthetic replay integration fixture; not model output.';

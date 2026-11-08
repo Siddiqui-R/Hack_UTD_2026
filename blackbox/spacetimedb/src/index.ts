@@ -276,6 +276,28 @@ function requireAgent(ctx: Ctx) {
   return agent;
 }
 
+type AgentRow = Infer<typeof agentIdentity.rowType>;
+
+// Q1: a queue write names its run. Only this worker's running run on its enrolled incident is accepted,
+// so a cancelled, finished, foreign or other-incident run id is refused with no insert and no audit row.
+function requireOwnRun(ctx: Ctx, agent: AgentRow, runId: bigint) {
+  const run = ctx.db.agentRun.id.find(runId);
+  if (!run || run.incidentId !== agent.incidentId || run.status !== 'running' || !run.worker?.isEqual(ctx.sender)) {
+    throw new SenderError('own running investigation required');
+  }
+  return run;
+}
+
+// Agent business writes. Some(runId): a queue run, checked as above. None: a standalone CLI run (operator-started,
+// outside the queue), allowed only while the incident has no queued or running investigation it could interleave with.
+function requireWriteContext(ctx: Ctx, agent: AgentRow, runId: bigint | undefined) {
+  if (runId !== undefined) return requireOwnRun(ctx, agent, runId);
+  if ([...ctx.db.agentRun.incidentId.filter(agent.incidentId)].some(r => r.status === 'queued' || r.status === 'running')) {
+    throw new SenderError('an investigation is queued or running; agent writes must name its run');
+  }
+  return undefined;
+}
+
 function storeInvite(ctx: Ctx, code: string, role: Role) {
   const normalized = normalizeCode(code);
   if (!normalized) throw new SenderError(`code must be ${CODE_LENGTH} chars from ${CODE_ALPHABET}`);
@@ -577,23 +599,26 @@ export const enrollAgent = spacetimedb.reducer({ target: t.identity(), incidentI
   appendAudit(ctx, 'agent.enroll', { target: args.target.toHexString() }, args.incidentId);
 });
 
-export const createTask = spacetimedb.reducer({ text: t.string(), assigneeRole: t.string() }, (ctx, args) => {
+// runId is filled in by the worker's tool wrapper, never chosen by the model (see requireWriteContext).
+export const createTask = spacetimedb.reducer({ text: t.string(), assigneeRole: t.string(), runId: t.option(t.u64()) }, (ctx, args) => {
   const agent = requireAgent(ctx);
+  requireWriteContext(ctx, agent, args.runId);
   const text = cleanText('task', args.text, 1, 1000);
   const assigneeRole = oneOf('assignee role', args.assigneeRole, ROLES);
   const row = ctx.db.task.insert({ id: 0n, incidentId: agent.incidentId, text, assigneeRole, createdBy: 'NEMOTRON', createdAt: ctx.timestamp });
-  appendAudit(ctx, 'task.create', { id: row.id, text, assigneeRole, sender: ctx.sender.toHexString() }, agent.incidentId, 'NEMOTRON');
+  appendAudit(ctx, 'task.create', { id: row.id, text, assigneeRole, sender: ctx.sender.toHexString(), runId: args.runId }, agent.incidentId, 'NEMOTRON');
 });
 
-export const updateSeverity = spacetimedb.reducer({ incidentId: t.u64(), severity: t.string(), reason: t.string() }, (ctx, args) => {
+export const updateSeverity = spacetimedb.reducer({ incidentId: t.u64(), severity: t.string(), reason: t.string(), runId: t.option(t.u64()) }, (ctx, args) => {
   const agent = requireAgent(ctx);
+  requireWriteContext(ctx, agent, args.runId);
   if (args.incidentId !== agent.incidentId) throw new SenderError('agent incident mismatch');
   const row = ctx.db.incident.id.find(args.incidentId)!;
   const severity = oneOf('severity', args.severity, SEVERITIES);
   const reason = cleanText('reason', args.reason, 1, 2000);
   if (SEVERITIES.indexOf(severity) < SEVERITIES.indexOf(row.severity as typeof severity)) throw new SenderError('agent cannot lower severity; human review required');
   ctx.db.incident.id.update({ ...row, severity, updatedAt: ctx.timestamp });
-  appendAudit(ctx, 'incident.severity', { from: row.severity, to: severity, reason, sender: ctx.sender.toHexString() }, row.id, 'NEMOTRON');
+  appendAudit(ctx, 'incident.severity', { from: row.severity, to: severity, reason, sender: ctx.sender.toHexString(), runId: args.runId }, row.id, 'NEMOTRON');
   requestAnchor(ctx);
 });
 
@@ -605,8 +630,9 @@ export const submitEvidence = spacetimedb.reducer({ incidentId: t.u64(), text: t
   appendAudit(ctx, 'evidence.submit', { id: row.id, text }, args.incidentId);
 });
 
-export const flagConflict = spacetimedb.reducer({ evidenceIdA: t.u64(), evidenceIdB: t.u64(), reason: t.string() }, (ctx, args) => {
+export const flagConflict = spacetimedb.reducer({ evidenceIdA: t.u64(), evidenceIdB: t.u64(), reason: t.string(), runId: t.option(t.u64()) }, (ctx, args) => {
   const agent = requireAgent(ctx);
+  requireWriteContext(ctx, agent, args.runId);
   const a = ctx.db.evidence.id.find(args.evidenceIdA);
   const b = ctx.db.evidence.id.find(args.evidenceIdB);
   if (!a || !b || a.id === b.id || a.incidentId !== agent.incidentId || b.incidentId !== agent.incidentId) {
@@ -614,7 +640,7 @@ export const flagConflict = spacetimedb.reducer({ evidenceIdA: t.u64(), evidence
   }
   const reason = cleanText('reason', args.reason, 1, 2000);
   const row = ctx.db.conflict.insert({ id: 0n, incidentId: agent.incidentId, evidenceIdA: a.id, evidenceIdB: b.id, reason, createdBy: 'NEMOTRON', createdAt: ctx.timestamp });
-  appendAudit(ctx, 'conflict.flag', { id: row.id, evidenceIdA: a.id, evidenceIdB: b.id, reason, sender: ctx.sender.toHexString() }, agent.incidentId, 'NEMOTRON');
+  appendAudit(ctx, 'conflict.flag', { id: row.id, evidenceIdA: a.id, evidenceIdB: b.id, reason, sender: ctx.sender.toHexString(), runId: args.runId }, agent.incidentId, 'NEMOTRON');
 });
 
 // Read procedures return JSON with decimal-string u64 IDs. They do not mutate session state.
@@ -930,10 +956,10 @@ export const beginAgentRun = spacetimedb.reducer({ runId: t.u64(), modelId: t.st
   appendAudit(ctx, 'agent.begin', { runId: row.id, mode: row.mode, modelId }, row.incidentId, 'NEMOTRON');
 });
 // Diagnostic trace only: authorization/session checked; no business action or audit row.
-export const recordAgentStep = spacetimedb.reducer({ kind: t.string(), name: t.string(), inputJson: t.string(), outputJson: t.string() }, (ctx, args) => {
+// The caller names its run (Q1); a delayed trace from a cancelled run can never land on a later one.
+export const recordAgentStep = spacetimedb.reducer({ runId: t.u64(), kind: t.string(), name: t.string(), inputJson: t.string(), outputJson: t.string() }, (ctx, args) => {
   const agent = requireAgent(ctx);
-  const run = [...ctx.db.agentRun.incidentId.filter(agent.incidentId)].find(r => r.status === 'running' && r.worker?.isEqual(ctx.sender));
-  if (!run) throw new SenderError('begin a queued run before recording trace');
+  const run = requireOwnRun(ctx, agent, args.runId);
   const kind = oneOf('kind', args.kind, ['call','result','revision','error','summary']);
   const name = cleanText('step name', args.name, 1, 160);
   if (args.inputJson.length > 32000 || args.outputJson.length > 32000) throw new SenderError('step exceeds 32000 chars');

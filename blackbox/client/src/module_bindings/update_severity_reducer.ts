@@ -14,4 +14,5 @@ export default {
   incidentId: __t.u64(),
   severity: __t.string(),
   reason: __t.string(),
+  runId: __t.option(__t.u64()),
 };

@@ -1,5 +1,5 @@
 // Human task workflow: create, claim, assign, progress, completion, reopening, visibility and boundaries.
-import { getCommander, signIn, newIdentity, enrollAgent, call, sql, ownerSql, auditRows, tsArg } from '../lib.mjs';
+import { getCommander, signIn, newIdentity, enrollAgent, call, sql, ownerSql, auditRows, tsArg, NO_RUN } from '../lib.mjs';
 import { incident, rows, read, check, must, denied, audited, ident } from '../slice-helpers.mjs';
 export const slice = '13';
 export const title = 'Human task workflow: ownership, lifecycle, versions, visibility';
@@ -98,7 +98,7 @@ export async function run() {
   check('T-record-observer', 'observer record keeps status but redacts the note', inObs?.status === 'blocked' && inObs?.note === '[restricted]');
 
   // Existing agent tasks are untouched and start as open/unassigned/version 0.
-  must(await call(ag, 'create_task', ['Preserve volatile memory on payroll-07', 'responder']));
+  must(await call(ag, 'create_task', ['Preserve volatile memory on payroll-07', 'responder', NO_RUN]));
   const agentTask = await newest(home.id);
   check('T-agent-provenance', 'agent createTask still labels NEMOTRON', agentTask.created_by === 'NEMOTRON');
   const legacy = (await read(cmd, 'get_record', [home.id])).tasks.find(x => String(x.id) === String(agentTask.id));
