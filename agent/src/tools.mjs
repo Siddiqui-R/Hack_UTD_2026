@@ -12,16 +12,17 @@ const rank = s => SEVERITY.indexOf(s);
 // `run` carries per-run state: the incident, the trace callback, and whether a conflict was flagged.
 export function makeTools(run) {
   const step = async (name, input, fn) => {
-    run.trace({ kind: 'call', name, input });
+    // A refused trace (cancelled/revoked/rebound worker) must stop before the business action.
+    await run.trace({ kind: 'call', name, input });
+    let out;
     try {
-      const out = await fn();
-      run.trace({ kind: 'result', name, output: out });
-      return out;
+      out = await fn();
     } catch (err) {
-      const out = { error: err.message };
-      run.trace({ kind: 'result', name, output: out, failed: true });
-      return out; // reported to the model as data; never retried
+      out = { error: err.message };
+      run.failed = true;
     }
+    await run.trace({ kind: 'result', name, output: out, failed: !!out?.error });
+    return out; // reported to the model as data; never retried
   };
 
   return {
@@ -47,10 +48,8 @@ export function makeTools(run) {
       description: 'Change the incident severity. Give a specific, evidence-based reason.',
       inputSchema: z.object({ incidentId: z.number().int(), severity: z.enum(SEVERITY), reason: z.string().min(1).max(2000) }),
       execute: input => step('updateSeverity', input, async () => {
-        // Agent-side policy (defense in depth; the server should enforce this too, finding G19):
-        // a downgrade is only allowed as a revision backed by a flagged evidence conflict in this run.
-        if (rank(input.severity) < rank(run.incident.severity) && !run.flaggedConflict) {
-          throw new Error('downgrade refused: lowering severity requires a flagged evidence conflict. Create a task asking a human to review instead.');
+        if (rank(input.severity) < rank(run.incident.severity)) {
+          throw new Error('downgrade refused: lowering severity requires human review. Create a task asking a human to review instead.');
         }
         const r = await reducer('update_severity', [u64(input.incidentId, 'incidentId'), input.severity, input.reason]);
         run.incident.severity = input.severity;
@@ -64,6 +63,7 @@ export function makeTools(run) {
       execute: input => step('flagConflict', input, async () => {
         const r = await reducer('flag_conflict', [u64(input.evidenceIdA, 'evidenceIdA'), u64(input.evidenceIdB, 'evidenceIdB'), input.reason]);
         run.flaggedConflict = true;
+        await run.trace({ kind: 'revision', name: 'conflicting evidence', output: { evidenceIdA: input.evidenceIdA, evidenceIdB: input.evidenceIdB, reason: input.reason } });
         return r;
       }),
     }),

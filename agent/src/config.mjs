@@ -28,7 +28,9 @@ export const config = {
   maxSteps: 8,
   liveBudget: 40,                                  // applies only to NVIDIA's hosted API (see `metered`)
   logDir: path.join(ROOT, 'agent-logs'),           // gitignored at repo root
-  tokenFile: path.join(AGENT_DIR, '.agent-token'), // gitignored in agent/
+  tokenFile: env.AGENT_TOKEN_FILE ?? path.join(AGENT_DIR, '.agent-token'), // use separate files for separate workers
+  replayFile: env.AGENT_REPLAY_FILE,
+  pollMs: 1000,
 };
 
 // Only build.nvidia.com's hosted API spends the 40-call credit budget. A self-hosted endpoint

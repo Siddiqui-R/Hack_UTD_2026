@@ -12,6 +12,7 @@ import { config } from './config.mjs';
 import { serviceIdentity, procedure } from './db.mjs';
 import { makeTools } from './tools.mjs';
 import { SYSTEM_PROMPT, userPrompt } from './prompt.mjs';
+import { pathToFileURL } from 'node:url';
 
 const args = process.argv.slice(2);
 const mode = args.includes('--live') ? 'live' : args.includes('--replay') ? 'replay' : config.mode;
@@ -22,7 +23,18 @@ const badge = id => `${/ultra/.test(id) ? 'ULTRA 550B' : /lightning/.test(id) ? 
 
 fs.mkdirSync(config.logDir, { recursive: true });
 
-async function main() {
+export function replayRecording(model, incidentId, file = config.replayFile) {
+  const files = file ? [file] : fs.existsSync(config.logDir) ? fs.readdirSync(config.logDir)
+    .filter(f => /^run-.*-live-.*\.json$/.test(f)).sort().reverse().map(f => path.join(config.logDir, f)) : [];
+  for (const candidate of files) {
+    const rec = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+    if (rec.mode === 'live' && rec.model === model && String(rec.incident?.incidentId) === String(incidentId)) return rec;
+  }
+  throw new Error('No recorded live run matches this incident and requested model; replay never falls back to live.');
+}
+
+export async function executeRun({ mode, modelId, incidentId, recording, onTrace = async () => {} }) {
+if (!['mock', 'replay', 'live'].includes(mode)) throw new Error('Unknown agent mode');
 
 // ---- context -----------------------------------------------------------------------------
 const me = await serviceIdentity();
@@ -30,18 +42,21 @@ let incident, evidence;
 try {
   [incident] = await procedure('search_incidents', ['']);
   if (!incident) throw new Error('no incident visible');
+  if (incidentId !== undefined && String(incident.incidentId) !== String(incidentId)) throw new Error('worker enrolment changed; requested incident is no longer visible');
   evidence = await procedure('evidence_records', [Number(incident.incidentId)]);
 } catch (err) {
   console.error(`Agent identity ${me.identity} is not enrolled (${err.message}).`);
   console.error('A commander must enroll it: enroll_agent(target = that identity, incidentId). Dev: node scripts/dev-setup.mjs');
-  return void (process.exitCode = 2);
+  throw err;
 }
 
 const run = {
   incident: { ...incident },
   flaggedConflict: false,
   events: [],
-  trace(e) {
+  failed: false,
+  async trace(e) {
+    await onTrace(e);
     this.events.push({ at: Date.now(), ...e });
     const args = e.input ? Object.values(e.input).map(v => JSON.stringify(v)).join(', ') : '';
     if (e.kind === 'call') console.log(`[${clock()}] → ${e.name}(${args.length > 90 ? args.slice(0, 90) + '…' : args})`);
@@ -67,16 +82,22 @@ if (mode === 'mock') {
       reason: 'Records disagree on the initial access vector; revising the timeline.' }]);
   }
   plan.push(['updateSeverity', { incidentId: Number(incident.incidentId), severity: 'critical', reason: 'Encryption activity on production hosts.' }]);
-  for (const [name, input] of plan) { await sleep(400); await tools[name].execute(input, {}); }
-  summary = 'Mock run: isolated hosts, flagged conflicting evidence, raised severity.';
+  for (const [name, input] of plan) {
+    await sleep(400);
+    const out = await tools[name].execute(tools[name].inputSchema.parse(input), {});
+    if (out?.error) throw new Error(out.error);
+  }
+  summary = `Mock run: created an isolation task, ${run.flaggedConflict ? 'flagged a scripted evidence conflict, ' : ''}raised severity. No model was called.`;
 }
 
 if (mode === 'live') {
-  if (config.metered && !config.nvidiaKey) { console.error('NVIDIA_API_KEY missing from .env'); return void (process.exitCode = 2); }
+  if (config.metered && !config.nvidiaKey) throw new Error('NVIDIA_API_KEY missing from .env');
   const counterFile = path.join(config.logDir, 'live-call-count.json');
-  const counter = fs.existsSync(counterFile) ? JSON.parse(fs.readFileSync(counterFile, 'utf8')) : { count: 0, calls: [] };
+  // The five probe calls predate this machine's log; absence of a counter must not reset the budget.
+  const counter = fs.existsSync(counterFile) ? JSON.parse(fs.readFileSync(counterFile, 'utf8')) : { count: 5, calls: [] };
+  if (config.metered && (!Number.isSafeInteger(counter.count) || counter.count < 5 || !Array.isArray(counter.calls))) throw new Error('Invalid live-call counter; reconcile the five probe calls before using live mode');
   const left = config.metered ? config.liveBudget - counter.count : config.maxSteps;
-  if (left <= 0) { console.error(`live-call budget exhausted (${counter.count}/${config.liveBudget})`); return void (process.exitCode = 2); }
+  if (left <= 0) throw new Error(`live-call budget exhausted (${counter.count}/${config.liveBudget})`);
   if (!config.metered) console.log(`(self-hosted endpoint ${new URL(config.nvidiaBase).host}: credit budget not applied)`);
   const spend = () => {
     if (!config.metered) return;
@@ -98,28 +119,40 @@ if (mode === 'live') {
     stopWhen: [
       isStepCount(Math.min(config.maxSteps, left)),
       ({ steps }) => steps.at(-1)?.content.some(p => p.type === 'tool-error') ?? false, // malformed call: stop, don't retry
+      () => run.failed,
     ],
-    onStepFinish: () => spend(),
+    onStepStart: () => spend(), // reserve before the request, including failed provider calls
   });
   summary = result.text;
 }
 
 if (mode === 'replay') {
-  const file = args[args.indexOf('--replay') + 1]?.endsWith('.json') ? args[args.indexOf('--replay') + 1]
-    : fs.readdirSync(config.logDir).filter(f => f.startsWith('run-') && f.includes('-live-')).sort().map(f => path.join(config.logDir, f)).pop();
-  if (!file) { console.error('no recorded live run in agent-logs/'); return void (process.exitCode = 2); }
-  const rec = JSON.parse(fs.readFileSync(file, 'utf8'));
-  console.log(`(replaying ${path.basename(file)}: a recorded run of ${badge(rec.model)})`);
-  for (const e of rec.events.filter(e => e.kind === 'call')) { await sleep(400); await tools[e.name].execute(e.input, {}); }
+  const rec = recording ?? replayRecording(modelId, incident.incidentId);
+  console.log(`(replaying a recorded run of ${badge(rec.model)})`);
+  for (const e of rec.events.filter(e => e.kind === 'call')) {
+    if (!Object.hasOwn(tools, e.name)) throw new Error('recording contains an unknown tool');
+    await sleep(400);
+    const out = await tools[e.name].execute(tools[e.name].inputSchema.parse(e.input), {});
+    if (out?.error) throw new Error(out.error);
+  }
   summary = rec.summary;
 }
 
 // ---- finish -------------------------------------------------------------------------------------
 const secs = ((performance.now() - t0) / 1000).toFixed(1);
+if (run.failed) throw new Error('An agent tool failed; investigation was not completed');
+if (!summary?.trim()) throw new Error('Agent returned no conclusion');
+await run.trace({ kind: 'summary', name: 'conclusion', output: { summary } });
 console.log(`\n${badge(modelId)} · ${secs}s\n${summary}`);
 const out = path.join(config.logDir, `run-${Date.now()}-${mode}-${badge(modelId).replace(/\W+/g, '')}.json`);
 fs.writeFileSync(out, JSON.stringify({ mode, model: modelId, incident, evidenceIds: evidence.map(e => e.id), events: run.events, summary, secs }, null, 2));
 console.log(`log: ${path.relative(process.cwd(), out)}`);
+return { summary, secs };
 }
 
-main().catch(err => { console.error(err.message); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const file = args[args.indexOf('--replay') + 1];
+  executeRun({ mode, modelId, ...(mode === 'replay' && file?.endsWith('.json') ? {
+    recording: replayRecording(modelId, (await procedure('search_incidents', ['']))[0]?.incidentId, file),
+  } : {}) }).catch(err => { console.error(err.message); process.exitCode = 1; });
+}
