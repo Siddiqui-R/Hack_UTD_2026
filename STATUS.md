@@ -27,8 +27,12 @@ INTEGRITY BROKEN, the module's red bar and the restore; show ANCHOR MISMATCH on 
 **Injection:** `node attack/injection/run.mjs`, 7 payloads (override, fake system, fake tool result, base64, split
 across two entries, invite exfiltration, fence forgery): fence 7/7, server 13/13 refusals. Model layer (`--live`, one
 FAST run, ~6-8 calls) not run: no NVIDIA_API_KEY on this machine. Results in `attack/INJECTION_RESULTS.md`.
-**PDF renderer not deployed yet:** needs an HTTPS host with Chrome, or a tunnel from this laptop (Rabeet deciding).
-`PDF_PUBLIC=1` now refuses to start without a 32+ character `PDF_RENDERER_TOKEN`.
+**PDF RENDERER DEPLOYED, `pdfReady: true` on the live site.** Separate Vercel project `rabeet1/blackbox-pdf`
+(`https://blackbox-pdf.vercel.app/api/record`, Chromium via @sparticuz/chromium 153 + puppeteer-core 25.11.0).
+`PDF_RENDERER_URL`/`PDF_RENDERER_TOKEN` set on the client project and production redeployed. Verified: real RECORD
+snapshot renders a 3-page A4 PDF with status, hashes and page numbers in 3.7 s cold / 0.4 s warm; missing, wrong or
+bad requests get 401/405/422; live `/api/pdf` rejects missing and bogus sessions. **Not yet clicked in the live UI:
+someone signed in on Maincloud should press Export PDF on RECORD once.** Non-Latin characters print as boxes (fonts).
 **NVIDIA:** zero live calls this session; budget 5/40.
 
 **Worker connected:** `cd agent && npm run worker` (or `worker:once`). Poll/claim/trace/finish via existing contract;
