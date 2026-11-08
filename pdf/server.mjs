@@ -4,6 +4,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { renderPdf, validateSnapshot } from './render.mjs';
 const origins=new Set((process.env.PDF_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174').split(',').filter(Boolean));
 const rendererToken=process.env.PDF_RENDERER_TOKEN;
+// Reachable from the internet (public.mjs tunnel): never run without the shared credential.
+if(process.env.PDF_PUBLIC==='1' && (!rendererToken || rendererToken.length<32)){console.error('PDF_PUBLIC=1 requires a PDF_RENDERER_TOKEN of at least 32 characters');process.exit(1);}
 let rendering=false;
 const server=http.createServer(async(req,res)=>{
   const send=(status,text)=>{res.writeHead(status,{'content-type':'text/plain','cache-control':'no-store'});res.end(text);};
