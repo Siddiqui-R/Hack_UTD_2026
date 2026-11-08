@@ -1,0 +1,164 @@
+diff --git a/blackbox/spacetimedb/src/index.ts b/blackbox/spacetimedb/src/index.ts
+index 285e399..c2fa6e7 100644
+--- a/blackbox/spacetimedb/src/index.ts
++++ b/blackbox/spacetimedb/src/index.ts
+@@ -170,6 +170,21 @@ function appendAudit(ctx: Ctx, action: string, payload: Canonical, incidentId =
+   else ctx.db.chainHead.insert(next);
+ }
+ 
++// Invisible formatting chars (bidi overrides, zero-width) and control chars other than \n and \t.
++const HIDDEN_CHARS = /\p{Cf}|[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/u;
++
++function cleanText(field: string, value: string, min: number, max: number) {
++  const v = value.normalize('NFC').trim();
++  if (HIDDEN_CHARS.test(v)) throw new SenderError(`${field} contains hidden or control characters`);
++  if (v.length < min || v.length > max) throw new SenderError(`${field} must be ${min}-${max} chars`);
++  return v;
++}
++
++function isOwner(ctx: Ctx) {
++  const o = ctx.db.owner.id.find(0);
++  return !!o && o.identity.isEqual(ctx.sender);
++}
++
+ function startSession(ctx: Ctx) {
+   const row = { identity: ctx.sender, startedAt: ctx.timestamp, expiresAt: inFuture(ctx, SESSION_TTL_MICROS) };
+   if (ctx.db.session.identity.find(ctx.sender)) ctx.db.session.identity.update(row);
+@@ -196,6 +211,7 @@ function requireRole(ctx: Ctx, allowed: readonly Role[]) {
+ function storeInvite(ctx: Ctx, code: string, role: Role) {
+   const normalized = normalizeCode(code);
+   if (!normalized) throw new SenderError(`code must be ${CODE_LENGTH} chars from ${CODE_ALPHABET}`);
++  if (new Set(normalized).size < 5) throw new SenderError("code too weak; generate one, don't type one");
+   const codeHash = sha256Hex(normalized);
+   if (ctx.db.inviteCode.codeHash.find(codeHash)) throw new SenderError('code already exists');
+   ctx.db.inviteCode.insert({
+@@ -225,6 +241,9 @@ export const sweepSessions = spacetimedb.reducer(
+     for (const s of [...ctx.db.session.iter()]) {
+       if (isExpired(ctx, s.expiresAt)) ctx.db.session.identity.delete(s.identity);
+     }
++    for (const i of [...ctx.db.inviteCode.iter()]) {
++      if (isExpired(ctx, i.expiresAt)) ctx.db.inviteCode.codeHash.delete(i.codeHash);
++    }
+   }
+ );
+ 
+@@ -240,13 +259,15 @@ const TeamMember = t.row('TeamMember', {
+ 
+ // Only callers with a session row see the team. The caller's own row always reports flagged=false.
+ export const team = spacetimedb.view({ name: 'team', public: true }, t.array(TeamMember), ctx => {
+-  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender)) return [];
++  const me = ctx.db.user.identity.find(ctx.sender);
++  if (!me || !ctx.db.session.identity.find(ctx.sender)) return [];
++  const seesDuress = me.role === 'commander';
+   return [...ctx.db.user.iter()].map(u => ({
+     identity: u.identity,
+     displayName: u.displayName,
+     role: u.role,
+     joinedAt: u.joinedAt,
+-    flagged: u.identity.isEqual(ctx.sender) ? false : u.isDuressed,
++    flagged: seesDuress && !u.identity.isEqual(ctx.sender) ? u.isDuressed : false,
+     online: !!ctx.db.session.identity.find(u.identity),
+     revoked: !!ctx.db.revokedIdentity.identity.find(u.identity),
+   }));
+@@ -270,8 +291,7 @@ export const createInvite = spacetimedb.reducer({ code: t.string(), role: t.stri
+ // Binds the caller's identity to the invite's role and starts a 15-minute session.
+ // Every failure mode returns the same error so the response is not an oracle.
+ export const redeemInvite = spacetimedb.reducer({ code: t.string(), displayName: t.string() }, (ctx, { code, displayName }) => {
+-  const name = displayName.trim();
+-  if (!name || name.length > 40) throw new SenderError('display name must be 1-40 chars');
++  const name = cleanText('display name', displayName, 1, 40);
+   if (isRevoked(ctx, ctx.sender)) throw new SenderError(BAD_CODE);
+   const existing = ctx.db.user.identity.find(ctx.sender);
+   const live = ctx.db.session.identity.find(ctx.sender);
+@@ -281,8 +301,13 @@ export const redeemInvite = spacetimedb.reducer({ code: t.string(), displayName:
+   if (!normalized) throw new SenderError(BAD_CODE);
+   const invite = ctx.db.inviteCode.codeHash.find(sha256Hex(normalized));
+   if (!invite || invite.usedBy !== undefined || isExpired(ctx, invite.expiresAt)) throw new SenderError(BAD_CODE);
++  // Checked only after the code is valid, so outsiders can't probe which names exist.
++  const taken = [...ctx.db.user.iter()].some(
++    u => !u.identity.isEqual(ctx.sender) && u.displayName.toLowerCase() === name.toLowerCase()
++  );
++  if (taken) throw new SenderError('display name already in use');
+ 
+-  ctx.db.inviteCode.codeHash.update({ ...invite, usedBy: ctx.sender, usedAt: ctx.timestamp });
++  ctx.db.inviteCode.codeHash.delete(invite.codeHash); // nothing left to crack; the audit row records the redeem
+   const row = { identity: ctx.sender, displayName: name, role: invite.role, joinedAt: ctx.timestamp, isDuressed: false };
+   if (existing) ctx.db.user.identity.update({ ...existing, displayName: name, role: invite.role });
+   else ctx.db.user.insert(row);
+@@ -304,33 +329,40 @@ export const setRole = spacetimedb.reducer({ target: t.identity(), role: t.strin
+   const row = ctx.db.user.identity.find(target);
+   if (!row) throw new SenderError('target not registered');
+   ctx.db.user.identity.update({ ...row, role });
++  if (row.role === 'commander' && role !== 'commander') {
++    for (const i of [...ctx.db.inviteCode.iter()]) if (i.createdBy.isEqual(target)) ctx.db.inviteCode.codeHash.delete(i.codeHash);
++  }
+   appendAudit(ctx, 'user.set_role', { target: target.toHexString(), from: row.role, to: role });
+ });
+ 
+ // Commander kills a (possibly stolen) identity: its session is deleted immediately and it can
+ // never act or redeem again. The real person re-enters on a fresh identity with a new invite.
+ export const revokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx, { target }) => {
+-  requireRole(ctx, ['commander']);
++  const byOwner = isOwner(ctx);
++  if (!byOwner) requireRole(ctx, ['commander']);
+   if (target.isEqual(ctx.sender)) throw new SenderError('cannot revoke yourself');
+   const row = ctx.db.user.identity.find(target);
+   if (!row) throw new SenderError('target not registered');
++  if (row.role === 'commander' && !byOwner) throw new SenderError('only the owner can revoke a commander');
+   if (isRevoked(ctx, target)) throw new SenderError('already revoked');
+   ctx.db.session.identity.delete(target);
+   ctx.db.revokedIdentity.insert({ identity: target, revokedBy: ctx.sender, revokedAt: ctx.timestamp });
+   appendAudit(ctx, 'user.revoke', { target: target.toHexString(), displayName: row.displayName, role: row.role });
+ });
+ 
++// Owner-only undo for a mistaken or malicious revoke.
++export const unrevokeSession = spacetimedb.reducer({ target: t.identity() }, (ctx, { target }) => {
++  if (!isOwner(ctx)) throw new SenderError('owner only');
++  if (!ctx.db.revokedIdentity.identity.find(target)) throw new SenderError('not revoked');
++  ctx.db.revokedIdentity.identity.delete(target);
++  appendAudit(ctx, 'user.unrevoke', { target: target.toHexString() });
++});
++
+ function oneOf<T extends string>(field: string, value: string, allowed: readonly T[]): T {
+   if (!allowed.includes(value as T)) throw new SenderError(`${field} must be one of: ${allowed.join(', ')}`);
+   return value as T;
+ }
+ 
+-function cleanText(field: string, value: string, min: number, max: number) {
+-  const v = value.trim();
+-  if (v.length < min || v.length > max) throw new SenderError(`${field} must be ${min}-${max} chars`);
+-  return v;
+-}
+-
+ // Only signed-in callers with a live session row see incidents.
+ export const incidents = spacetimedb.view({ name: 'incidents', public: true }, t.array(incident.rowType), ctx => {
+   if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender)) return [];
+@@ -356,6 +388,9 @@ export const createIncident = spacetimedb.reducer(
+     if (args.detectedAt.microsSinceUnixEpoch > ctx.timestamp.microsSinceUnixEpoch + 60_000_000n) {
+       throw new SenderError('detected time cannot be in the future');
+     }
++    if (args.detectedAt.microsSinceUnixEpoch < ctx.timestamp.microsSinceUnixEpoch - 365n * 24n * 3600n * 1_000_000n) {
++      throw new SenderError('detected time is more than a year ago');
++    }
+     const row = ctx.db.incident.insert({
+       id: 0n,
+       title,
+@@ -382,7 +417,7 @@ export const createIncident = spacetimedb.reducer(
+ export const updateIncident = spacetimedb.reducer(
+   { incidentId: t.u64(), severity: t.string(), status: t.string(), containmentStatus: t.string(), systemsAffected: t.string() },
+   (ctx, args) => {
+-    requireRole(ctx, ['commander', 'responder']);
++    const me = requireRole(ctx, ['commander', 'responder']);
+     const row = ctx.db.incident.id.find(args.incidentId);
+     if (!row) throw new SenderError('incident not found');
+     const next = {
+@@ -391,6 +426,9 @@ export const updateIncident = spacetimedb.reducer(
+       containmentStatus: oneOf('containment', args.containmentStatus, CONTAINMENT),
+       systemsAffected: cleanText('systems affected', args.systemsAffected, 0, 500),
+     };
++    if ((next.status === 'closed') !== (row.status === 'closed') && me.role !== 'commander') {
++      throw new SenderError('only a commander can close or reopen an incident');
++    }
+     const changes: { [k: string]: Canonical } = {};
+     for (const k of Object.keys(next) as (keyof typeof next)[]) {
+       if (row[k] !== next[k]) changes[k] = { from: row[k], to: next[k] };
