@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getCommander, signIn, newIdentity, enrollAgent, call, sql, ownerSql } from '../lib.mjs';
+import { getCommander, signIn, newIdentity, enrollAgent, call, sql, ownerSql, TARGET, DB } from '../lib.mjs';
 import { incident, rows, read, check, must, denied, audited, ident } from '../slice-helpers.mjs';
 export const slice = '11';
 export const title = 'Run queue, worker trace, replay failure and cancellation';
@@ -12,7 +12,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 function worker(tokenFile, extraEnv = {}) {
   let output = '';
   const child = spawn(process.execPath, ['src/worker.mjs','--once'], {
-    cwd: path.join(root,'agent'), env: { ...process.env, AGENT_MODE: 'mock', AGENT_TOKEN_FILE: tokenFile, ...extraEnv }, stdio: ['ignore','pipe','pipe'],
+    cwd: path.join(root,'agent'), env: { ...process.env, STDB_URL: TARGET, STDB_DB: DB, AGENT_MODE: 'mock', AGENT_TOKEN_FILE: tokenFile, ...extraEnv }, stdio: ['ignore','pipe','pipe'],
   });
   child.stdout.on('data', b => output += b); child.stderr.on('data', b => output += b);
   const done = new Promise((resolve,reject) => {

@@ -5,7 +5,8 @@
   "description": "Live attack script + security regression checks for BLACKBOX. No dependencies.",
   "scripts": {
     "attack": "node run.mjs",
-    "attack:demo": "node run.mjs --demo"
+    "attack:demo": "node run.mjs --demo",
+    "local:publish": "node local-db.mjs"
   },
   "engines": {
     "node": ">=22"

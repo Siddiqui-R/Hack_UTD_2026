@@ -1,9 +1,18 @@
 // Shared helpers: target guard, identities, reducer calls, SQL, result printing.
 // Talks to SpacetimeDB over its plain HTTP API so the script has no dependencies.
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Owner commands use attack/.env.owner-cli.toml when it exists (made by `npm run local:publish`), so the default
+// `spacetime` login can point at Maincloud for other work without taking away ownership of the test database.
+// That login owns the local `blackbox-attack` database. ATTACK_CLI_CONFIG / ATTACK_DB override both.
+const ownerConfigFile = fileURLToPath(new URL('./.env.owner-cli.toml', import.meta.url));
+const OWNER_CONFIG = process.env.ATTACK_CLI_CONFIG ?? (fs.existsSync(ownerConfigFile) ? ownerConfigFile : undefined);
+const spacetime = args => spawnSync('spacetime', OWNER_CONFIG ? ['--config-path', OWNER_CONFIG, ...args] : args, { encoding: 'utf8' });
 
 export const TARGET = (process.env.ATTACK_TARGET ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
-export const DB = process.env.ATTACK_DB ?? 'blackbox';
+export const DB = process.env.ATTACK_DB ?? (OWNER_CONFIG ? 'blackbox-attack' : 'blackbox');
 
 // Safety: never attack anything but a local server unless explicitly told to.
 // Attack 2 rewrites audit rows; running it against the live demo DB by accident would be fatal.
@@ -92,7 +101,7 @@ export async function sql(who, query) {
 export function ownerSql(query) {
   const local = TARGET.includes('127.0.0.1') || TARGET.includes('localhost');
   const args = ['sql', ...(local ? ['--server', 'local'] : []), '--no-config', DB, query];
-  const r = spawnSync('spacetime', args, { encoding: 'utf8' });
+  const r = spacetime(args);
   if (r.error) throw new Error(`spacetime CLI not found on PATH: ${r.error.message}`);
   return { ok: r.status === 0, out: (r.stdout ?? '') + (r.stderr ?? '') };
 }
@@ -101,7 +110,7 @@ export function ownerSql(query) {
 export function ownerCall(reducer, ...args) {
   const local = TARGET.includes('127.0.0.1') || TARGET.includes('localhost');
   const cli = ['call', ...(local ? ['--server', 'local'] : []), '--no-config', DB, reducer, ...args.map(a => JSON.stringify(a))];
-  const r = spawnSync('spacetime', cli, { encoding: 'utf8' });
+  const r = spacetime(cli);
   if (r.error) throw new Error(`spacetime CLI not found on PATH: ${r.error.message}`);
   return { ok: r.status === 0, out: (r.stdout ?? '') + (r.stderr ?? '') };
 }
@@ -110,7 +119,7 @@ export function ownerCall(reducer, ...args) {
 let ownerWho;
 export function owner() {
   if (ownerWho) return ownerWho;
-  const r = spawnSync('spacetime', ['login', 'show', '--token'], { encoding: 'utf8' });
+  const r = spacetime(['login', 'show', '--token']);
   const out = (r.stdout ?? '') + (r.stderr ?? '');
   const token = out.match(/eyJ[\w-]+\.[\w-]+\.[\w-]+/)?.[0];
   if (!token) throw new Error('could not read owner token from spacetime CLI');
