@@ -108,7 +108,7 @@ export function IncidentDetail({ incident, team, canWrite, me }: { incident: Inc
         </form>
       </div>
 
-      <ClosurePane key={`closure-${incident.id}`} incident={incident} me={me} />
+      <ClosurePane key={`closure-${incident.id}`} incident={incident} me={me} team={team} />
       <ScopePane key={incident.id.toString()} incidentId={incident.id} canWrite={canWrite} />
       <div className="flex flex-col gap-2 px-6 py-4">
         <span className="label">Tasks</span>
