@@ -165,7 +165,8 @@ const $ = id => document.getElementById(id);
 const term = $('term');
 let state = { target: null, recovery: null, busy: false, run: null };
 let current = null;          // { n, id } of the run on screen
-let waiters = [];            // RUN ALL waits on done events
+const waiting = new Map();   // run id -> resolve; RUN ALL waits on its own run's done
+const finished = new Map();  // run id -> verdict, in case done arrives before the POST answers
 let runAll = false, holdTimer = null;
 const outcomes = {};         // n -> verdict, per page session
 
@@ -290,8 +291,13 @@ function connect() {
     renderTarget(); renderControls();
     $('link').classList.remove('lost'); $('linkTxt').textContent = state.busy ? 'ENGAGED' : 'ARMED';
     if (state.run) { term.innerHTML = ''; $('phases').classList.remove('show'); $('pinned').className = 'pinned'; hold(0); }
+    if (!state.busy) document.querySelectorAll('.vec').forEach(b => b.classList.remove('running'));
   });
-  es.addEventListener('live', () => { replaying = false; });
+  es.addEventListener('live', () => {
+    replaying = false;
+    // Bridge restarted mid-run: that run will never report, so nobody waits on it forever.
+    if (!state.busy) for (const [id, res] of waiting) if (!finished.has(id)) { waiting.delete(id); res({ kind: 'error', label: 'LINK LOST' }); }
+  });
   es.addEventListener('start', e => {
     const { n, id } = JSON.parse(e.data);
     current = { n, id }; state.busy = true;
@@ -312,21 +318,26 @@ function connect() {
     if (current) showVerdict(current.n, d.verdict, !replaying);
     line(`  == ${d.verdict.label} ==`, d.verdict.kind === 'held' ? 'pass' : d.verdict.kind === 'breached' ? 'vuln' : 'err');
     $('linkTxt').textContent = 'ARMED'; renderControls();
-    const w = waiters; waiters = []; w.forEach(f => f(d.verdict));
+    finished.set(d.id, d.verdict);
+    const res = waiting.get(d.id); if (res) { waiting.delete(d.id); res(d.verdict); }
   });
   es.onerror = () => { $('link').classList.add('lost'); $('linkTxt').textContent = 'LINK LOST · RECONNECTING'; };
 }
 
 async function post(path) {
   const r = await fetch(path, { method:'POST', headers:{ 'x-blackbox-console':'1' } }).catch(() => null);
-  if (!r) { line('  bridge unreachable', 'err'); return false; }
-  if (!r.ok) { line(`  ${(await r.json().catch(() => ({}))).error ?? r.status}`, 'err'); return false; }
-  return true;
+  if (!r) { line('  bridge unreachable', 'err'); return null; }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) { line(`  ${body.error ?? r.status}`, 'err'); return null; }
+  return body;
 }
-function start(n) {
-  if (state.busy) return Promise.resolve(null);
-  const done = new Promise(res => waiters.push(res));
-  return post('/run/' + n).then(ok => ok ? done : (waiters = waiters.filter(w => w !== done), null));
+// Resolves with this run's verdict (matched by id), or null if the bridge refused to start it.
+async function start(n) {
+  if (state.busy) return null;
+  const body = await post('/run/' + n);
+  if (!body?.id) return null;
+  if (finished.has(body.id)) return finished.get(body.id);
+  return new Promise(res => waiting.set(body.id, res));
 }
 
 $('release').onclick = () => post('/release');

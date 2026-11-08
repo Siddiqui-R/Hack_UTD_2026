@@ -67,14 +67,17 @@ function verdict(run) {
   const errors = results.filter(r => r.outcome === 'ERROR');
   const why = r => `${r.id} ${r.title}${r.detail ? ` — ${r.detail}` : ''}`;
   if (failed.length) return { kind: 'breached', label: 'DEFENCE FAILED', stamp: 'FAILED', facts: failed.map(why) };
-  if (errors.length || code !== 0 || !run.gotResult)
+  if (errors.length || code !== 0 || !run.gotResult || run.badLine)
     return { kind: 'error', label: 'ERROR', stamp: 'ERROR', facts: errors.length ? errors.map(why)
-      : [code === null || code > 255 ? 'script was killed before it finished' : `script exited with code ${code}${run.gotResult ? '' : ', no results reported'}`] };
+      : [code === null || code > 255 ? 'script was killed before it finished'
+        : run.badLine ? 'script printed a malformed result/phase marker' : `script exited with code ${code}${run.gotResult ? '' : ', no results reported'}`] };
   const rec = (n === '2' || n === 'restore') && pendingRecovery();
   if (rec?.invalid) return { kind: 'incomplete', label: 'RECOVERY REQUIRED', stamp: 'INCOMPLETE', facts: [rec.error, 'check the audit record by hand, fix it, then delete attack/.tamper-recovery.json'] };
-  if (rec) return { kind: 'incomplete', label: 'EDIT NOT RESTORED', stamp: 'INCOMPLETE', facts: ['the demo edit is still in place · use RESTORE DEMO EDIT'] };
+  // The script's own reason comes first (e.g. a recovery file that does not match the record must not say "press restore").
   if (missing.length || notPass.length)
-    return { kind: 'incomplete', label: 'INCOMPLETE', stamp: 'INCOMPLETE', facts: [...notPass.map(why), ...missing.map(id => `${id} not reported`)] };
+    return { kind: 'incomplete', label: rec ? 'EDIT NOT RESTORED' : 'INCOMPLETE', stamp: 'INCOMPLETE',
+      facts: [...notPass.map(why), ...missing.map(id => `${id} not reported`), ...(rec ? [`record #${rec.seq} is still edited; recovery file kept`] : [])] };
+  if (rec) return { kind: 'incomplete', label: 'EDIT NOT RESTORED', stamp: 'INCOMPLETE', facts: ['the demo edit is still in place · use RESTORE DEMO EDIT'] };
   return { kind: 'held', ...HELD[n], facts: factsFor(n, results, phases) };
 }
 
@@ -87,7 +90,7 @@ const snapshot = () => ({ target, recovery: pendingRecovery(), busy: !!child, ru
 
 function start(n) {
   run = { id: Date.now(), n, events: [], results: [], phases: [], code: null, gotResult: false, done: false };
-  for (const c of clients) send(c, 'reset', snapshot());
+  for (const c of clients) { send(c, 'reset', snapshot()); send(c, 'live', {}); } // a new run is live, not a replay
   broadcast('start', { n, id: run.id });
   child = spawn(process.execPath, [here + 'runner.mjs', n], { cwd: attackDir, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
   let buf = '';
@@ -95,24 +98,27 @@ function start(n) {
     buf += strip(d.toString());
     const parts = buf.split(/\r?\n/); buf = parts.pop();
     for (const line of parts) {
-      if (line.startsWith('@@RESULT ')) { run.results = JSON.parse(line.slice(9)); run.gotResult = true; }
-      else if (line.startsWith('@@PHASE ')) { const p = { ...JSON.parse(line.slice(8)), t: Date.now() }; run.phases.push(p); broadcast('phase', p); }
-      else if (line.trim()) broadcast('line', line);
+      try {
+        if (line.startsWith('@@RESULT ')) { run.results = JSON.parse(line.slice(9)); run.gotResult = true; continue; }
+        if (line.startsWith('@@PHASE ')) { const p = { ...JSON.parse(line.slice(8)), t: Date.now() }; run.phases.push(p); broadcast('phase', p); continue; }
+      } catch { run.badLine = true; } // malformed marker: shown as text, and the run cannot pass
+      if (line.trim()) broadcast('line', line);
     }
   };
   child.stdout.on('data', onData);
   child.stderr.on('data', onData);
   child.stdin.on('error', () => {});
+  child.on('error', e => broadcast('line', `ERROR could not start runner: ${e.message}`)); // 'close' still follows
   child.on('close', code => {
     child = null;
     run.code = code; run.done = true;
-    broadcast('done', { code, results: run.results, verdict: verdict(run), recovery: pendingRecovery() });
+    broadcast('done', { id: run.id, code, results: run.results, verdict: verdict(run), recovery: pendingRecovery() });
   });
 }
 
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 
-http.createServer(async (req, res) => {
+http.createServer(async (req, res) => { try {
   if (!HOSTS.has(req.headers.host ?? '')) { res.writeHead(421); return res.end('wrong host'); } // DNS-rebinding guard
   const url = req.url.split('?')[0];
   if (req.method === 'GET' && url === '/') {
@@ -154,4 +160,5 @@ http.createServer(async (req, res) => {
     return json(res, 202, { id: run.id });
   }
   res.writeHead(404); res.end();
+} catch (e) { if (!res.headersSent) res.writeHead(500); res.end(String(e?.message ?? e)); } // never take the bridge down mid-run
 }).listen(PORT, '127.0.0.1', () => console.log(`Demo console: http://127.0.0.1:${PORT}  (target ${DB} on ${TARGET})`)); // loopback only

@@ -486,3 +486,27 @@ FIX(attack console edges) — three review edges, no new features. attack/demo/2
   Attack this: recovery file edited to a valid but wrong seq/original (recover() refuses rows not holding
     'nothing_happened' or the original — confirm it cannot overwrite a different record), TAMPER_INCIDENT pointing at
     an incident whose only rows are others' (must SKIP), a verifier stub that misses (DETECTION FAILED path).
+
+FIX(attack console review pass) — code review + targeted tests of attacker/ and demo 2. Bugs found and fixed:
+  - Bridge's per-run `reset` broadcast never sent `live`, so every run after the first was treated as a replay: no
+    stamps, and RUN ALL's 5 s auto-release never fired (fell back to the 30 s auto-restore). Now 4/4 stamps, RUN ALL 55 s.
+  - Runner called process.exit() right after printing @@RESULT; on Windows pipes that can drop the line (false ERROR).
+    Now exits in the write callback. Runner ignores EPIPE so a dead bridge can't crash it before demo 2 restores.
+  - Bridge crash paths: malformed @@ marker (now caught; run cannot pass, shown as ERROR), spawn error, and any request
+    handler exception (now 500 instead of killing the bridge mid-run).
+  - recover() would write a hand-edited/stale `original` into the record. Now it only writes a value that reproduces
+    the record's stored event_hash; otherwise SKIP and the record is untouched.
+  - Demo 2: Ctrl+C / SIGBREAK / SIGHUP / SIGTERM during the edit end the hold so `finally` restores before exit; the
+    recovery file is written tmp+rename (never half-written); a failed UPDATE no longer emits RESTORING.
+  - Console: RUN ALL matched any run's `done` (and a broken cleanup left stale waiters); now matched by run id, and a
+    bridge restart mid-run resolves the wait as LINK LOST instead of hanging. Stale RUNNING markers cleared on reconnect.
+  - Verdict order: the script's own reason now wins over "use RESTORE DEMO EDIT" (that advice was wrong when the
+    recovery file itself is bad).
+  Verified: forged recovery file (wrong original) -> refused, record untouched, file kept; corrected file -> restored.
+    Two simultaneous /restore -> one 202, one 409. Runner with its pipes cut mid-hold (simulated bridge death, parent
+    alive) -> restored itself, chain ok, file gone. RUN ALL 4/4 with all stamps. `run.mjs --demo` 16 held; chain 300 ok.
+  Not runtime-tested: Ctrl+C delivery (Windows can't send CTRL_C to a pipe child from a script; handler code reviewed).
+  Harness note: killing the bridge under a job-managed shell also killed the runner (whole tree), leaving the edit;
+    RESTORE recovered it. In a normal terminal the runner is orphaned and restores itself, as the pipe test shows.
+  Attack this: real Ctrl+C in the stage terminal during the hold; closing the terminal window during the hold
+    (SIGHUP gives ~5 s); a demo printing a fake "@@RESULT" line.

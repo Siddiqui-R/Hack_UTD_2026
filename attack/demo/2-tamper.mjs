@@ -9,7 +9,7 @@
 // TODO(slice 9): rewrite the WHOLE chain consistently, then expect the anchor mismatch to catch it.
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { DB, ownerSql, auditRows, verifyChainIndependent, verifyChainRemote, getCommander, record, write, signIn, runTag, color as C } from '../lib.mjs';
+import { DB, ownerSql, auditRows, auditHash, verifyChainIndependent, verifyChainRemote, getCommander, record, write, signIn, runTag, color as C } from '../lib.mjs';
 
 export const label = 'ATTACK 2';
 export const title = 'Rewrite the audit log as the database owner';
@@ -56,6 +56,9 @@ export async function recover() {
   say(`restoring record #${rec.seq}: action "${TAMPERED}" → "${rec.original}"`);
   const row = (await auditRows()).find(r => Number(r.seq) === rec.seq);
   if (!row) return record('R2', 'restore demo edit', 'SKIP', `record #${rec.seq} not found`);
+  // A recovery file can be stale or hand-edited: only write a value that makes the record's stored hash match again.
+  if (row.action === rec.tampered && auditHash({ ...row, action: rec.original }) !== row.event_hash)
+    return record('R2', 'restore demo edit', 'SKIP', `"${rec.original}" does not reproduce record #${rec.seq}'s stored hash; recovery file is wrong, not touching the record`);
   if (row.action === rec.tampered) ownerSql(`UPDATE audit SET action = ${q(rec.original)} WHERE seq = ${rec.seq} AND action = ${q(rec.tampered)}`);
   else if (row.action !== rec.original) return record('R2', 'restore demo edit', 'SKIP', `record #${rec.seq} holds "${row.action}"; not touching it`);
   const v = await verifyRestored(rec);
@@ -63,18 +66,25 @@ export async function recover() {
     v.ok ? `${v.chain.checked} rows verified` : `still broken at seq ${v.chain.brokenAt}: ${v.chain.reason}`);
 }
 
+// Set while an edit is live: ends the hold early so Ctrl+C / window close / bridge loss restores before exiting.
+let endHold = () => {};
+
 async function holdForPresenter() {
   if (!EVENTS) {
     const ms = Number(process.env.TAMPER_HOLD_MS ?? 4000);
-    if (ms > 0) { say(`holding the edit ${ms / 1000}s so open BLACKBOX windows show INTEGRITY BROKEN…`); await new Promise(r => setTimeout(r, ms)); }
+    if (ms > 0) {
+      say(`holding the edit ${ms / 1000}s so open BLACKBOX windows show INTEGRITY BROKEN…`);
+      await new Promise(r => { const t = setTimeout(r, ms); endHold = () => { clearTimeout(t); r(); }; });
+    }
     return;
   }
   const max = Number(process.env.TAMPER_HOLD_MAX_MS ?? 30_000);
   say(`holding the detected edit until the presenter restores it (automatic in ${max / 1000}s)`);
   await new Promise(resolve => {
-    const done = () => { clearTimeout(timer); process.stdin.off('data', onData); process.stdin.off('end', done); process.stdin.pause(); resolve(); };
+    const done = () => { endHold = () => {}; clearTimeout(timer); process.stdin.off('data', onData); process.stdin.off('end', done); process.stdin.pause(); resolve(); };
     const onData = d => { if (String(d).includes('release')) done(); };
     const timer = setTimeout(done, max);
+    endHold = done;
     process.stdin.on('data', onData);
     process.stdin.on('end', done); // bridge gone: restore now rather than wait
     process.stdin.resume();
@@ -105,13 +115,21 @@ export async function run() {
   const target = pool[Math.floor(pool.length / 2)];
   const seq = Number(target.seq);
   const rec = { db: DB, seq, incidentId: Number(target.incident_id), column: 'action', original: target.action, tampered: TAMPERED, at: new Date().toISOString() };
-  fs.writeFileSync(RECOVERY_FILE, JSON.stringify(rec, null, 2), { mode: 0o600 }); // before the edit, so a kill can be undone
+  // Before the edit, so a kill can be undone. Write-then-rename: a crash never leaves a half-written record.
+  fs.writeFileSync(RECOVERY_FILE + '.tmp', JSON.stringify(rec, null, 2), { mode: 0o600 });
+  fs.renameSync(RECOVERY_FILE + '.tmp', RECOVERY_FILE);
+  // While the row is edited, an interrupt ends the hold instead of killing the process, so finally restores it.
+  const onSignal = () => { say('interrupted: restoring the edit before exiting'); endHold(); };
+  const signals = ['SIGINT', 'SIGBREAK', 'SIGHUP', 'SIGTERM'];
+  for (const sig of signals) process.on(sig, onSignal);
+  let edited = false;
 
   phase('EDITING', rec);
   say(`attacker (DB owner) rewrites record #${seq} of incident ${rec.incidentId}: action "${target.action}" → "${TAMPERED}"`);
   try {
     const upd = ownerSql(`UPDATE audit SET action = ${q(TAMPERED)} WHERE seq = ${seq}`);
-    if (!upd.ok) { fs.rmSync(RECOVERY_FILE, { force: true }); return record('A2', 'owner edits audit row', 'SKIP', `UPDATE failed: ${upd.out.trim().slice(0, 120)}`); }
+    if (!upd.ok) { fs.rmSync(RECOVERY_FILE, { force: true }); for (const sig of signals) process.off(sig, onSignal); return record('A2', 'owner edits audit row', 'SKIP', `UPDATE failed: ${upd.out.trim().slice(0, 120)}`); }
+    edited = true;
     say('the edit succeeded: the owner can change rows; BLACKBOX has to detect it');
 
     phase('DETECTION CHECK', { seq });
@@ -133,11 +151,14 @@ export async function run() {
       phase('DETECTION FAILED', { seq, independent: caught, module: modCaught });
     }
   } finally {
-    phase('RESTORING', rec);
-    ownerSql(`UPDATE audit SET action = ${q(target.action)} WHERE seq = ${seq} AND action = ${q(TAMPERED)}`);
+    if (edited) {
+      phase('RESTORING', rec);
+      ownerSql(`UPDATE audit SET action = ${q(target.action)} WHERE seq = ${seq} AND action = ${q(TAMPERED)}`);
+    }
   }
 
   const v = await verifyRestored(rec);
+  for (const sig of signals) process.off(sig, onSignal);
   record('A2b', 'original value restored, chain verified', v.ok ? 'PASS' : 'VULN',
     v.ok ? `${v.chain.checked} rows verified` : `still broken at seq ${v.chain.brokenAt}: use Restore demo edit`);
 }

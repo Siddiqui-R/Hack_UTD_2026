@@ -4,6 +4,8 @@
 //   node runner.mjs restore    undo a pending demo-2 edit via its recovery record, then verify the chain
 import { readdir } from 'node:fs/promises';
 process.env.ATTACK_EVENTS = '1'; // demo 2 prints @@PHASE lines and waits for "release" on stdin
+// If the bridge dies, writes to the closed pipe must not crash the run before demo 2 restores its edit.
+process.stdout.on('error', () => {}); process.stderr.on('error', () => {});
 const n = process.argv[2];
 const lib = await import('../attack/lib.mjs');
 lib.guardTarget();
@@ -16,5 +18,6 @@ console.log(n === 'restore' ? '> Restore the demo edit' : `> ${mod.title}`);
 let code = 0;
 try { await (n === 'restore' ? mod.recover() : mod.run()); }
 catch (e) { lib.results.push({ id: file, title: e.message, outcome: 'ERROR' }); console.log(`ERROR ${e.message}`); code = 1; }
-console.log('@@RESULT ' + JSON.stringify(lib.results));
-process.exit(code); // stdin stays open for "release"; exit explicitly
+// Exit only after the result line is flushed: on Windows pipe writes are async and process.exit() can drop them.
+// stdin stays open for "release" and SDK sockets may linger, so exit explicitly once written.
+process.stdout.write(`@@RESULT ${JSON.stringify(lib.results)}\n`, () => process.exit(code));
