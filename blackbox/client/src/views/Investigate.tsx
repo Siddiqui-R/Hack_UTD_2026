@@ -4,6 +4,7 @@ import { tables, reducers } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { useRun } from '../components/Toast';
 import { fmtUtc, tsToDate } from '../lib/format';
+import { AgentEnrollment } from '../components/AgentEnrollment';
 
 function modelLabel(id: string) {
   return id.includes('lightning') ? 'LIGHTNING 30B' : id.includes('ultra') ? 'ULTRA 550B' : id.split('/').pop();
@@ -35,6 +36,7 @@ export function Investigate({ incident, me }: { incident: Incident; me: TeamMemb
         <button className="btn btn-primary" disabled={!!busy} onClick={()=>run(()=>request({incidentId:incident.id,tier:'fast',mode}))}>Run investigation</button>
         <button className="btn" disabled={!!busy} onClick={()=>run(()=>request({incidentId:incident.id,tier:'deep',mode}))}>Deep Analysis</button>
       </div>
+      <AgentEnrollment incident={incident} me={me} />
       <div className="flex items-center justify-between border-b border-line px-6 py-2 font-mono text-[11px] text-text-1">
         <span>{current ? `RUN #${current.id} · ${current.status.toUpperCase()}` : 'NO INVESTIGATION RUNS'}</span>
         {current && <span title={current.modelId}>{current.mode.toUpperCase()} · {modelLabel(current.modelId)} · {(elapsed/1000).toFixed(1)}s</span>}

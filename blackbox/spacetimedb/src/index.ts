@@ -533,6 +533,27 @@ export const updateIncident = spacetimedb.reducer(
 );
 
 // Human commander binds a dedicated service identity to one incident.
+const AgentStatusRow = t.row('AgentStatusRow', {
+  identity: t.identity().primaryKey(),
+  incidentId: t.u64(),
+  enrolledAt: t.timestamp(),
+  sessionActive: t.bool(), // session row present (sweep removes expired ones within 60 s)
+  revoked: t.bool(),
+});
+
+// Read-only: lets signed-in humans see which service identities are enrolled and whether their
+// session is live. Agents get nothing. No write path or restriction changes.
+export const agentStatus = spacetimedb.view({ name: 'agent_status', public: true }, t.array(AgentStatusRow), ctx => {
+  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender)) return [];
+  return [...ctx.db.agentIdentity.iter()].map(a => ({
+    identity: a.identity,
+    incidentId: a.incidentId,
+    enrolledAt: a.createdAt,
+    sessionActive: !!ctx.db.session.identity.find(a.identity),
+    revoked: !!ctx.db.revokedIdentity.identity.find(a.identity),
+  }));
+});
+
 export const enrollAgent = spacetimedb.reducer({ target: t.identity(), incidentId: t.u64() }, (ctx, args) => {
   requireRole(ctx, ['commander']);
   if (isRevoked(ctx, args.target)) throw new SenderError('target is revoked');

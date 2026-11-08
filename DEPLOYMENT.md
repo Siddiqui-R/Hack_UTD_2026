@@ -23,6 +23,9 @@
 
 ## First commander on Maincloud (owner only)
 
+Fastest (also the lockout recovery, ~10 s): `node blackbox/spacetimedb/deployment/commander-code.mjs maincloud`
+prints a fresh single-use commander code. Same script with `local` for the local database.
+
 ```bash
 cd blackbox/spacetimedb
 "$LOCALAPPDATA/SpacetimeDB/bin/current/spacetimedb-cli.exe" --config-path .env.maincloud-cli.toml call blackbox-utd2026-abbas9x issue_bootstrap_invite '"XXXX-XXXX"' --server maincloud --no-config

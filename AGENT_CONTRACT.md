@@ -151,3 +151,9 @@ No agent can request/approve/cancel; direct closure/reopening remains blocked. S
 
 ## Scope states (2026-11-08)
 State is one of unknown/compromised/encrypted/exfiltrated/unaffected (`encrypted` added). getScope returns it unchanged.
+
+## Enrolment from the UI + agent_status (2026-11-08)
+Commanders enrol from INVESTIGATE → AGENT SERVICE: paste the worker's printed line or the 64-hex identity; the client
+calls enrollAgent({target: Identity.fromString(hex), incidentId: selected}). Server rules unchanged.
+Read-only view agent_status (signed-in humans only): [{identity, incidentId, enrolledAt, sessionActive, revoked}].
+

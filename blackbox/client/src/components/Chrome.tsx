@@ -3,6 +3,9 @@ import { Users } from 'lucide-react';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { SEVERITY_TONE } from '../lib/vocab';
 import { useChainVerification } from '../lib/useChainVerification';
+import { useTable } from 'spacetimedb/react';
+import { tables } from '../module_bindings';
+import { agentStateFor } from '../lib/agentState';
 
 function UtcClock() {
   const [now, setNow] = useState(() => new Date());
@@ -22,6 +25,9 @@ export function Chrome({ active, me, team, linkUp }: { active?: Incident; me: Te
   const broken = linkUp && !error && result && (!result.ok || anchorMismatch);
   const verified = linkUp && !error && result?.ok && !anchorMismatch;
   const online = team.filter(m => m.online && !m.revoked).length;
+  const [agents] = useTable(tables.agentStatus);
+  const [runs] = useTable(tables.investigationRuns);
+  const agent = agentStateFor(active?.id, agents, runs);
   return (
     <>
     <header className="flex h-11 shrink-0 items-center gap-4 whitespace-nowrap border-b border-line bg-bg-1 px-4">
@@ -45,7 +51,7 @@ export function Chrome({ active, me, team, linkUp }: { active?: Incident; me: Te
         {verified && <span className="ml-2 text-text-2">· {anchor?.anchorOk === true ? `ANCHORED #${anchor.lastAnchorSeq?.toString()}` : anchor?.status === 'local' ? 'LOCAL CHECKPOINT ONLY' : anchor?.status === 'unavailable' ? 'ANCHOR UNAVAILABLE' : 'UNANCHORED'}</span>}
       </span>
       <Sep />
-      <span className="font-mono text-[11px] text-text-2">AGENT OFFLINE</span>
+      <span data-testid="agent-status" className="shrink-0 font-mono text-[11px]" style={{ color: agent.tone.color }}>{agent.tone.glyph} {agent.label}</span>
       <Sep />
       <span className="flex items-center gap-1 font-mono text-[12px] text-text-1" title="Responders with a live session">
         <Users size={14} strokeWidth={1.5} /> {online}

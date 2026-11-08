@@ -355,3 +355,29 @@ LIVE-WALK FIXES (owner-requested, four items) — module + client only; agent/at
   Attack this: closure with requester + 1 (revoked/expired requester must not count), requester self-approve,
     anchor label with malformed/local ANCHOR_URL, chat render with many messages.
 
+AGENT ENROLMENT UI + LIVE AGENT LABEL + COMMANDER LOCKOUT FIX — module/client only; agent/attack/pdf untouched.
+  RABEET — PRODUCTION ENROLMENT IS AVAILABLE NOW (live on Maincloud + Vercel):
+    1. Point the worker at Maincloud (wss://maincloud.spacetimedb.com, db `blackbox-utd2026-abbas9x`) with its OWN
+       fresh token store (local JWTs are rejected there). Start it once; unenrolled it prints
+       `Agent identity <64 hex> is not enrolled (...)` and exits.
+    2. A commander opens INVESTIGATE on the target incident and pastes that whole line (or just the hex) into the
+       AGENT SERVICE box, then clicks "Enrol for INC-n". Server enrollAgent is unchanged: commander-only, refuses
+       human/owner/revoked identities, writes one `agent.enroll` audit row, starts a 15-minute agent session.
+    3. Restart the worker; it should now claim queued runs. Top bar and the panel show AGENT RUNNING · RUN #n.
+    Session note (unchanged by design): worker polling/reads do NOT extend its session; only agent writes do. If the
+    worker sits idle >15 min the label shows AGENT SESSION EXPIRED · RE-ENROL — a commander re-enrols in one click.
+  New read-only view `agent_status` (humans with a session only): {identity, incidentId, enrolledAt, sessionActive,
+    revoked}. No write-path or restriction changes. Bindings regenerated.
+  Top bar no longer hardcodes AGENT OFFLINE: NO AGENT ENROLLED / AGENT ENROLLED / AGENT RUNNING · RUN #n /
+    AGENT SESSION EXPIRED · RE-ENROL / AGENT REVOKED for the selected incident. Never says "online" (a live session
+    does not prove the worker process is polling).
+  Commander lockout: a visible tab now refreshes its own session every 60 s with no input (verified: expiry advanced
+    04:33:48 -> 04:35:21 over 70 s untouched). Hidden/closed tabs still expire after 15 min; revoke still kills
+    stolen tokens. Backup recovery in ~10 s: `node blackbox/spacetimedb/deployment/commander-code.mjs maincloud`
+    (owner machine) prints a fresh single-use commander code.
+  Closure counter now uses the server's validity rule (live unrevoked commander/responder approvals + live requester).
+  Verified locally: worker-format line enrols, audit #112 agent.enroll, label flips; pasting a human identity ->
+    "agent requires a separate identity". Checks: module tsc, client tsc + Vite build. No NVIDIA calls, no wipe.
+  Attack this: observer/responder calling enroll_agent; enrolling a human, owner or revoked identity via the box;
+    agent_status visibility to agents/observers/expired humans; keep-alive in a hidden tab (must still expire).
+

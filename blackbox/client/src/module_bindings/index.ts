@@ -73,6 +73,7 @@ import * as VerifyChainProcedure from "./verify_chain_procedure";
 import * as VerifyIntegrityProcedure from "./verify_integrity_procedure";
 
 // Import all table schema definitions
+import AgentStatusRow from "./agent_status_table";
 import ClosureApprovalsRow from "./closure_approvals_table";
 import ClosureRequestsRow from "./closure_requests_table";
 import IncidentsRow from "./incidents_table";
@@ -89,6 +90,13 @@ import TeamRow from "./team_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  agentStatus: __table({
+    name: 'agent_status',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentStatusRow),
   closureApprovals: __table({
     name: 'closure_approvals',
     indexes: [

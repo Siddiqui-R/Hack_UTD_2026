@@ -36,6 +36,18 @@ export const AgentRun = __t.object("AgentRun", {
 });
 export type AgentRun = __Infer<typeof AgentRun>;
 
+export const AgentStatus = __t.object("AgentStatus", {});
+export type AgentStatus = __Infer<typeof AgentStatus>;
+
+export const AgentStatusRow = __t.object("AgentStatusRow", {
+  identity: __t.identity(),
+  incidentId: __t.u64(),
+  enrolledAt: __t.timestamp(),
+  sessionActive: __t.bool(),
+  revoked: __t.bool(),
+});
+export type AgentStatusRow = __Infer<typeof AgentStatusRow>;
+
 export const AgentStep = __t.object("AgentStep", {
   id: __t.u64(),
   incidentId: __t.u64(),

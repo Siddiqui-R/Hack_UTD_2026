@@ -22,22 +22,30 @@ export default function App() {
     else if (isActive && teamReady && wasMember()) discardIdentity();
   }, [me, isActive, teamReady]);
 
-  // Refresh the 15-minute session on real user activity, at most once a minute.
+  // Refresh the 15-minute session at most once a minute: on user activity, and on a timer while the
+  // tab is visible. A projected tab with nobody touching it (a presenter talking) stays signed in;
+  // a hidden or closed tab still expires. Stolen tokens are handled by revocation, not idle expiry.
+  const signedIn = !!me;
   useEffect(() => {
-    if (!me) return;
-    const onActivity = () => {
+    if (!signedIn) return;
+    const touch = () => {
       const now = Date.now();
       if (now - lastTouch.current < TOUCH_EVERY_MS) return;
       lastTouch.current = now;
       touchSession().catch(err => console.error('touchSession', err));
     };
-    window.addEventListener('keydown', onActivity);
-    window.addEventListener('pointerdown', onActivity);
+    const whileVisible = () => { if (document.visibilityState === 'visible') touch(); };
+    const timer = window.setInterval(whileVisible, TOUCH_EVERY_MS);
+    window.addEventListener('keydown', touch);
+    window.addEventListener('pointerdown', touch);
+    document.addEventListener('visibilitychange', whileVisible);
     return () => {
-      window.removeEventListener('keydown', onActivity);
-      window.removeEventListener('pointerdown', onActivity);
+      window.clearInterval(timer);
+      window.removeEventListener('keydown', touch);
+      window.removeEventListener('pointerdown', touch);
+      document.removeEventListener('visibilitychange', whileVisible);
     };
-  }, [me, touchSession]);
+  }, [signedIn, touchSession]);
 
   if (!teamReady && isActive) return <div className="h-full bg-[#07090b]" />;
   if (!me || holdLogin) return <Login onHold={setHoldLogin} />;
