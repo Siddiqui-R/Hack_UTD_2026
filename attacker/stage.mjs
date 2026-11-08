@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const SERVER = 'http://127.0.0.1:3000';
 const DB = 'blackbox-attack';
+const PDF_PORT = 4410; // local copy of the PDF renderer (pdf/server.mjs) so Export PDF works on the judges' screen
 const CLIENT_PORT = 5180; // own origin, so its saved login never mixes with the 5173 (local blackbox) client
 
 // Pin the attack scripts to the local test database before lib.mjs reads the environment.
@@ -27,7 +28,7 @@ const taken = (host, port) => new Promise(res => {
   const s = connect({ host, port }, () => { s.destroy(); res(true); });
   s.on('error', () => res(false));
 });
-for (const port of [CLIENT_PORT, 4400]) for (const host of ['127.0.0.1', '::1']) {
+for (const port of [CLIENT_PORT, 4400, PDF_PORT]) for (const host of ['127.0.0.1', '::1']) {
   if (await taken(host, port)) { console.error(`REFUSING: something already listens on ${host.includes(':') ? `[${host}]` : host}:${port}; stop it first`); process.exit(1); }
 }
 
@@ -75,7 +76,11 @@ const vite = fileURLToPath(new URL('../blackbox/client/node_modules/vite/bin/vit
 start('client', process.execPath, [vite, '--port', String(CLIENT_PORT), '--strictPort', '--host', '127.0.0.1'], {
   cwd: root + 'blackbox/client',
   // Real env vars beat the client's .env files in Vite, so this window cannot drift to blackbox or Maincloud.
-  env: { ...process.env, VITE_STDB_URI: 'ws://127.0.0.1:3000', VITE_STDB_DB: DB },
+  // VITE_PDF_URL points Export PDF straight at the local renderer (the client's direct-snapshot mode).
+  env: { ...process.env, VITE_STDB_URI: 'ws://127.0.0.1:3000', VITE_STDB_DB: DB, VITE_PDF_URL: `http://127.0.0.1:${PDF_PORT}/record.pdf` },
+});
+start('pdf', process.execPath, [fileURLToPath(new URL('../pdf/server.mjs', import.meta.url))], {
+  cwd: root + 'pdf', env: { ...process.env, PDF_PORT: String(PDF_PORT), PDF_ALLOWED_ORIGINS: `http://127.0.0.1:${CLIENT_PORT},http://localhost:${CLIENT_PORT}` },
 });
 start('console', process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
   cwd: root, env: { ...process.env, TAMPER_INCIDENT: String(stage.id), TAMPER_INCIDENT_TITLE: STAGE_TITLE },
@@ -95,7 +100,8 @@ console.log(`
   COMMANDER CODE             ${code.slice(0, 4)}-${code.slice(4)}   (single use, 30 min)
   ATTACKER CONSOLE           http://127.0.0.1:4400
   TAMPER TARGET              INC-${stage.id} ${STAGE_TITLE}: open it in BLACKBOX, RECORD tab, before attack 2
-  Ctrl+C stops both.
+  PDF RENDERER               http://127.0.0.1:${PDF_PORT} (Export PDF on the judges' screen)
+  Ctrl+C stops everything.
 `);
 if (recovery?.invalid) console.log(`  ! RECOVERY REQUIRED: ${recovery.error}. Attack 2 is blocked: check the audit record by hand, fix it, then delete attack/.tamper-recovery.json.\n`);
 else if (recovery) console.log(`  ! DEMO EDIT PENDING: record #${recovery.seq} is still edited. Press RESTORE DEMO EDIT in the console first.\n`);
