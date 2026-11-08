@@ -564,3 +564,52 @@ REVIEW of Codex's uncommitted attacker/ changes — kept after independent verif
     -> 403 (no overlay). Console normal use: RUN ALL 4/4 "in this rehearsal" (58 s); stale-id release -> 409 with hold
     intact; refresh mid-hold -> RESTORE NOW with run id -> restored. Chain clean, nothing pending.
   Not covered: Codex's harness under agent-logs/ (ignored, not reviewed or kept); real Ctrl+C during the hold.
+
+CLIENT UI MIGRATION — 2026-11-08. Reconciled the existing uncommitted migration against HEAD 2986904,
+  staged deletions, replacement sources, installed SDK types, project rules, reference sources and the saved
+  local implementation handoff. This completes the existing presentation; no new redesign or backend work.
+  Preserved the reference copy, scoped CSS, Motion 14.10.1, optional shared WebGL field and live module bindings.
+  Replacement coverage reviewed: Chrome -> Command masthead/integrity; IncidentDetail -> CommandView tabs;
+  IncidentForm -> IncidentForms; ScopePane/ClosurePane -> ScopePanel/ClosurePanel; Collaboration/TeamPane ->
+  Panels; AgentEnrollment -> Investigate authorisation. Tasks remain read-only; no assignment/completion added.
+  Fixes confirmed in this pass:
+  - Native dialogs explicitly centered after Tailwind reset. Narrow forms use one column and bounded scrolling;
+    masthead wraps to keep Team reachable. Errors retain the top-layer popover and fit narrow viewports.
+  - Replaced selectNewest's late ref/highest-ID selection with a pending submission + baseline IDs and exact
+    submitted-field matching (including server NFC/trim normalization). Works with row-before-ack or ack-before-row,
+    nonsequential IDs and unrelated updates. Explicit incident selection cancels pending automatic selection;
+    ambiguous matches are not guessed. No reducer return value or backend contract invented.
+  - Drawer focus no longer resets on every parent update; Tab stays inside, Escape restores trigger focus,
+    and a stale exit callback cannot hide a reopened panel. Chat guards pending sends and preserves newer draft text.
+  - Mutation handlers reject a second invocation while their own call is pending; read polling remains independent.
+  - Record inspection can display a globally flagged audit row outside the selected incident timeline, labelled as such.
+    Internal chain verification remains separate from independent anchoring. Reduced-motion changes pause playback.
+  Validation performed now:
+  - Client tsc/Vite production build passed; oxlint exited 0 (16 warnings, no errors); git diff --check passed.
+  - 12 selection assertions passed: normalization, lower new ID, existing/other-user/unrelated rows, every submitted
+    field, empty and ambiguous results. Disposable harness is ignored under client/node_modules/.bb-ui-check/.
+  - Browser checks used the actual React components with explicitly labelled isolated fixtures and NO database
+    connection: desktop dialog centering/focus; 390x844 and 390x600 layout/scrolling; Escape/reopen draft preservation;
+    rejected-form error above dialog; both creation arrival orders; unrelated updates and deliberate selection while
+    an insertion is pending; observer disabled controls/restricted scope and evidence; integrity banner -> record #2;
+    differing prior/current summary display; JSON download parsed as schemaVersion 1; drawer Tab wrapping, Escape,
+    focus return and chat draft retention. Forced JS reduced-motion + unavailable WebGL showed static SVG/text,
+    no autoplay and manual phase advance. This is NOT a claim of live authorization or recorded-revision verification.
+  - Browser console inspected: only the deliberate rejected-fixture error; no unexpected application error observed.
+  - Existing production https://blackbox-utd2026.vercel.app loads BLACKBOX LINK UP; /api/integrations returns
+    pdfReady:true,moduleConfigured:true. This is readiness configuration, NOT a fresh end-to-end PDF export.
+  Preserved wiring: create/update incident; tasks; scope add/edit; activity; request/approve/cancel closure;
+    team/invites/access removal; incident chat; agent authorisation; evidence; mock/replay and FAST/DEEP requests,
+    commander cancellation; actual traces/model/time and revision; module hash inspection; JSON/PDF exports.
+  Limits: no current signed-in live browser session, so Claude's earlier blackbox-attack checks were reviewed,
+    not rerun against a live database. No new end-to-end PDF, live revised assessment, reconnect or concurrent-human
+    integration claim; actual OS media-query changes were not exercised. No NVIDIA calls or database mutations.
+  Deployment route verified: GitHub's Vercel status for 2986904 links the EXISTING rabeet1/blackbox-utd2026 project.
+    CLI is logged out; use its existing Git integration and verify status/assets after push. Previous deployment:
+    https://vercel.com/rabeet1/blackbox-utd2026/be2vf4eCFMEPGFNQhjNqrgWcWkfP
+    Previous production assets: index-BxNEIVfd.js / index-BZ3xh0wT.css. Do not create another project or touch PDF hosting.
+  Scope review: only client presentation/dependency files and this appended handoff; auth/session source, generated
+    bindings, backend, agent/attack/attacker/tests/pdf and configuration untouched. Root untracked AGENTS.md preserved.
+  Attack this: live create/subscription timing with simultaneous teammates; observer privacy; native dialog focus and
+    errors on phones; pending-action double clicks; reduced-motion preference changes; real differing recorded
+    assessments; fresh authenticated PDF export and reconnect behavior on the existing production environment.

@@ -7,6 +7,8 @@ import { loadToken, saveToken } from './identity';
 import { ToastProvider } from './components/Toast';
 import App from './App.tsx';
 import './index.css';
+import './styles/bb.css';
+import './styles/bb-app.css';
 
 const connectionBuilder = DbConnection.builder()
   .withUri(SPACETIMEDB_URI)

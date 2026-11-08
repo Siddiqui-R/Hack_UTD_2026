@@ -1,0 +1,61 @@
+/* Production states the private reference did not need (live failure, neutral and empty states).
+   Same tokens and scope (.bb) as the generated reference stylesheet. */
+.bb { min-height: 100%; }
+.bb .app { min-height: calc(100vh - 78px); }
+.bb .workspace-main { min-width: 0; }
+/* Real teams have dozens of incidents (the reference showed three): on desktop the rail scrolls on its
+   own so the workspace never gets pushed down. Narrow layouts keep the reference's stacked rail. */
+@media (min-width: 901px) {
+  .bb .rail { position: sticky; top: 0; height: 100vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .bb .rail-foot { padding-top: 32px; }
+}
+.bb main#main { width: 100%; }
+.bb .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Masthead integrity: neutral while checking/offline, red when the check fails. */
+.bb .integrity small { color: var(--dim); font: 10px var(--mono); }
+.bb .integrity.is-neutral { color: var(--muted); border-color: var(--line); }
+.bb .integrity.is-broken { color: var(--red); border-color: #6b343b; background: #201318; }
+
+.bb .incident.is-closed strong { color: var(--dim); text-decoration: line-through; text-decoration-color: #3b495c; }
+.bb .rail-foot .mono { font-family: var(--mono); }
+
+/* Dialogs: forms keep the reference spacing. */
+.bb dialog { margin: auto; inset: 0; }
+.bb .dialog-body h2 { margin-bottom: 8px; }
+.bb .form-grid > label { min-width: 0; }
+.bb .form-warning { color: var(--amber); font-size: 12px; margin: 4px 0 14px; }
+.bb .key-facts dd.red { color: var(--red); }
+
+/* Overview picture with no recorded systems. */
+.bb .picture-empty { position: relative; z-index: 1; min-height: 210px; display: grid; place-content: center; gap: 14px; text-align: center; color: var(--muted); padding: 24px; }
+.bb .picture-empty .btn { justify-self: center; }
+.bb .restricted-note { margin-top: 18px; }
+.bb .empty-workspace { padding: 60px 0; }
+.bb .empty-workspace h1 { margin-bottom: 12px; }
+
+/* Team panel presence. */
+.bb .avatar.online { border-color: #3d6b58; color: var(--green); }
+.bb .avatar.revoked { border-color: #6b343b; color: var(--red); opacity: .7; }
+.bb .invite-code { margin-top: 14px; display: grid; gap: 6px; }
+.bb .invite-code .mono { font-size: 22px; letter-spacing: 4px; color: var(--text); }
+
+/* Incident record. */
+.bb .hash-diff { background: var(--red); color: #0b0e12; }
+.bb .payload { margin-top: 18px; white-space: pre-wrap; word-break: break-word; font: 11px/1.6 var(--mono); color: var(--muted); max-height: 320px; overflow: auto; }
+.bb .record-row.faded { opacity: .35; }
+.bb .chain-flow > span[style] { display: contents; }
+
+@keyframes bb-trace-cursor { 50% { opacity: 0; } }
+.bb .trace-cursor { animation: bb-trace-cursor 1s steps(2, end) infinite; }
+@media (prefers-reduced-motion: reduce) { .bb .trace-cursor { animation: none; } }
+
+@media (max-width: 620px) {
+  .bb .masthead { height: auto; min-height: 68px; flex-wrap: wrap; padding: 12px 20px; }
+  .bb .mast-actions { width: 100%; min-width: 0; justify-content: space-between; }
+  .bb .integrity { min-width: 0; white-space: normal; text-align: left; }
+  .bb .integrity small { display: block; }
+  .bb .team-trigger { flex-shrink: 0; }
+  .bb .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.toast { max-width: min(480px, calc(100vw - 32px)); }
