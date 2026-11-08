@@ -66,11 +66,11 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 | 6 | Scope items | observer reading scope | [x] |
 | 7 | Agent service, read-only tools (`searchIncidents`, `getScope`) | injection payloads | [ ] |
 | 8 | Agent write tools (`createTask`, `updateSeverity`, `flagConflict`) | NEMOTRON escalating itself / self-approving | [ ] |
-| 9 | External anchor + `anchorOk` + anchor-mismatch UI | rewrite the whole chain | [ ] |
+| 9 | External anchor + `anchorOk` + anchor-mismatch UI | rewrite the whole chain | Implemented; independent deployment pending |
 | 10 | Two-person approval on destructive actions | self-approve, same user twice | [x] |
-| 11 | INVESTIGATE view: live tool calls + self-correction diff | conflict flow correctness | [ ] |
-| 12 | RECORD view + PDF export with anchored head hash | report integrity | [ ] |
-| 13 | Duress PIN · TOTP · scenario presets · seed data | polish | [ ] |
+| 11 | INVESTIGATE view: live tool calls + self-correction diff | conflict flow correctness | Module/UI ready; worker hookup pending |
+| 12 | RECORD view + PDF export with anchored head hash | report integrity | RECORD/snapshot ready; PDF hookup pending |
+| 13 | Duress PIN · TOTP · scenario presets · seed data | polish | CUT |
 
 ## Log
 
@@ -266,3 +266,16 @@ SLICE 10 implementation — commander requests closure against expectedUpdatedAt
   This deliberately requires requester + two other human reviewers. Basic module/client checks pass; no tests
   beyond build/typecheck (Rabeet owns validation). Attack this: self/duplicate/agent approval, stale/expired
   requests, reviewer revocation, exactly-one audit row and immediate checkpoint enqueue.
+
+IMPLEMENTATION HANDOFF — all owned module/client work through agreed scope is now pushed.
+  4 done; 9 checkpoint plumbing/store implementation ready (independent hosting/secrets still required);
+  11 module queue/trace + UI ready (Rabeet worker poll/claim/trace/finish integration required);
+  12 RECORD/snapshot/PDF hook ready (Rabeet PDF endpoint required). Supporting 5,6,10 implemented. 13 cut.
+  No modifications to agent/**, attack/**, tests/** or pdf/** in this implementation pass. No NVIDIA calls;
+  local budget counter still5/40. No reset or data deletion command used; all publishes --delete-data=never.
+  Basic final checks: module tsc --noEmit, module build/binding generation, client tsc + Vite production build.
+  No security/adversarial/extended tests run; Rabeet owns them. Existing untracked root AGENTS.md preserved.
+  Dependencies: independently deploy checkpoint store; worker hooks per AGENT_CONTRACT.md; PDF POST renderer
+  per recordTypes.ts / VITE_PDF_URL. Cancellation requires worker to stop if queue/trace is cancelled.
+  Attack this: review new endpoints/permissions and integration behavior; especially run attribution,
+  snapshot redaction, external checkpoint provenance, chat/scope filtering and closure approval freshness.

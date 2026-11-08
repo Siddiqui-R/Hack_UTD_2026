@@ -374,3 +374,12 @@ and the collapsed center pane at narrow widths: keep the 44px header on one line
 console with horizontal scrolling as the fallback. Quiet green explicitly says UNANCHORED; the red band
 names the broken record/reason. The single integrity wash has a static reduced-motion fallback.
 No anchor-mismatch treatment is shown before slice 9; RECORD-focused hash diff belongs to slice 12.
+
+### Remaining workspace implementation review
+
+INVESTIGATE keeps mode/model/time visible, has expandable trace JSON, uses preserved before/after conclusions
+only when actual completed summaries differ, and labels an unclaimed request QUEUED. Evidence/trace panes
+scroll independently. RECORD separates current head from external checkpoint, focuses a genuinely broken seq
+and compares module-produced hashes; PDF is disabled until a renderer is configured. Chat and scope use flat
+rows/native controls restyled to tokens. Closure names its two-other-reviewer requirement explicitly.
+Source/layout self-critique checked §§2/10; runtime/security validation is left to Rabeet as requested.

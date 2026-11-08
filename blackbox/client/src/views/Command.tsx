@@ -42,6 +42,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
       if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       if ((e.key === 'n' || e.key === 'N') && canWrite) {
         e.preventDefault();
+        setView('command');
         setCreating(true);
       }
     };
