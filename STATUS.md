@@ -734,3 +734,17 @@ LIGHT MODE (Rabeet, branch feat/light-mode on main c3cbe5c, 2026-11-08 11:08 CST
 LIGHT MODE RELEASED (Rabeet, 2026-11-08 11:15 CST / 17:15 UTC): PR #5 merged as cadc5e7 (client only, no publish).
   Vercel production index-BQJ9SaNY.js live: LINK UP, switch flips and survives reload, no console errors (headless Chrome).
   Attack this: a signed-in production session in light (incident picture, record chain, PDF export unaffected).
+
+CLIENT USABILITY FIX (Codex, 2026-11-08) — client only; preserves module, worker, PDF, attack code and data.
+  Tasks now defaults to To do (open, in progress, blocked); completed tasks move to Done on subscription update.
+  Done keeps completion notes, attribution and the existing Reopen action. Reopening returns a task to To do.
+  Tasks navigation badge counts unfinished work only; loading waits for task progress to avoid showing done rows as open.
+  Switching incidents remounts the task panel so filters and open task dialogs cannot carry over to another incident.
+  Simpler copy: Take task, agent setup/access/renewal guidance, practice run, impact not recorded, and login name/connection.
+  Technical tool names remain available in step details; enum values, reducer arguments, permissions and audit untouched.
+  Checks: client TypeScript + production build passed; lint 0 errors (existing warnings); diff whitespace check passed.
+  Read-only rendered fixtures passed active/done filtering, counts, incident isolation, reopen availability, empty states,
+  and progress-loading guard. No DB writes or NVIDIA calls. Local :5180 serves these sources through Vite HMR.
+  Signed-in browser check not completed: browser tool could not verify the native Chrome URL; IAB reached login only.
+  Attack this: complete/reopen a task in two browser sessions, confirm list and badge update; verify Done notes still
+  respect observer redaction. Rabeet: no backend contract changes or worker restart required.

@@ -176,7 +176,7 @@ export function IncidentPicture({ incident, scope, canReadScope, conflicts, evid
                     <path className="server-symbol" d={`M${x + 18} ${70}h20v10h-20zm0 16h20v10h-20z`} />
                     <text className="asset-name" x={x + 52} y="84">{n.name.length > 18 ? `${n.name.slice(0, 17)}…` : n.name}</text>
                     <text className={`asset-state ${tone === 'danger' ? 'danger' : tone === 'caution' ? 'caution' : ''}`} x={x + 18} y="124">
-                      {n.scope ? displayValue(n.scope.state).toUpperCase() : canReadScope ? 'NO SCOPE RECORD' : 'LISTED'}
+                      {n.scope ? displayValue(n.scope.state).toUpperCase() : canReadScope ? 'IMPACT NOT RECORDED' : 'LISTED'}
                     </text>
                   </g>
                 );
@@ -199,7 +199,7 @@ export function IncidentPicture({ incident, scope, canReadScope, conflicts, evid
               <span className="map-inspector-state">{displayValue(inspect.scope.state).toUpperCase()} · {displayValue(inspect.scope.confidence).toUpperCase()}</span>
               <p>{inspect.scope.dataType} · {inspect.scope.records.toLocaleString()} affected records recorded.{inspect.scope.note ? ` ${inspect.scope.note}` : ''}</p>
             </> : <>
-              <span className="map-inspector-state">{canReadScope ? 'NO SCOPE RECORD' : 'LISTED ON THE INCIDENT'}</span>
+              <span className="map-inspector-state">{canReadScope ? 'IMPACT NOT RECORDED' : 'LISTED ON THE INCIDENT'}</span>
               <p>{canReadScope ? 'This system is listed on the incident, but no impact has been recorded for it yet.' : 'Your role can see the systems list but not recorded impact.'}</p>
             </>}
             {canReadScope && <button onClick={onScope}>View systems &amp; data ↗</button>}

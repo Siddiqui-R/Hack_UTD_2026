@@ -84,7 +84,7 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
         <div className="flex items-center gap-4">
           <ThemeToggle />
           <span className="font-mono text-[12px]" style={{ color: isActive ? 'var(--color-text-2)' : 'var(--color-critical)' }}>
-            {isActive ? 'LINK UP' : 'LINK DOWN'}
+            {isActive ? 'CONNECTED' : 'DISCONNECTED'}
           </span>
         </div>
       </header>
@@ -123,7 +123,7 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
           />
 
           <label className="flex w-[260px] flex-col gap-1">
-            <span className="label">Callsign</span>
+            <span className="label">Your name</span>
             <input
               ref={nameRef}
               className="field"
@@ -141,7 +141,7 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
         </form>
 
         <p className="h-4 font-mono text-[12px]" style={{ color: state === 'error' ? 'var(--color-critical)' : 'var(--color-text-2)' }}>
-          {state === 'error' ? message : state === 'ok' ? 'ACCEPTED' : 'Single-use code from your incident commander. No passwords, no corporate SSO.'}
+          {state === 'error' ? message : state === 'ok' ? 'ACCEPTED' : 'Enter the one-time invite code your commander shared with you.'}
         </p>
       </main>
     </div>

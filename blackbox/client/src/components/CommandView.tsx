@@ -47,7 +47,9 @@ export function CommandView({ incident, me, team, broken, go, tab, setTab }: {
 }) {
   const canWrite = me.role === 'commander' || me.role === 'responder';
   const [scope] = useTable(tables.scopeItems.where(r => r.incidentId.eq(incident.id)));
-  const [tasks] = useTable(tables.tasks);
+  const [tasks, tasksReady] = useTable(tables.tasks);
+  const [taskProgress, progressReady] = useTable(tables.taskProgress);
+  const completedTasks = new Set(taskProgress.filter(t => t.incidentId === incident.id && t.status === 'done').map(t => t.taskId));
   const [conflictRows] = useTable(tables.investigationConflicts);
   const [evidenceRows] = useTable(tables.investigationEvidence);
   const [runs] = useTable(tables.investigationRuns);
@@ -73,7 +75,7 @@ export function CommandView({ incident, me, team, broken, go, tab, setTab }: {
   else if (canWrite && !scope.length) next = { title: 'Record affected systems & data.', copy: 'Note what is affected and how certain you are.', action: () => setTab('scope'), label: 'Record systems & data →' };
 
   const tabs: [Tab, string, string | number][] = [
-    ['overview', 'Overview', ''], ['tasks', 'Tasks', tasks.filter(t => t.incidentId === incident.id).length], ['scope', 'Systems & data', canWrite ? scope.length : ''],
+    ['overview', 'Overview', ''], ['tasks', 'Tasks', tasksReady && progressReady ? tasks.filter(t => t.incidentId === incident.id && !completedTasks.has(t.id)).length : '…'], ['scope', 'Systems & data', canWrite ? scope.length : ''],
     ['activity', 'Activity', ''], ['approvals', 'Close incident', pending && !closed ? '1 pending' : ''], ['details', 'Details', ''],
   ];
   const onTabKey = (e: React.KeyboardEvent) => {
@@ -98,7 +100,7 @@ export function CommandView({ incident, me, team, broken, go, tab, setTab }: {
     </section>
     {!canWrite && <p className="section-note restricted-note">Your observer role can view the incident summary and history, but not affected data or evidence.</p>}
   </>;
-  else if (tab === 'tasks') body = <TasksPanel incident={incident} me={me} team={team} onInvestigate={() => go('investigate')} />;
+  else if (tab === 'tasks') body = <TasksPanel key={incident.id.toString()} incident={incident} me={me} team={team} onInvestigate={() => go('investigate')} />;
   else if (tab === 'scope') body = <ScopePanel key={incident.id.toString()} incidentId={incident.id} canWrite={canWrite} />;
   else if (tab === 'activity') body = <ActivityPanel incident={incident} team={team} />;
   else if (tab === 'approvals') body = <ClosurePanel key={`closure-${incident.id}`} incident={incident} me={me} team={team} />;

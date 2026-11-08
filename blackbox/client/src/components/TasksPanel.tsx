@@ -108,10 +108,11 @@ function CreateForm({ incidentId, onDone }: { incidentId: bigint; onDone: () => 
 
 export function TasksPanel({ incident, me, team, onInvestigate }: { incident: Incident; me: TeamMember; team: readonly TeamMember[]; onInvestigate: () => void }) {
   const [taskRows, tasksReady] = useTable(tables.tasks);
-  const [stateRows] = useTable(tables.taskProgress);
+  const [stateRows, progressReady] = useTable(tables.taskProgress);
   const { isActive } = useSpacetimeDB();
   const claim = useReducer(reducers.claimTask), setStatus = useReducer(reducers.updateTaskStatus), run = useRun(true);
   const [creating, setCreating] = useState(false);
+  const [filter, setFilter] = useState<'active' | 'done'>('active');
   const [noting, setNoting] = useState<NoteTarget | null>(null);
   const [assigning, setAssigning] = useState<AssignTarget | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -124,6 +125,7 @@ export function TasksPanel({ incident, me, team, onInvestigate }: { incident: In
   const stateOf = (t: Task): TaskState | undefined => states.get(t.id.toString());
   const versionOf = (id: bigint) => states.get(id.toString())?.version ?? 0n;
   const done = tasks.filter(t => stateOf(t)?.status === 'done').length;
+  const visibleTasks = tasks.filter(t => (stateOf(t)?.status === 'done') === (filter === 'done'));
   const person = (id?: Identity) => {
     if (!id) return undefined;
     const m = team.find(x => x.identity.isEqual(id));
@@ -139,7 +141,7 @@ export function TasksPanel({ incident, me, team, onInvestigate }: { incident: In
     const pending = busy === t.id.toString();
     const note = (to: NoteTarget['to']) => () => setNoting({ taskId: t.id, text: t.text, to, version });
     const list: React.ReactNode[] = [];
-    if (status !== 'done' && !assignee) list.push(<button key="claim" className="btn" disabled={pending} onClick={() => quick(t, () => claim({ taskId: t.id, expectedVersion: version }))}>Claim</button>);
+    if (status !== 'done' && !assignee) list.push(<button key="claim" className="btn" disabled={pending} onClick={() => quick(t, () => claim({ taskId: t.id, expectedVersion: version }))}>Take task</button>);
     if (manage && status === 'open') list.push(<button key="start" className="btn" disabled={pending} onClick={() => quick(t, () => setStatus({ taskId: t.id, status: 'in_progress', note: '', expectedVersion: version }))}>Start</button>);
     if (manage && status === 'blocked') list.push(<button key="resume" className="btn" disabled={pending} onClick={() => quick(t, () => setStatus({ taskId: t.id, status: 'in_progress', note: '', expectedVersion: version }))}>Resume</button>);
     if (manage && (status === 'open' || status === 'in_progress')) list.push(<button key="block" className="btn" onClick={note('blocked')}>Mark blocked…</button>);
@@ -154,18 +156,22 @@ export function TasksPanel({ incident, me, team, onInvestigate }: { incident: In
       <div className="section-head">
         <div>
           <h2>Response tasks</h2>
-          <p className="section-note">Tasks from the investigation agent are labelled NEMOTRON. People claim, update and complete them here; the work itself happens in your own tools.</p>
+          <p className="section-note">Pick a task, do the work in your own tools, then mark it done here. AI suggestions are labelled NEMOTRON.</p>
         </div>
         <div className="action-row">
-          {tasks.length > 0 && <span className="badge">{done} OF {tasks.length} DONE</span>}
+          {tasksReady && progressReady && tasks.length > 0 && <span className="badge">{done} OF {tasks.length} DONE</span>}
           {editable && <button className="btn" onClick={() => setCreating(true)}>+ New task</button>}
           <button className="btn" onClick={onInvestigate}>Investigate ↗</button>
         </div>
       </div>
+      <div className="action-row task-filters" role="group" aria-label="Show tasks">
+        <button className={`btn ${filter === 'active' ? 'primary' : ''}`} aria-pressed={filter === 'active'} onClick={() => setFilter('active')}>To do ({tasksReady && progressReady ? tasks.length - done : '…'})</button>
+        <button className={`btn ${filter === 'done' ? 'primary' : ''}`} aria-pressed={filter === 'done'} onClick={() => setFilter('done')}>Done ({tasksReady && progressReady ? done : '…'})</button>
+      </div>
       {closed && <p className="section-note restricted-note">This incident is closed. Its tasks are read-only.</p>}
       {!closed && canWrite && !isActive && <p className="section-note restricted-note" role="status">Connection lost. Task changes are paused until it returns.</p>}
       {!canWrite && <p className="section-note restricted-note">Observers can follow task progress but can’t change it. Notes are visible to commanders and responders.</p>}
-      {!tasksReady ? <p className="empty-note">Loading tasks…</p> : tasks.length ? tasks.map(t => {
+      {!tasksReady || !progressReady ? <p className="empty-note">Loading tasks…</p> : visibleTasks.length ? visibleTasks.map(t => {
         const s = stateOf(t), status = s?.status ?? 'open', look = STATUS[status] ?? { label: status, glyph: '?', badge: '' };
         const who = person(s?.assignee), list = editable ? actions(t, s) : [];
         return (
@@ -181,7 +187,7 @@ export function TasksPanel({ incident, me, team, onInvestigate }: { incident: In
             <span className="eyebrow">#{t.id.toString()}</span>
           </div>
         );
-      }) : <p className="empty-note">No tasks yet. {editable ? 'Add one with “+ New task”, or run an investigation to get suggestions.' : 'An investigation can suggest next steps.'}</p>}
+      }) : <p className="empty-note" role="status">{filter === 'done' ? 'No completed tasks yet. Finished work will appear here.' : tasks.length ? 'All tasks are done. You can review them in Done.' : editable ? 'No tasks yet. Add a task or start an investigation for suggestions.' : 'No tasks yet.'}</p>}
 
       <Modal open={creating} onClose={() => setCreating(false)} title="New response task" intro="Write one concrete step for a person to carry out. The team sees it immediately.">
         <CreateForm incidentId={incident.id} onDone={() => setCreating(false)} />

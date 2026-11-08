@@ -28,8 +28,8 @@ function AgentAuthorisation({ incident, me }: { incident: Incident; me: TeamMemb
   const enrolledHere = agents.filter(a => a.incidentId === incident.id);
   return (
     <div className="section-divider">
-      <div className="section-head"><h2>Authorise the investigation agent</h2><span className="badge" style={{ color: state.tone.color }} data-testid="agent-status">{state.tone.glyph} {state.label}</span></div>
-      <p className="section-note">A commander authorises the agent’s identity to work on one incident. “Enrolled” means its session is live; it does not prove the worker is running.</p>
+      <div className="section-head"><h2>Connect the investigation agent</h2><span className="badge" style={{ color: state.tone.color }} data-testid="agent-status">{state.tone.glyph} {state.label}</span></div>
+      <p className="section-note">Paste the worker ID from the agent’s terminal to give it access to this incident. Access expires after 15 minutes without agent activity. The worker must also be running to pick up investigations.</p>
       {enrolledHere.length > 0 && <p className="mono dim" style={{ fontSize: 11, marginTop: 10 }}>
         {enrolledHere.map(a => <span key={a.identity.toHexString()} title={a.identity.toHexString()} style={{ marginRight: 12 }}>{shortId(a.identity.toHexString())}{a.revoked ? ' · access removed' : a.sessionActive ? ' · live' : ' · session expired'}</span>)}
       </p>}
@@ -40,11 +40,11 @@ function AgentAuthorisation({ incident, me }: { incident: Incident; me: TeamMemb
           if (await run(() => enroll({ target: Identity.fromString(hex), incidentId: incident.id }))) setInput('');
         }}>
           <input aria-label="Agent identity" className="mono" value={input} onChange={e => setInput(e.target.value)} spellCheck={false}
-            placeholder="Paste the identity the agent worker prints (64 hex characters)" style={{ flex: 1, minWidth: 260, margin: 0 }} />
-          <button type="submit" className="btn" disabled={!hex}>{state.needsEnrol && enrolledHere.length ? 'Renew authorisation' : 'Authorise agent'} for {incidentNumber(incident.id)}</button>
+            placeholder="Paste the worker ID from the agent’s terminal" style={{ flex: 1, minWidth: 260, margin: 0 }} />
+          <button type="submit" className="btn" disabled={!hex}>{state.needsEnrol && enrolledHere.length ? 'Renew access' : 'Connect agent'} for {incidentNumber(incident.id)}</button>
         </form>
       ) : <p className="section-note" style={{ marginTop: 12 }}>Only a commander can authorise the agent.</p>}
-      {me.role === 'commander' && input && !hex && <p className="form-warning">No 64-character hex identity found in that text.</p>}
+      {me.role === 'commander' && input && !hex && <p className="form-warning">That ID is not valid. Copy the full 64-character worker ID from the agent’s terminal.</p>}
     </div>
   );
 }
@@ -66,7 +66,7 @@ function ReasoningGraph({ a, b, reason, assessment, revised }: { a?: string; b?:
         <rect className="graph-source" x="4" y="124" width="221" height="70" rx="3" />
         <text className="graph-kicker" x="20" y="147">REPORT B</text><text className="graph-copy" x="20" y="173">{clip(b ?? 'Evidence not visible', 30)}</text>
         <rect className="graph-conflict" x="355" y="69" width="155" height="80" rx="3" />
-        <text className="graph-kicker caution" x="378" y="99">REPORTS DISAGREE</text><text className="graph-copy" x="379" y="124">flagConflict()</text>
+        <text className="graph-kicker caution" x="378" y="99">REPORTS DISAGREE</text><text className="graph-copy" x="379" y="124">Needs review</text>
         {assessment && <><rect className="graph-decision" x="625" y="69" width="220" height="80" rx="3" />
           <text className="graph-kicker" x="643" y="98">{revised ? 'UPDATED ASSESSMENT' : 'CURRENT ASSESSMENT'}</text>
           <text className="graph-copy" x="643" y="125">{clip(assessment, 26)}</text></>}
@@ -121,7 +121,7 @@ export function Investigate({ incident, me }: { incident: Incident; me: TeamMemb
       </div>
       <div className="action-row">
         <select aria-label="Investigation mode" value={mode} onChange={e => setMode(e.target.value)} disabled={!!busy} style={{ width: 'auto', margin: 0 }}>
-          <option value="mock">Mock run · no model credits</option>
+          <option value="mock">Practice run · no NVIDIA calls</option>
           <option value="replay">Replay a recorded run</option>
         </select>
         <button className="btn primary" disabled={!!busy} onClick={() => run(() => request({ incidentId: incident.id, tier: 'fast', mode }))}>Start investigation</button>
@@ -133,17 +133,17 @@ export function Investigate({ incident, me }: { incident: Incident; me: TeamMemb
     <div className="two-col">
       <section>
         <div className="section-head"><h2>What the agent did</h2><span className="eyebrow">{busy ? 'IN PROGRESS' : current ? `RUN #${current.id}` : 'NOT STARTED'}</span></div>
-        {!current && <p className="empty-note">Add evidence, then start an investigation. Mock and replay runs use no model credits.</p>}
-        {current?.status === 'queued' && <p className="empty-note">Queued · waiting for the authorised agent service to pick this up.</p>}
-        {current?.status === 'running' && !steps.length && <p className="empty-note">The agent claimed this run · waiting for its first step <span className="trace-cursor">▌</span></p>}
+        {!current && <p className="empty-note">Add evidence, then start an investigation. Practice and replay runs make no NVIDIA calls.</p>}
+        {current?.status === 'queued' && <p className="empty-note">Waiting for the agent. Make sure its worker is running and its access is active below.</p>}
+        {current?.status === 'running' && !steps.length && <p className="empty-note">The agent has started · waiting for its first update <span className="trace-cursor">▌</span></p>}
         <div className="step-pipeline" ref={pipeline}>
           {steps.map((s, i) => {
             const active = current?.status === 'running' && i === steps.length - 1;
             return (
               <div key={s.id.toString()} className={`tool-step ${active ? 'current' : s.kind === 'error' ? 'pending' : 'complete'}`}>
                 <span className="step-icon">{s.kind === 'error' ? '×' : s.kind === 'call' ? '→' : '✓'}</span>
-                <div><strong title={s.name}>{toolLabel(s.name)}</strong><p>{s.kind === 'call' ? 'Request' : s.kind === 'error' ? 'Error' : 'Result'} · <span className="mono">{s.name}</span> · {fmtUtc(tsToDate(s.createdAt)).slice(11)}</p></div>
-                <span>{active ? <>WORKING <span className="tool-progress"><i /></span></> : s.kind.toUpperCase()}</span>
+                <div><strong title={s.name}>{toolLabel(s.name)}</strong><p>{s.kind === 'call' ? 'Request' : s.kind === 'error' ? 'Error' : 'Result'} · {fmtUtc(tsToDate(s.createdAt)).slice(11)}</p></div>
+                <span>{active ? <>WORKING <span className="tool-progress"><i /></span></> : s.kind === 'call' ? 'REQUESTED' : s.kind === 'error' ? 'FAILED' : 'RECEIVED'}</span>
               </div>
             );
           })}
