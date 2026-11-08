@@ -6,6 +6,7 @@ import { useRun } from './Toast';
 import { Modal } from './Modal';
 import { UpdateIncidentForm } from './IncidentForms';
 import { ScopePanel } from './ScopePanel';
+import { TasksPanel } from './TasksPanel';
 import { ClosurePanel, useClosure } from './ClosurePanel';
 import { IncidentPicture, type NextStep } from './IncidentPicture';
 import { containmentLabel, displayValue, eventLabel, incidentNumber, statusLabel } from '../lib/copy';
@@ -39,23 +40,6 @@ function ActivityPanel({ incident, team }: { incident: Incident; team: readonly 
         ))}</div>
       )}
     </section>
-  );
-}
-
-function TasksPanel({ incident, onInvestigate }: { incident: Incident; onInvestigate: () => void }) {
-  const [rows] = useTable(tables.tasks);
-  const tasks = rows.filter(t => t.incidentId === incident.id).sort((a, b) => (a.id < b.id ? -1 : 1));
-  return (
-    <div className="focused-section">
-      <div className="section-head"><div><h2>Response tasks</h2><p className="section-note">Tasks from the investigation agent are labelled NEMOTRON.</p></div><button className="btn" onClick={onInvestigate}>Investigate ↗</button></div>
-      {tasks.length ? tasks.map(t => (
-        <div className="task" key={t.id.toString()}>
-          <span className="task-marker" aria-hidden />
-          <div className="task-content"><h3>{t.text}</h3><p>{displayValue(t.assigneeRole)} · Added by {t.createdBy}</p></div>
-          <span className="eyebrow">#{t.id.toString()}</span>
-        </div>
-      )) : <p className="empty-note">No tasks yet. An investigation can suggest next steps.</p>}
-    </div>
   );
 }
 
@@ -115,7 +99,7 @@ export function CommandView({ incident, me, team, broken, go, tab, setTab }: {
     </section>
     {!canWrite && <p className="section-note restricted-note">Your observer role can view the incident summary and history, but not affected data or evidence.</p>}
   </>;
-  else if (tab === 'tasks') body = <TasksPanel incident={incident} onInvestigate={() => go('investigate')} />;
+  else if (tab === 'tasks') body = <TasksPanel incident={incident} me={me} team={team} onInvestigate={() => go('investigate')} />;
   else if (tab === 'scope') body = <ScopePanel key={incident.id.toString()} incidentId={incident.id} canWrite={canWrite} />;
   else if (tab === 'activity') body = <ActivityPanel incident={incident} team={team} />;
   else if (tab === 'approvals') body = <ClosurePanel key={`closure-${incident.id}`} incident={incident} me={me} team={team} />;

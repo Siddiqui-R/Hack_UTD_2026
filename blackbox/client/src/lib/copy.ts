@@ -24,13 +24,19 @@ const TOOLS: Record<string, string> = {
 export const toolLabel = (name: string) => TOOLS[name] ?? name;
 
 const EVENTS: Record<string, string> = {
-  'incident.create': 'Incident opened', 'incident.update': 'Incident updated',
-  'evidence.submit': 'Evidence added', 'agent.conflict': 'Reports marked as conflicting', 'agent.task': 'Response task created',
-  'agent.severity': 'Severity changed by the agent', 'agent.enroll': 'Agent authorised', 'agent.run.request': 'Investigation requested',
+  // Keys are the exact action names the module writes (appendAudit in blackbox/spacetimedb/src/index.ts).
+  'incident.create': 'Incident opened', 'incident.update': 'Incident updated', 'incident.severity': 'Severity raised by the agent',
+  'evidence.submit': 'Evidence added', 'conflict.flag': 'Reports marked as conflicting', 'task.create': 'Response task created',
+  'task.claim': 'Task claimed', 'task.assign': 'Task assigned', 'task.unassign': 'Task unassigned', 'task.start': 'Task started',
+  'task.block': 'Task blocked', 'task.unblock': 'Task resumed', 'task.complete': 'Task marked done', 'task.reopen': 'Task reopened',
+  'task.status': 'Task status changed',
+  'agent.enroll': 'Agent authorised', 'agent.request': 'Investigation requested', 'agent.begin': 'Investigation started',
+  'agent.finish': 'Investigation finished', 'agent.cancel': 'Investigation cancelled',
   'scope.add': 'System or data recorded', 'scope.update': 'System or data updated',
-  'closure.request': 'Close request sent', 'closure.approve': 'Close request approved', 'closure.cancel': 'Close request cancelled', 'incident.close': 'Incident closed',
+  'closure.request': 'Close request sent', 'closure.approve': 'Close request approved', 'closure.cancel': 'Close request cancelled',
   'invite.create': 'Invite code created', 'invite.redeem': 'Teammate joined', 'invite.bootstrap': 'Commander invite created',
-  'session.revoke': 'Access removed', 'message.send': 'Chat message sent',
+  'user.revoke': 'Access removed', 'user.unrevoke': 'Access restored', 'user.set_role': 'Role changed',
+  'anchor.start': 'Independent checkpoints started', 'message.send': 'Chat message sent',
 };
 // Unknown actions (including a tampered value) are shown verbatim, never prettified away.
 export const eventLabel = (name: string) => EVENTS[name] ?? name;

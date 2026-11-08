@@ -31,6 +31,20 @@ export function validateSnapshot(s) {
   return s;
 }
 
+// Task progress fields are optional: older snapshots print exactly as before. "Done" is a person's recorded
+// completion, not a verified repair. Observer snapshots carry note "[restricted]" and print no note text.
+const TASK_STATUS={open:'OPEN',in_progress:'IN PROGRESS',blocked:'BLOCKED',done:'DONE'};
+function taskItem(r,item){
+  const parts=[`Created by ${escape(r.createdBy)}`];
+  if(typeof r.status==='string'){
+    parts.push(`Status ${escape(TASK_STATUS[r.status]??r.status)}`);
+    parts.push(r.assignee?`Assigned to ${escape(r.assignee)}`:'Unassigned');
+  }
+  if(r.completedBy)parts.push(`Completion recorded by ${escape(r.completedBy)}${decimal(r.completedAt)?` at ${escape(utc(r.completedAt))}`:''}`);
+  const note=r.note==='[restricted]'?'<p class="muted">Task notes are restricted for this reader.</p>':typeof r.note==='string'&&r.note?`<p>Note: ${escape(r.note)}</p>`:'';
+  return item(`#${r.id} / ${r.assigneeRole}`,`<p>${escape(r.text)}</p><p class="kicker">${parts.join(' | ')}</p>${note}`);
+}
+
 export function snapshotHtml(value) {
   const s=validateSnapshot(value),v=s.verification,c=s.anchoredCheckpoint;
   const independent=v.ok && v.anchorOk===true && v.anchorStatus==='verified' && c?.independentlyVerified===true;
@@ -51,7 +65,7 @@ export function snapshotHtml(value) {
   ${section('Incident',pair('Type',s.incident.type)+pair('Containment',s.incident.containment)+pair('Affected systems',s.incident.systemsAffected)+pair('Reported by',s.incident.reportedBy))}
   ${section('Integrity at snapshot time',pair('Global records checked',v.checked)+pair('Current database sequence',s.auditHead.seq)+pair('Current database head hash',s.auditHead.hash)+checkpoint)}
   ${section('Compromised-data scope',s.permissions.canReadScope?s.scope.map(r=>item(r.asset,`${pair('Data / state / confidence',`${r.dataType} / ${r.state} / ${r.confidence}`)}${pair('Records',r.records)}${text(r.note)}`)).join(''):'<p>Restricted for this reader.</p>')}
-  ${section('Tasks',s.tasks.map(r=>item(`#${r.id} / ${r.assigneeRole}`,`<p>${escape(r.text)}</p><p class="kicker">Created by ${escape(r.createdBy)}</p>`)).join(''))}
+  ${section('Tasks',s.tasks.map(r=>taskItem(r,item)).join(''))}
   ${section('Evidence',s.permissions.canReadEvidence?s.evidence.map(r=>item(`Evidence #${r.id}`,text(r.text))).join(''):'<p>Restricted for this reader.</p>')}
   ${section('Conflicts',s.permissions.canReadEvidence?s.conflicts.map(r=>item(`Evidence #${r.evidenceIdA} / #${r.evidenceIdB}`,text(r.reason))).join(''):'<p>Restricted for this reader.</p>')}
   ${section('Investigations',s.permissions.canReadEvidence?s.investigations.map(r=>item(`Run #${r.id} / ${r.mode} / ${r.status}`,pair('Model',r.modelId)+pair('Latency (ms)',r.latencyMs)+pair('Previous conclusion',r.previousSummary)+pair('Conclusion',r.summary))).join(''):'<p>Restricted for this reader.</p>')}
