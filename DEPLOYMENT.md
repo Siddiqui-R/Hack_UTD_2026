@@ -21,7 +21,12 @@
 - Client stays on Vercel per owner instruction. Vercel access is pending; no production client URL yet.
   No local-to-cloud data migration has been performed or claimed.
 
-## Releasing Q1 run binding (branch `fix/q1-run-binding`; needs the owner, nothing is live yet)
+## Released: Q1 run binding (PR #4)
+
+Owner published the module; Maincloud showed the runId signatures at 10:18:35 CT on 2026-11-08. The cloud worker was
+restarted on the Q1 code at 10:18:43 (PID 19048, same service identity, waiting for enrolment). PR #4 merged as
+`e7b0ac4`; Vercel production https://vercel.com/rabeet1/blackbox-utd2026/7GBe4vrjkMxuXngQtVE7Zzm56Lwh serves
+`index-C8GZ2e7V.js` and connects (LINK UP, no console errors). Release notes as written before the merge:
 
 Changes signatures the agent worker calls; the browser client calls none of them (its bindings change type only).
 `record_agent_step` takes a required run id first; `create_task`, `update_severity` and `flag_conflict` take an

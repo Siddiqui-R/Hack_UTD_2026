@@ -4,13 +4,14 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-**Branch `fix/q1-run-binding` (2026-11-08 10:10, on main 928f266, NOT on Maincloud):** Q1 per the owner's decision.
+**Q1 RELEASED 2026-11-08 10:18 (PR #4 merged as `e7b0ac4`):** Q1 per the owner's decision.
 Queue traces and agent tool writes now name their run; the server accepts them only for the worker's own running run,
 so a stale trace or a write after cancel is refused. Standalone CLI runs (incl. --live) stay run-less but are refused
 while a UI run is queued or running. Live stays out of the queue. **526 held, both Q1 probes exit 0, demo 16/16,
 unit 8/8, injection 20/20, client build/lint, module tsc/build; a mock run from the real UI on blackbox-attack
-completed with full trace. Zero NVIDIA calls.** Release: owner publishes the module, Rabeet restarts worker:cloud
-right after (an old worker fails closed on the new signatures), then merge. Order and rollback in DEPLOYMENT.md.
+completed with full trace. Zero NVIDIA calls.** Released: owner published the module (Maincloud shows
+the runId signatures 10:18:35); worker:cloud restarted on Q1 code 10:18:43 (PID 19048, same identity, waiting for
+enrolment); then merged. Vercel production `index-C8GZ2e7V.js` live, LINK UP, no console errors. Rollback in DEPLOYMENT.md.
 **Attack this:** a delayed write from an old worker process after a cancel; a standalone run started just before a UI
 run is queued; the worker restart window on Maincloud.
 
@@ -28,7 +29,7 @@ people at once, Export PDF). Pre-release: 486 held, demo 16/16, unit 8/8, client
 - Fixed: A2 (local store aliases), agent_status revoked check (V1, bounded by the 60 s sweep), Activity/RECORD refresh
   races and freshness/error display, /api/pdf 4 MiB read cap, activity labels now match real audit action names.
 - Hosted PDF renderer redeployed: prints task status, assignee and completion; observer PDFs omit notes (verified).
-- Deferred with reasons in FINDINGS.md: Q1 (fixed since on `fix/q1-run-binding`, see above), P1, D1 (only a
+- Deferred with reasons in FINDINGS.md: Q1 (fixed and released, see above), P1, D1 (only a
   major vitest upgrade fixes it).
 - **Attack this:** two people claiming the same task in the live UI; a stale dialog submit after someone else changed
   the task; observer JSON/PDF export of a task with notes; Activity while switching incidents quickly.
@@ -664,3 +665,9 @@ Q1 RUN BINDING (Rabeet, branch fix/q1-run-binding on main 928f266, 2026-11-08 10
     writes. Real standalone mock run.mjs completes when idle, refused while a UI run is queued. Zero NVIDIA calls.
   Release: owner publishes the module from this branch, Rabeet restarts worker:cloud immediately after, then merge.
   Attack this: old-worker writes after cancel; standalone vs. UI race on Maincloud; the restart window.
+
+Q1 RELEASED (Rabeet, 2026-11-08 10:25 CT): owner published the module (runId signatures live on Maincloud 10:18:35);
+  watcher restarted worker:cloud on the Q1 code 10:18:43 (PID 19048, identity 0xc200de27…cf96, waiting for enrolment);
+  PR #4 merged as e7b0ac4; Vercel production deployed (index-C8GZ2e7V.js), integrations ready, /api/pdf 401 without a
+  session, headless Chrome LINK UP with no console errors. Not yet done: a signed-in Maincloud investigation run.
+  Attack this: re-enrol the worker and run a mock investigation; cancel mid-run and confirm no write lands after it.
