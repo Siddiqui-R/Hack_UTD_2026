@@ -10,13 +10,32 @@ const LOCK_MS = 200;
 
 type State = 'idle' | 'busy' | 'error' | 'ok';
 
+// Demo link: /?invite=CODE&name=CALLSIGN fills the form and signs in, so nobody types a code on stage.
+// The server still checks the code (single use, 30-minute expiry). The params leave the address bar at once.
+// Judge demo: /?demo asks /api/demo-invite for a fresh responder code, then signs in the same way.
+function readInviteLink(): { code: string; name: string; demo?: boolean } | null {
+  try {
+    const p = new URLSearchParams(location.search);
+    if (!p.has('invite') && !p.has('demo')) return null;
+    history.replaceState(null, '', location.pathname + location.hash);
+    const name = (p.get('name') ?? '').trim().slice(0, 40);
+    if (p.has('demo')) return { code: '', name: name || 'Judge', demo: true };
+    const code = [...(p.get('invite') ?? '').toUpperCase()].filter(c => ALPHABET.includes(c)).join('').slice(0, LENGTH);
+    return code.length === LENGTH ? { code, name: name || 'Demo' } : null;
+  } catch {
+    return null;
+  }
+}
+const LINK = readInviteLink();
+let pendingLink = LINK; // consumed once, even under StrictMode's double effects
+
 // DESIGN §6.1. `onHold(true)` keeps this screen up through the 200ms green lock after
 // the session appears; `onHold(false)` releases it for the hard cut to COMMAND.
 export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
   const { isActive } = useSpacetimeDB();
   const redeem = useReducer(reducers.redeemInvite);
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
+  const [code, setCode] = useState(LINK?.code ?? '');
+  const [name, setName] = useState(LINK?.name ?? '');
   const [state, setState] = useState<State>('idle');
   const [message, setMessage] = useState('');
   const [shakeKey, setShakeKey] = useState(0);
@@ -32,14 +51,14 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
     if (next.length === LENGTH && !name.trim()) nameRef.current?.focus();
   };
 
-  const submit = async () => {
+  const submit = async (c = code, n = name) => {
     if (state === 'busy' || state === 'ok') return;
-    if (code.length !== LENGTH) return codeRef.current?.focus();
-    if (!name.trim()) return nameRef.current?.focus();
+    if (c.length !== LENGTH) return codeRef.current?.focus();
+    if (!n.trim()) return nameRef.current?.focus();
     setState('busy');
     onHold(true);
     try {
-      await redeem({ code, displayName: name.trim() });
+      await redeem({ code: c, displayName: n.trim() });
       setState('ok');
       window.setTimeout(() => onHold(false), LOCK_MS);
     } catch (err) {
@@ -50,6 +69,18 @@ export function Login({ onHold }: { onHold: (hold: boolean) => void }) {
       codeRef.current?.focus();
     }
   };
+
+  // Demo link: sign in as soon as the connection is up.
+  useEffect(() => {
+    const link = pendingLink;
+    if (!link || !isActive) return;
+    pendingLink = null;
+    if (!link.demo) { submit(); return; }
+    fetch('/api/demo-invite', { method: 'POST' })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('demo sign-in unavailable'))))
+      .then(({ code: c }: { code: string }) => { setCode(c); submit(c, link.name); })
+      .catch(err => { setState('error'); setMessage(String(err.message ?? err).toUpperCase()); });
+  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const boxColor =
     state === 'error' ? 'var(--color-critical)' : state === 'ok' ? 'var(--color-ok)' : undefined;
