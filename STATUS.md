@@ -4,8 +4,12 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 22:45 CT · tested through `813c13f` (enrolment UI, `agent_status`) plus Rabeet's `c9cd0fe..0c97bd8`.
-**421 live regression checks held, 0 VULN/errors, 10 consecutive clean runs · unit tests 8/8 · demo 16/16 on 10 rehearsals.**
+Updated 2026-11-08 08:35 CT · retested at `2986904` (Sensei's attacker console + demo 2 hold/recovery): **421 held,
+demo 16/16, 0 VULN/errors**; full-history gitleaks clean, no `nvapi-` in any commit; repo is PUBLIC.
+**Still open before judging:** worker NOT yet enrolled on Maincloud (paste the identity below into AGENT SERVICE on the
+demo incident; re-enrol right before INVESTIGATE because the agent session lapses 15 min after its last write);
+NVIDIA key not yet on Rabeet's machine, so no golden FAST recording yet; Export PDF not yet clicked on the live site.
+Prior run (2026-11-07 22:45, `813c13f`): **421 live regression checks held on 10 consecutive runs · unit tests 8/8 · demo 16/16 on 10 rehearsals.**
 
 **MAINCLOUD WORKER IS RUNNING, waiting for enrolment.** `cd agent && npm run worker:cloud` targets
 `blackbox-utd2026-abbas9x` as service identity `0xc200de27ebc6e3b71f0eca84b26faa5055062d30769af56a77b063ca20eacf96`
