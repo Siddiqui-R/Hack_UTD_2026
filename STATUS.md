@@ -4,7 +4,11 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 19:15 · tested through `3d339f8` · **attacks 88/88 held** · tests 4/8 pass, 4 todo
+Updated 2026-11-07 19:30 · tested through `3d339f8` · **attacks 88/88 held** · demo 4/4 held (2 skipped) · tests 4/8 pass, 4 todo
+
+**New: demo attack 2 is live** (`attack/demo/2-tamper.mjs`): the owner edits one audit row via `spacetime sql`, an independent
+verifier names that exact seq, then the row is restored so it re-runs. When slice 4 lands it will also call your `verifyChain`
+and expect the same `brokenAt`, so please return `{ ok, checked, brokenAt, reason }` with `brokenAt` = the seq number.
 
 **Your hardening verified:** G19 (agent raise-only), G22 (observer evidence), I12 (`expectedUpdatedAt`), owner can't be
 enrolled as agent, agent revocation permanent, revoked commander's invites die: all hold. Attack helper updated for

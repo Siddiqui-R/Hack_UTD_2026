@@ -143,6 +143,18 @@ export async function auditRows() {
   return r.rows.sort((a, b) => Number(a.seq) - Number(b.seq));
 }
 
+// Independent verifier with the same result shape slice 4's verifyChain must return.
+export const GENESIS = '0'.repeat(64);
+export function verifyChainIndependent(rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i], seq = Number(r.seq);
+    if (seq !== i + 1) return { ok: false, checked: i, brokenAt: seq, reason: `seq gap: expected ${i + 1}` };
+    if (r.prev_hash !== (i ? rows[i - 1].event_hash : GENESIS)) return { ok: false, checked: i, brokenAt: seq, reason: 'prev_hash link broken' };
+    if (auditHash(r) !== r.event_hash) return { ok: false, checked: i, brokenAt: seq, reason: 'event_hash mismatch (row edited)' };
+  }
+  return { ok: true, checked: rows.length, brokenAt: null, reason: '' };
+}
+
 // Random invite code in the module's format (8 chars, no I/L/O/0/1).
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function randomCode() {
