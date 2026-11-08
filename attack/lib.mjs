@@ -38,6 +38,15 @@ export async function call(who, reducer, args = []) {
   return { ok: res.ok, status: res.status, error: text };
 }
 
+// Timestamp argument in SpacetimeDB's JSON format.
+export const ts = (ms = Date.now()) => ({ __timestamp_micros_since_unix_epoch__: Math.round(ms * 1000) });
+
+// The standard "try to write something" call: a valid create_incident (slice 3+).
+export function write(who, title = 'atk write', over = {}) {
+  const a = { title, type: 'ransomware', severity: 'high', detectedAt: ts(Date.now() - 60_000), systems: 'fin-db-02', containment: 'none', ...over };
+  return call(who, 'create_incident', [a.title, a.type, a.severity, a.detectedAt, a.systems, a.containment]);
+}
+
 // Run SQL as `who` (or anonymous). Returns { ok, rows, cols, error }.
 export async function sql(who, query) {
   const headers = { 'Content-Type': 'text/plain' };

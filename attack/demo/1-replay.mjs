@@ -1,6 +1,6 @@
 // On-stage attack 1: an attacker copies a responder's session token off their laptop,
 // waits for the session to expire, then replays it.
-import { call, sql, ownerSql, record, signIn, runTag, color as C } from '../lib.mjs';
+import { call, sql, ownerSql, record, signIn, runTag, color as C, write } from '../lib.mjs';
 
 export const label = 'ATTACK 1';
 export const title = 'Replay a stolen session token';
@@ -15,7 +15,7 @@ export async function run() {
   ownerSql(`DELETE FROM session WHERE identity = ${victim.identity}`);
 
   say('attacker replays the token: write to the incident…');
-  const w = await call(victim, 'add_ping', ['attacker was here']);
+  const w = await write(victim, 'attacker was here');
   record('A1a', 'replayed token writes', w.ok ? 'VULN' : 'PASS', w.ok ? 'ACCEPTED' : `REJECTED: ${w.error}`);
 
   say('…and read the team roster');

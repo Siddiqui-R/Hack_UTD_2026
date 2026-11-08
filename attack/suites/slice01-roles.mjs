@@ -1,16 +1,16 @@
 // Slice 1: users + roles + ctx.sender checks. (Users are created through slice 2 invites.)
-import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, runTag } from '../lib.mjs';
+import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, runTag, write } from '../lib.mjs';
 
 export const slice = 1;
 export const title = 'Users, roles, ctx.sender checks';
 
 export async function run() {
   const anon = await newIdentity();
-  const probe = await call(anon, 'add_ping', ['probe']);
+  const probe = await write(anon, 'probe');
   if (probe.status === 404) return record('R0', 'slice 1 not published', 'SKIP');
 
   // --- Unregistered caller -------------------------------------------------
-  expectDenied('R1', 'unregistered caller writes (add_ping)', probe);
+  expectDenied('R1', 'unregistered caller writes (create_incident)', probe);
   expectDenied('R2', 'unregistered caller changes a role (set_role)',
     await call(anon, 'set_role', [{ __identity__: anon.identity }, 'commander']));
 
@@ -30,7 +30,7 @@ export async function run() {
   // --- Signed-in observer ---------------------------------------------------
   const cmd = await getCommander();
   const obs = await signIn('observer');
-  expectDenied('R6', 'observer writes (add_ping)', await call(obs, 'add_ping', ['observer write']));
+  expectDenied('R6', 'observer writes (create_incident)', await write(obs, 'observer write'));
   expectDenied('R7', 'observer self-promotes to commander',
     await call(obs, 'set_role', [{ __identity__: obs.identity }, 'commander']));
   expectDenied('R8', 'observer demotes the commander',
