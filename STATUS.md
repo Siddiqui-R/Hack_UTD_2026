@@ -671,3 +671,26 @@ Q1 RELEASED (Rabeet, 2026-11-08 10:25 CT): owner published the module (runId sig
   PR #4 merged as e7b0ac4; Vercel production deployed (index-C8GZ2e7V.js), integrations ready, /api/pdf 401 without a
   session, headless Chrome LINK UP with no console errors. Not yet done: a signed-in Maincloud investigation run.
   Attack this: re-enrol the worker and run a mock investigation; cancel mid-run and confirm no write lands after it.
+
+QA SWEEP + FIRST LIVE RUN SINCE PROBES (owner-approved, 2026-11-08 ~16:40 CT) — tested at `37aaee5` (tasks + Q1).
+  NVIDIA BUDGET NOW 9/40 (agent-logs/live-call-count.json). Supersedes every "5/40" above, including the FROM RABEET
+  section. 4 calls this session: 1 wasted (an old pre-Q1 agent checkout against the new module failed closed on
+  flag_conflict's new runId argument; not a product bug) + 3 in one standalone `run.mjs --live` FAST run.
+  Live run (local blackbox-attack incident #84, two conflicting reports): LIGHTNING 30B, 9.0 s, flagConflict(57,58)
+  -> conflict #8 and createTask -> task #36, both audited as NEMOTRON; severity left at high with a stated reason.
+  Log: agent-logs/run-1794155815357-live-LIGHTNING30B.json (gitignored). ULTRA 550B (deep) has NO live run yet.
+  The 40-call cap is BLACKBOX's own guardrail, not NVIDIA's allowance; NVIDIA rate limits are separate and variable.
+  Demo pacing: a live FAST run takes ~9 s end to end (plan narration over it). The UI queue never runs live, so the
+  stage path is mock/replay (~2-3 s); a replay needs a recording made on the SAME incident and model, and the one above
+  is for local incident #84 only. Production has no live recording yet.
+  Local multi-user QA (latest main, three real sessions: commander/responder/observer, mock worker): incident create/
+  update/stale refusal; scope add/edit; tasks create/claim/start/done-with-note with live sync, observer sees status
+  but not notes, closed incident read-only; chat across users; FAST/DEEP mock runs with traces + conflict graph;
+  commander cancel (nothing written after; agent writes carry their runId); two-person closure; access removal signs
+  the user out; tamper -> red band -> review record -> auto-clear after restore; Activity labels all friendly;
+  JSON export carries task status/notes; 375 px layout no horizontal scroll. Regression 526/526 on the same module.
+  Minor (not fixed): task marker looks like a checkbox but is inert; chain graphic shows only the last 4 records, so an
+  older broken record is highlighted in the list but not in the graphic; an assignee cannot un-claim (commander only).
+  STILL UNVERIFIED ON PRODUCTION: signed-in PDF export, signed-in task workflow, signed-in investigation + cancellation
+  (production was only checked without a login: site up, no console errors, /api/pdf 401 without/with bad session).
+  Attack this: ULTRA live run + replay of it; production PDF as commander AND observer; two humans on production tasks.
