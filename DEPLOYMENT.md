@@ -21,6 +21,26 @@
 - Client stays on Vercel per owner instruction. Vercel access is pending; no production client URL yet.
   No local-to-cloud data migration has been performed or claimed.
 
+## Releasing branch `feat/task-workflow` (needs the owner; nothing is live yet)
+
+The branch adds the human task workflow (one additive private table `task_state`, one view `task_progress`, four
+reducers, additive getRecord fields), the agent_status revocation check, the A2 local-store fix, record refresh
+guards and the /api/pdf read cap. The PDF renderer update is already deployed (it prints old snapshots unchanged).
+
+Order matters, because the new client subscribes to `task_progress` and calls the new reducers:
+1. **Owner publishes the module first:** `node blackbox/spacetimedb/deployment/publish.mjs maincloud` (deletion
+   disabled). Verified locally: the same publish against an existing database with data succeeds as an additive
+   migration, and every existing table and row is untouched.
+2. **Then merge `feat/task-workflow` into `main`.** Vercel builds production from `main` automatically. Merging first
+   would ship a client whose Tasks tab calls reducers that don't exist yet.
+3. Smoke test signed in: create, claim, complete and reopen a task as two people; check Activity labels; export a PDF
+   as commander and observer.
+
+Rollback: the old client works against the new module (all changes are additive), so a bad client deploy rolls back
+with Vercel's instant rollback to the current production build `blackbox-utd2026-nbdq6z5d3-rabeet1.vercel.app`
+(previous: `blackbox-utd2026-autqvpcl8-rabeet1.vercel.app`). Rolling the module back is forward-fix only: republishing
+older code that drops `task_state` would be refused or would need deletion, so fix forward instead.
+
 ## First commander on Maincloud (owner only)
 
 Fastest (also the lockout recovery, ~10 s): `node blackbox/spacetimedb/deployment/commander-code.mjs maincloud`

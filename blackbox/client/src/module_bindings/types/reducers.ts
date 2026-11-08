@@ -8,9 +8,12 @@ import { type Infer as __Infer } from "spacetimedb";
 // Import all reducer arg schemas
 import AddScopeItemReducer from "../add_scope_item_reducer";
 import ApproveClosureReducer from "../approve_closure_reducer";
+import AssignTaskReducer from "../assign_task_reducer";
 import BeginAgentRunReducer from "../begin_agent_run_reducer";
 import CancelAgentRunReducer from "../cancel_agent_run_reducer";
 import CancelClosureReducer from "../cancel_closure_reducer";
+import ClaimTaskReducer from "../claim_task_reducer";
+import CreateHumanTaskReducer from "../create_human_task_reducer";
 import CreateIncidentReducer from "../create_incident_reducer";
 import CreateInviteReducer from "../create_invite_reducer";
 import CreateTaskReducer from "../create_task_reducer";
@@ -32,12 +35,16 @@ import UnrevokeSessionReducer from "../unrevoke_session_reducer";
 import UpdateIncidentReducer from "../update_incident_reducer";
 import UpdateScopeItemReducer from "../update_scope_item_reducer";
 import UpdateSeverityReducer from "../update_severity_reducer";
+import UpdateTaskStatusReducer from "../update_task_status_reducer";
 
 export type AddScopeItemParams = __Infer<typeof AddScopeItemReducer>;
 export type ApproveClosureParams = __Infer<typeof ApproveClosureReducer>;
+export type AssignTaskParams = __Infer<typeof AssignTaskReducer>;
 export type BeginAgentRunParams = __Infer<typeof BeginAgentRunReducer>;
 export type CancelAgentRunParams = __Infer<typeof CancelAgentRunReducer>;
 export type CancelClosureParams = __Infer<typeof CancelClosureReducer>;
+export type ClaimTaskParams = __Infer<typeof ClaimTaskReducer>;
+export type CreateHumanTaskParams = __Infer<typeof CreateHumanTaskReducer>;
 export type CreateIncidentParams = __Infer<typeof CreateIncidentReducer>;
 export type CreateInviteParams = __Infer<typeof CreateInviteReducer>;
 export type CreateTaskParams = __Infer<typeof CreateTaskReducer>;
@@ -59,4 +66,5 @@ export type UnrevokeSessionParams = __Infer<typeof UnrevokeSessionReducer>;
 export type UpdateIncidentParams = __Infer<typeof UpdateIncidentReducer>;
 export type UpdateScopeItemParams = __Infer<typeof UpdateScopeItemReducer>;
 export type UpdateSeverityParams = __Infer<typeof UpdateSeverityReducer>;
+export type UpdateTaskStatusParams = __Infer<typeof UpdateTaskStatusReducer>;
 

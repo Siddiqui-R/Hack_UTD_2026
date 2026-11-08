@@ -36,9 +36,12 @@ import {
 // Import all reducer arg schemas
 import AddScopeItemReducer from "./add_scope_item_reducer";
 import ApproveClosureReducer from "./approve_closure_reducer";
+import AssignTaskReducer from "./assign_task_reducer";
 import BeginAgentRunReducer from "./begin_agent_run_reducer";
 import CancelAgentRunReducer from "./cancel_agent_run_reducer";
 import CancelClosureReducer from "./cancel_closure_reducer";
+import ClaimTaskReducer from "./claim_task_reducer";
+import CreateHumanTaskReducer from "./create_human_task_reducer";
 import CreateIncidentReducer from "./create_incident_reducer";
 import CreateInviteReducer from "./create_invite_reducer";
 import CreateTaskReducer from "./create_task_reducer";
@@ -60,6 +63,7 @@ import UnrevokeSessionReducer from "./unrevoke_session_reducer";
 import UpdateIncidentReducer from "./update_incident_reducer";
 import UpdateScopeItemReducer from "./update_scope_item_reducer";
 import UpdateSeverityReducer from "./update_severity_reducer";
+import UpdateTaskStatusReducer from "./update_task_status_reducer";
 
 // Import all procedure arg schemas
 import * as AgentRunStatusProcedure from "./agent_run_status_procedure";
@@ -83,6 +87,7 @@ import InvestigationRunsRow from "./investigation_runs_table";
 import InvestigationStepsRow from "./investigation_steps_table";
 import MessagesRow from "./messages_table";
 import ScopeItemsRow from "./scope_items_table";
+import TaskProgressRow from "./task_progress_table";
 import TasksRow from "./tasks_table";
 import TeamRow from "./team_table";
 
@@ -160,6 +165,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, ScopeItemsRow),
+  taskProgress: __table({
+    name: 'task_progress',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, TaskProgressRow),
   tasks: __table({
     name: 'tasks',
     indexes: [
@@ -180,9 +192,12 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("add_scope_item", AddScopeItemReducer),
   __reducerSchema("approve_closure", ApproveClosureReducer),
+  __reducerSchema("assign_task", AssignTaskReducer),
   __reducerSchema("begin_agent_run", BeginAgentRunReducer),
   __reducerSchema("cancel_agent_run", CancelAgentRunReducer),
   __reducerSchema("cancel_closure", CancelClosureReducer),
+  __reducerSchema("claim_task", ClaimTaskReducer),
+  __reducerSchema("create_human_task", CreateHumanTaskReducer),
   __reducerSchema("create_incident", CreateIncidentReducer),
   __reducerSchema("create_invite", CreateInviteReducer),
   __reducerSchema("create_task", CreateTaskReducer),
@@ -204,6 +219,7 @@ const reducersSchema = __reducers(
   __reducerSchema("update_incident", UpdateIncidentReducer),
   __reducerSchema("update_scope_item", UpdateScopeItemReducer),
   __reducerSchema("update_severity", UpdateSeverityReducer),
+  __reducerSchema("update_task_status", UpdateTaskStatusReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

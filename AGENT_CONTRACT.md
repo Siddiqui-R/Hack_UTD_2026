@@ -156,4 +156,23 @@ State is one of unknown/compromised/encrypted/exfiltrated/unaffected (`encrypted
 Commanders enrol from INVESTIGATE → AGENT SERVICE: paste the worker's printed line or the 64-hex identity; the client
 calls enrollAgent({target: Identity.fromString(hex), incidentId: selected}). Server rules unchanged.
 Read-only view agent_status (signed-in humans only): [{identity, incidentId, enrolledAt, sessionActive, revoked}].
+Revoked humans now get an empty agent_status as well (branch feat/task-workflow).
+
+## Human task workflow (branch feat/task-workflow, 2026-11-08) — humans only
+The agent's `createTask({text, assigneeRole})` and its NEMOTRON provenance are unchanged. Progress lives in a private
+`task_state` row keyed by task id; a task with no row is open, unassigned, version 0. Agents are refused on all of these.
+| Reducer | Arguments | Who |
+|---|---|---|
+| create_human_task | [incidentId, text 1-1000, assigneeRole commander\|responder] | commander, responder |
+| claim_task | [taskId, expectedVersion] | commander, responder; task unassigned and not done |
+| assign_task | [taskId, assignee: option identity, expectedVersion] | commander; assignee an unrevoked commander/responder (online not required) |
+| update_task_status | [taskId, status open\|in_progress\|blocked\|done, note, expectedVersion] | the assignee or a commander |
+Transitions: open, in_progress and blocked move freely; any of them → done; done → open (reopen). A note of 3-1000
+characters is required to block, complete or reopen. Every change must name the current version and bumps it by one;
+a stale or repeated request is refused with no state change and no audit row. Closed incidents are read-only. Task
+changes never alter incident status, severity, containment or closure. Audit actions: task.create, task.claim,
+task.assign, task.unassign, task.start, task.block, task.unblock, task.complete, task.reopen (keeps the previous
+completion in its payload), task.status. View `task_progress`: signed-in, unrevoked humans; observers get notes blanked.
+getRecord tasks gain createdAt, status, assignee, version, completedBy, completedAt, note (observers: "[restricted]");
+schemaVersion stays 1 and older snapshots still render.
 

@@ -1,0 +1,486 @@
+Yes. The missing piece is task execution tracking. Right now, NEMOTRON can create a task containing instructions and an assignee role, but people cannot claim it, assign a specific teammate, record progress, mark it blocked, or complete it. The [task schema (line 134)](C:/Blackbox/blackbox/spacetimedb/src/index.ts:134) and [Tasks panel (line 45)](C:/Blackbox/blackbox/client/src/components/CommandView.tsx:45) confirm this.
+
+People still perform the actual remediation—isolating hosts, patching systems, restoring backups—using their operational tools. BLACKBOX should coordinate that work and record what people did. Adding automatic access to infrastructure would be a separate integration project.
+
+I checked the current code, Rabeet’s handoffs, findings, deep sweep, agent/PDF documentation, and GitHub issue #2. Several older handoff instructions are obsolete: worker integration, PDF hosting, A1’s anchor fix, the enrollment UI, and the UI deployment are already implemented.
+
+The remaining work is:
+Area	What remains
+Task workflow	Human task creation, individual ownership, progress, blocked/completed states, completion notes, audit history, concurrent-edit protection, and record/export integration.
+Q1	Fix stale traces attaching to a later run and business writes succeeding after cancellation. Worker prechecks alone do not fix either server race.
+A2	Canonicalize numeric sequences in the local checkpoint store, including persisted aliases such as 11 and 011. Hosted implementation already rejects these.
+P1	Handle expected procedure denials and malformed trace JSON without fatal module errors; update callers consistently.
+V1	Investigate the agent-status expiry window and broad invalidation. Respect installed view-context limitations; do not invent a timestamp API.
+Dependencies	Recheck recorded D1 development-tool advisories. Track D2’s PDF dependency/Chromium compatibility limitation separately.
+Record correctness	Address overlapping refreshes, stale responses, and visible freshness/error state. Verify closed-incident controls match server restrictions.
+PDF	Perform the authenticated production UI export; verify observer redaction. Address or explicitly retain the non-Latin font limitation. Review adapter buffering limits.
+Agent demonstration	Confirm the demo incident, enroll/re-enroll the Maincloud worker, obtain an authorized real FAST recording, and verify matching replay and genuinely differing recorded summaries.
+Injection testing	Fence/server checks exist; actual model-layer testing remains unverified and requires separate live-call approval.
+Live UI regression	Test the newly deployed UI with signed-in roles, concurrent teammates, reconnects, hidden-tab expiry, actual reduced-motion changes, and mobile devices.
+Demo/recovery	Physical hotspot/network rehearsal, independent checkpoint verification, and real terminal Ctrl+C/terminal-close recovery during the tamper hold.
+Final handoff	Retest the new commits, rerun separate open-finding probes, update findings/status/contracts, verify deployments, and retain rollback references.
+
+
+The detailed evidence is in [STATUS.md (line 5)](C:/Blackbox/STATUS.md:5), [FINDINGS.md](C:/Blackbox/attack/FINDINGS.md), and [DEEP_SWEEP.md](C:/Blackbox/attack/DEEP_SWEEP.md). Passing the existing regression suite does not close the separately reproduced findings.
+
+Here is the prompt I would give him. It explicitly authorizes the task feature so his older “do not add features” handoff does not block this specific request.
+Finish BLACKBOX’s remaining verified work and implement a complete, human-operated response-task workflow that blends into the existing deployed UI.
+
+This is an incremental implementation in the existing application. Preserve the approved UI, existing workflows, security boundaries, data, and teammate changes. Do not rebuild or redesign BLACKBOX.
+
+USER AUTHORIZATION AND BOUNDARIES
+
+This request explicitly authorizes the task workflow described below, including the narrowly necessary module, client, bindings, tests, agent compatibility, record/export, and documentation changes. It supersedes the older “Rabeet does not add product features” restriction ONLY for this task workflow.
+
+Also address the confirmed remaining findings within your existing ownership, coordinating any shared backend contract changes as one coherent implementation.
+
+Do not interpret this as permission to:
+- Reset, delete, replace, or reseed existing databases.
+- Replace the existing Vercel projects or change database targets.
+- Rewrite authentication, invitations, session policy, role management, closure approval rules, anchoring architecture, model routing, or budgets.
+- Give the agent permission to complete tasks, manage people, approve closure, or execute arbitrary infrastructure commands.
+- Add unrelated features, dependencies, or schema changes.
+- Run NVIDIA/live-model calls without the existing explicit approval.
+- Run destructive owner-level attack scripts against production.
+
+Task management records human work. It does not itself isolate hosts, patch servers, restore backups, or prove that an external system is repaired. Do not add a fake “Resolve” button that pretends those actions happened.
+
+1. RECONCILE THE ACTUAL CURRENT STATE
+
+Begin with read-only reconciliation.
+
+Read:
+- Root AGENTS.md and applicable nested rules.
+- blackbox/AGENTS.md and the installed SpacetimeDB types.
+- STATUS.md, especially FROM RABEET and the final migration/deployment entries.
+- RABEET_HANDOFF.md and GPT_HANDOFF.md as historical context.
+- attack/FINDINGS.md, attack/DEEP_SWEEP.md, attack/INJECTION_RESULTS.md.
+- AGENT_CONTRACT.md, agent/README.md, pdf/README.md, DEPLOYMENT.md.
+- GitHub issue #2 and its latest replies.
+- Current source, generated contracts, Git status, staged/unstaged changes, and recent history.
+
+At prompt preparation:
+- Remote main was bfafa3eb759a50df7577fc30d5b02b66291c1904.
+- UI migration commit: 649c5fc9c93029dccf42781a3abf13a246f032a1.
+- Rabeet’s 7ebd95d status update was preserved beneath that migration.
+- Root AGENTS.md was untracked and must remain untouched.
+Verify whether any of this has advanced.
+
+Production client:
+https://blackbox-utd2026.vercel.app
+
+Existing client project:
+rabeet1/blackbox-utd2026
+
+Existing Maincloud database:
+blackbox-utd2026-abbas9x
+
+Existing PDF project:
+rabeet1/blackbox-pdf
+
+The migrated client is already deployed. Do not redo the migration.
+
+Distinguish:
+- Confirmed current defects.
+- Features already implemented.
+- Tests previously performed.
+- Integration checks that remain unverified.
+- Historical claims superseded by later entries.
+
+Preserve all teammate work. Do not reset, restore, stash, delete, or overwrite unrelated changes. Resolve routine implementation choices yourself; ask only for genuinely missing authority, destructive actions, live credits, or an unresolved shared contract.
+
+2. PRESERVE THE EXISTING UI AND BEHAVIOR
+
+Use the real React implementation and live bindings.
+
+Relevant client files:
+- src/components/CommandView.tsx
+- src/components/IncidentForms.tsx
+- src/components/ScopePanel.tsx
+- src/components/ClosurePanel.tsx
+- src/components/Panels.tsx
+- src/components/Modal.tsx
+- src/components/Toast.tsx
+- src/components/IncidentPicture.tsx
+- src/views/Command.tsx
+- src/views/Investigate.tsx
+- src/views/Record.tsx
+- src/lib/incidentSelection.ts
+- src/lib/recordTypes.ts
+- src/lib/pdfExport.ts
+- src/styles/bb.css
+- src/styles/bb-app.css
+
+Keep the masthead, rail, Command tabs, task row styling, typography, spacing, colors, dialogs, responsive behavior, Motion effects, shader, and static fallbacks.
+
+Preserve the migration fixes:
+- Centered native dialogs with bounded scrolling.
+- Narrow-screen masthead and single-column forms.
+- Error popovers above modal dialogs.
+- Creation selection that handles either subscription/acknowledgement order.
+- Explicit incident selection cancelling pending automatic selection.
+- Drawer focus containment and restoration.
+- Pending-submit protection.
+- Chat draft preservation.
+- Internal verification and independent anchoring shown separately.
+
+Do not introduce another dashboard, kanban redesign, new navigation destination, or large component-library dependency.
+
+3. IMPLEMENT A REAL HUMAN TASK WORKFLOW
+
+Current verified behavior:
+- The private task table stores id, incidentId, text, assigneeRole, createdBy, createdAt.
+- createTask is an agent-only reducer.
+- The Tasks tab renders those rows read-only.
+- There is no individual ownership, lifecycle, completion note, or completion action.
+- JSON/PDF snapshots currently export only the original task fields.
+
+Implement the smallest complete workflow:
+
+A. Human-created tasks
+Commanders/responders can add a concrete response task for an existing, writable incident.
+Keep the existing agent createTask tool and its provenance intact.
+Use a separate human endpoint where needed; do not weaken the agent-only endpoint.
+Never trust a client-supplied creator identity or “NEMOTRON” label.
+
+B. Ownership
+Show the existing intended assignee role separately from the actual assigned person.
+Allow an eligible human to claim an unassigned task.
+Allow commanders to assign, reassign, or clear an assignee.
+Use stable identities, not display names, as stored references.
+Validate that assignees are eligible, unrevoked human team members.
+Do not require someone to be online merely to receive an assignment.
+Preserve attribution if a teammate later goes offline, is demoted, or loses access.
+Do not silently transfer or erase their historical work.
+
+C. Progress
+Use a small explicit lifecycle such as:
+- Open
+- In progress
+- Blocked
+- Done
+
+Document the allowed transitions.
+An assigned eligible human can update their own task.
+A commander can manage tasks with clear attribution.
+Require a useful reason when blocking, completing, or reopening a task.
+Completion must record who completed it and when, plus a bounded completion note.
+Reopening must preserve the previous completion in audit history.
+An agent must never mark human remediation complete.
+
+D. Incident boundaries
+Reject task mutations for closed incidents unless the existing product policy explicitly permits them.
+Do not reopen an incident through a task endpoint.
+Do not change containment, severity, or closure state automatically when a task changes.
+Do not silently add “all tasks must be done” as a new closure requirement.
+Existing two-human closure behavior must remain unchanged.
+
+Show unresolved tasks as useful context without changing closure authorization.
+
+E. Honest meaning
+“Done” means a human recorded completion.
+Do not imply an independent scan verified the repair.
+Allow a human to reference supporting evidence without copying restricted raw evidence into observer-visible fields.
+No SSH, shell execution, endpoint-management access, network isolation API, or automated remediation is included.
+
+F. Keep scope small
+No due dates, subtasks, recurring jobs, notifications, bulk operations, deletion, or arbitrary task automation unless genuinely required for this workflow.
+Do not expand the model’s tools merely to support human progress tracking.
+
+4. DESIGN THE DATA CHANGE FOR COMPATIBILITY
+
+Inspect the deployed schema and installed 2.14 migration behavior before choosing a shape.
+
+Prefer an additive private companion table keyed by the existing task ID if that avoids changing existing task rows and agent contracts.
+For existing tasks without progress metadata, derive a documented default such as Open + unassigned.
+Do not mass-rewrite historical rows or invent completion history.
+A different design is acceptable only if it is demonstrably safer and preserves existing data.
+
+Use an explicit version or equivalent reliable concurrency token.
+Require the expected version on assignment and lifecycle mutations.
+Validate and update atomically in the reducer.
+Two people claiming or completing the same version must not silently overwrite one another.
+A repeated request must not produce duplicate state transitions or duplicate audit rows.
+
+Keep task text and original provenance intact.
+A state change should not rewrite the original agent recommendation.
+
+Use private tables plus authorized views/procedures.
+Do not use deprecated RLS/clientVisibilityFilter.
+Do not hand-edit generated bindings.
+
+Preserve existing workspace visibility policy:
+Current human access is not an incident-membership system.
+Do not invent per-incident membership or claim a restriction the backend does not implement.
+Validate incident/task relationships consistently wherever both identifiers are accepted.
+Keep agent incident isolation intact.
+
+Define the visibility of new notes explicitly:
+- Observers remain read-only.
+- Existing task visibility must not widen into raw evidence access.
+- Default to restricting sensitive completion/blocking notes and evidence detail to commanders/responders.
+- Apply the same redaction in subscriptions, procedures, JSON, and PDF.
+- Server-side enforcement is mandatory; hiding controls is insufficient.
+
+Every new mutating reducer:
+- Checks ctx.sender’s role and live/revoked session first.
+- Rejects agent/service identities for human assignment/progress/completion.
+- Validates task existence, incident relationship, incident state, allowed transition, assignee eligibility, input lengths, and expected version.
+- Performs one atomic transaction.
+- Appends exactly one audit row on success, zero on denial.
+- Records the real human actor and meaningful before/after information.
+- Uses ctx.timestamp and deterministic module logic.
+- Does not accept a client-provided audit actor, hash, completion timestamp, or authority.
+
+Keep canonicalJson singular and audit hashing inside the module.
+
+5. INTEGRATE TASKS INTO THE CURRENT UI
+
+Extend the existing Tasks tab.
+
+Keep rows readable and compact:
+- Task instruction.
+- Original creator/provenance.
+- Intended role.
+- Assigned teammate or Unassigned.
+- Text + shape/icon status, not color alone.
+- The next relevant action based on current permissions/state.
+- Completion/blocking detail when permitted.
+
+Use existing buttons, Modal, error handling, tokens, and styles.
+Use small dialogs for assignment and completion/blocking notes where needed.
+Preserve drafts after server rejection.
+Show stale-version errors clearly and offer refresh/review rather than silently resubmitting.
+Disable or guard pending actions.
+Let subscriptions drive committed state; do not optimistically fabricate completion.
+
+Provide clear empty, loading, disconnected, read-only, closed-incident, and failed-save states.
+Keep task counts understandable; if adding completed/total counts, label them.
+Keep all existing Tasks/Investigate navigation reachable.
+
+Verify keyboard access, focus, Escape behavior, error visibility, long text, narrow screens, reduced motion, and unavailable WebGL/Motion.
+Do not let a task update change incident selection or reset unrelated forms/chat drafts.
+
+6. UPDATE HISTORY AND EXPORTS
+
+Task creation, assignment, status changes, completion, and reopening must appear with accurate human-readable labels in Activity and Incident record.
+
+Read actual action names from the module; do not invent mappings that never match stored events.
+Preserve unknown audit action display.
+
+Update getRecord and client snapshot types so exported records can describe task ownership/progress/completion truthfully.
+Keep backward compatibility with existing snapshots and renderer expectations.
+Prefer additive optional fields with explicit defaults where compatible.
+Do not bump schemaVersion casually: inspect the adapter and renderer, which currently require version 1.
+
+Update both the local and hosted PDF paths as necessary.
+Old snapshots must still render.
+Observer exports must remain redacted.
+Never send the user’s SpacetimeDB token to the PDF renderer.
+Keep the actual checkpoint hash distinct from the database head.
+A PDF remains an unsigned rendering of a snapshot.
+
+7. ADDRESS THE CONFIRMED REMAINING FINDINGS
+
+Q1 — run attribution and atomic cancellation:
+Reconcile:
+- node attack/probes/run-attribution.mjs
+- node attack/probes/cancelled-tool.mjs
+
+A delayed trace from cancelled run A must never attach to run B.
+A business write arriving after cancellation commits must be rejected atomically.
+An action that committed before cancellation is not magically undone.
+
+Coordinate mandatory expected-run enforcement for traces and the affected agent business writes.
+Keep the model-facing five flat tool shapes unchanged if possible; the trusted worker transport can supply run context.
+Inspect and update EVERY relevant caller: queued worker, standalone mock/live/replay, probes, tests, bindings, and docs.
+Do not leave an optional-argument fallback that preserves the vulnerability.
+A local process lock or earlier status read is not the server-side fix.
+Plan rollout so the current worker and backend cannot silently disagree.
+
+A2 — local checkpoint aliases:
+Canonicalize numeric sequences before lookup, persistence, and reference construction.
+Handle preexisting persisted aliases deliberately.
+Reject conflicting hashes for the same numeric sequence.
+Do not arbitrarily discard conflicting historical data.
+Retest the dedicated probe and hosted behavior.
+Do not change the chain formula.
+
+P1 — expected errors:
+Handle expected read-procedure denials and malformed trace JSON deliberately.
+Preserve authorization and transaction rollback.
+If returning structured errors, update clients/workers/adapters to recognize them; an error object must never be mistaken for successful data.
+Do not swallow unexpected defects.
+
+V1 — view expiry:
+Verify the reported agent_status expiry window and invalidation behavior.
+Use only installed supported APIs.
+View contexts have limitations; do not invent ctx.timestamp or an unsupported time-dependent filter.
+Choose a supported approach or explicitly document the remaining bounded limitation.
+Apply a consistent safe pattern to any new task-progress reads.
+
+D1/D2 — dependencies:
+Run fresh audits before proposing versions.
+D1 was recorded in module development/test packages, not demonstrated as a production exploit.
+Update only the compatible affected toolchain, with an isolated lockfile diff and regression checks.
+D2 concerns the hosted PDF dependency tree and Chromium/Puppeteer compatibility.
+Do not blindly upgrade one half of the pinned browser pair.
+If a compatible remediation is unavailable, record the precise limitation and exposure conditions.
+
+Record/UI follow-ups:
+- Prevent overlapping record refreshes and stale responses overwriting newer data.
+- Show loading, last-success/freshness, and refresh failures accurately.
+- Apply appropriate response-generation/unmount protection to Activity polling too.
+- Ensure closed-incident controls reflect actual server restrictions.
+- Review PDF adapter response buffering and enforce bounds while reading if needed.
+- Address or explicitly disclose serverless PDF non-Latin font limitations.
+
+Preserve the already-fixed A1 final-transaction anchor comparison.
+Do not resurrect old findings that later commits already fixed.
+
+8. COMPLETE THE REMAINING LIVE VERIFICATION
+
+Do not report fixture tests as live integration results.
+
+The deployed migration’s browser checks used actual React components with isolated labelled fixtures.
+They covered layout, selection timing, observer presentation, error popovers, JSON download, differing summary display, focus, and forced static fallback.
+They did not establish current production authorization, real recorded revisions, or end-to-end production PDF export.
+
+With an authorized signed-in session, verify:
+- Commander/responder/observer controls and server denials.
+- Incident create/update and selection during unrelated subscription changes.
+- Two simultaneous human clients editing/claiming/completing tasks.
+- Scope, Activity, closure request/cancel/approval, team/invites/access removal, chat.
+- Evidence, enrollment, FAST/DEEP mock and matching replay, trace/model/time display, cancellation.
+- Integrity banner and record navigation, including a global failure outside the selected incident timeline.
+- JSON and authenticated PDF download.
+- Observer JSON/PDF redaction.
+- Disconnect/reconnect, subscription catch-up, draft retention, duplicate submissions.
+- Visible-tab keep-alive and hidden-tab expiry.
+- Actual reduced-motion preference changes and mobile layouts.
+
+Production worker:
+The last recorded status says it was polling Maincloud but unenrolled.
+Verify its current state; do not assume that old process is still running.
+
+Previously reported public service identity:
+0xc200de27ebc6e3b71f0eca84b26faa5055062d30769af56a77b063ca20eacf96
+
+Confirm the intended Maincloud demo incident with the owner.
+Enroll that identity through the commander flow.
+Verify idle expiry and re-enrollment resume without restarting and without replaying a claimed run.
+Do not log or share its token.
+
+Golden recording:
+The last handoff lacked a genuine FAST recording and NVIDIA credentials on Rabeet’s machine.
+Verify current reality.
+Only after explicit live-call approval, record on the actual enrolled demo incident and verify replay matches incident/model.
+Carry forward the highest known call counter across machines; do not assume the old 5/40 figure is current.
+Missing/mismatched replay must fail visibly with no live fallback.
+A real revision demonstration requires genuinely differing recorded summaries.
+Never fabricate a golden transcript or label mock output as a real model run.
+
+Injection:
+Fence/server checks already exist.
+Model-layer behavior remains unverified until separately approved and tested.
+Keep its results distinct from server enforcement.
+
+Demo/recovery:
+- Physically test phone-hotspot/network recovery and two-client catch-up.
+- Independently verify the deployed checkpoint boundary with the owner’s authorized access.
+- Keep destructive tamper rehearsals on an explicitly approved disposable target.
+- Exercise real Ctrl+C and terminal-window closure during the tamper hold.
+- Confirm recovery survives, restores the exact original record, and re-verifies the chain.
+- Preserve attacker console origin checks, authenticated runner frames, run-bound release, output limits, and honest verdicts.
+- Do not expand this into a new attack framework.
+
+9. TEST AND RELEASE IN SMALL REVIEWABLE SLICES
+
+First capture the current baseline.
+The latest recorded baseline was 421 held, unit tests 8/8, demo 16/16, with separate failing probes for open findings.
+Those are historical results, not a substitute for testing your changes.
+
+Use the suite-owned local database blackbox-attack and its existing owner configuration.
+Do not assume local blackbox is owned by the current CLI identity.
+Publish locally with deletion disabled.
+Never resolve a migration refusal by clearing data.
+
+For the task workflow, test:
+- Every role and service-identity denial.
+- Expired/revoked callers.
+- Missing tasks/incidents and mismatched identifiers.
+- Invalid lifecycle transitions.
+- Ineligible assignees and reassignment.
+- Claim races, stale versions, duplicate submits, repeated completion.
+- Block/complete/reopen notes and provenance.
+- Closed incidents.
+- Exactly one audit row per success and none on denial.
+- Existing task rows without progress metadata.
+- Legacy snapshots/PDF rendering.
+- Observer redaction.
+- Live subscription updates and reconnect catch-up.
+- All existing agent createTask behavior.
+
+Run appropriate existing gates:
+- Module typecheck, build, unit tests.
+- Client typecheck/production build and lint.
+- Full attack suite and demo suite.
+- Dedicated Q1/A2 probes; they are not included in the passing default count.
+- Attacker bridge checks where affected.
+- Worker mock/replay integration with no live fallback.
+- PDF/adapter tests where affected.
+- Secret scans and relevant fresh dependency audits.
+
+Do not weaken or delete tests to obtain green output.
+Update assertions only for an intentional documented contract change.
+
+Regenerate bindings with spacetime generate using the installed CLI.
+Do not hand-edit generated files or overwrite unrelated binding changes.
+
+Use separate commits for coherent changes:
+1. Contract/security fixes.
+2. Task backend and tests.
+3. Task UI/record/export integration.
+4. Remaining focused hardening and verification.
+Adjust this division if atomic rollout requires a different grouping.
+
+Before production publication:
+- Verify the deployed schema and non-destructive migration path.
+- Review all worker/client/server compatibility implications.
+- Preserve current production data and environment variables.
+- Use the existing services and targets.
+- Follow any current owner release/freeze constraints; do not infer permission for a destructive workaround.
+- Prepare a concrete rollback/forward-recovery plan; old code may not be a valid rollback after a schema change.
+
+10. HANDOFF REQUIREMENTS
+
+Update:
+- STATUS.md with actual checks, limitations, and “Attack this:”.
+- attack/FINDINGS.md when a finding is reproduced or verified fixed.
+- AGENT_CONTRACT.md for agreed endpoint changes.
+- Relevant worker/task/PDF docs.
+- GitHub issue #2 according to the established authorized collaboration workflow.
+
+Do not treat an obsolete checklist as current state.
+Keep completed work, open defects, operational setup, and unverified checks clearly distinguished.
+
+Before every push:
+- Run git grep -n "nvapi-" and inspect matches without exposing credentials.
+- Run the required secret scan.
+- git pull --rebase origin main.
+- Preserve teammate commits.
+- Never force-push.
+
+Final report:
+- Exact commit(s), production URL(s), and deployment status.
+- What the new task workflow can actually do.
+- Which actions still require people outside BLACKBOX.
+- Data/migration compatibility and rollout details.
+- Permission and concurrency rules.
+- Findings fixed, reproduced, deferred, or unverified.
+- Tests actually run, with results.
+- Real/model/mock/replay distinctions.
+- Any remaining owner actions and exact blockers.
+- Previous deployment and recovery references.
+
+Persist through implementation and verification. Do not stop after another plan, and do not claim perfection or s

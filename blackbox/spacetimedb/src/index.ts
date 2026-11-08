@@ -1,5 +1,5 @@
 import { schema, table, t, SenderError, type InferSchema, type ReducerCtx, type ProcedureCtx } from 'spacetimedb/server';
-import { ScheduleAt, Timestamp, TimeDuration, type Identity } from 'spacetimedb';
+import { ScheduleAt, Timestamp, TimeDuration, type Identity, type Infer } from 'spacetimedb';
 import { sha256Hex, canonicalJson, type Canonical } from './crypto';
 
 const ROLES = ['commander', 'responder', 'observer'] as const;
@@ -135,6 +135,14 @@ const task = table({ name: 'task' }, {
   id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), text: t.string(),
   assigneeRole: t.string(), createdBy: t.string(), createdAt: t.timestamp(),
 });
+// Private. Human progress on a task, kept apart so the original task text and provenance never change.
+// A task without a row is open, unassigned, version 0 (every task created before this table existed).
+const taskState = table({ name: 'task_state' }, {
+  taskId: t.u64().primaryKey(), incidentId: t.u64().index('btree'), status: t.string(),
+  assignee: t.option(t.identity()), version: t.u64(), note: t.string(),
+  updatedBy: t.identity(), updatedAt: t.timestamp(),
+  completedBy: t.option(t.identity()), completedAt: t.option(t.timestamp()),
+});
 const evidence = table({ name: 'evidence' }, {
   id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), text: t.string(),
   submittedBy: t.identity(), createdAt: t.timestamp(),
@@ -175,7 +183,7 @@ const closureRequest = table({ name: 'closure_request' }, {
 const closureApproval = table({ name: 'closure_approval' }, {
   id: t.u64().primaryKey().autoInc(), requestId: t.u64().index('btree'), approver: t.identity(), approvedAt: t.timestamp(),
 });
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep, message, scopeItem, closureRequest, closureApproval }, { env: {
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, taskState, evidence, conflict, anchorJob, anchor, agentRun, agentStep, message, scopeItem, closureRequest, closureApproval }, { env: {
   ANCHOR_URL: t.option(t.string()), ANCHOR_WRITE_TOKEN: t.option(t.string()),
   ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_GATE_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
 } });
@@ -542,9 +550,10 @@ const AgentStatusRow = t.row('AgentStatusRow', {
 });
 
 // Read-only: lets signed-in humans see which service identities are enrolled and whether their
-// session is live. Agents get nothing. No write path or restriction changes.
+// session is live. Agents and revoked humans get nothing. No write path or restriction changes.
+// V1: views have no clock, so a lapsed (not yet swept) session still reads this for up to the 60 s sweep.
 export const agentStatus = spacetimedb.view({ name: 'agent_status', public: true }, t.array(AgentStatusRow), ctx => {
-  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender)) return [];
+  if (!ctx.db.user.identity.find(ctx.sender) || !ctx.db.session.identity.find(ctx.sender) || ctx.db.revokedIdentity.identity.find(ctx.sender)) return [];
   return [...ctx.db.agentIdentity.iter()].map(a => ({
     identity: a.identity,
     incidentId: a.incidentId,
@@ -643,6 +652,114 @@ export const evidenceRecords = spacetimedb.procedure({ incidentId: t.u64() }, t.
 export const tasks = spacetimedb.view({ public: true }, t.array(task.rowType), ctx => {
   const allowed = !!ctx.db.user.identity.find(ctx.sender) && !!ctx.db.session.identity.find(ctx.sender);
   return ctx.from.task.where(row => allowed ? row.id.gt(0n) : row.id.eq(0n));
+});
+
+// ---- Human task workflow -------------------------------------------------------------------------------
+// Records who is doing a response task and how far it got. It does not run anything on real systems:
+// "done" means a person recorded completion. Lifecycle:
+//   open, in_progress and blocked move freely among themselves; any of them -> done; done -> open (reopen).
+//   A note is required to block, complete or reopen. Only the assignee or a commander changes status;
+//   an unassigned task must be claimed (or assigned by a commander) first. Agents are refused everywhere.
+// Every change names the version it read; a stale or repeated request is refused with no state change or audit row.
+// Closed incidents are read-only. No task change touches incident status, severity, containment or closure.
+const TASK_STATUSES = ['open', 'in_progress', 'blocked', 'done'] as const;
+type TaskStatus = typeof TASK_STATUSES[number];
+
+function taskForChange(ctx: Ctx, taskId: bigint, expectedVersion: bigint) {
+  const row = ctx.db.task.id.find(taskId);
+  if (!row) throw new SenderError('task not found');
+  const inc = ctx.db.incident.id.find(row.incidentId);
+  if (!inc) throw new SenderError('incident not found');
+  if (inc.status === 'closed') throw new SenderError('incident is closed; its tasks are read-only');
+  const stored = ctx.db.taskState.taskId.find(taskId);
+  const current = stored ?? { taskId, incidentId: row.incidentId, status: 'open', assignee: undefined, version: 0n, note: '',
+    updatedBy: ctx.sender, updatedAt: ctx.timestamp, completedBy: undefined, completedAt: undefined };
+  if (current.version !== expectedVersion) throw new SenderError('task changed; review the latest version and try again');
+  return { task: row, stored, current };
+}
+
+function saveTaskState(ctx: Ctx, stored: unknown, next: Infer<typeof taskState.rowType>) {
+  if (stored) ctx.db.taskState.taskId.update(next);
+  else ctx.db.taskState.insert(next);
+}
+
+// Assignees are stable identities of unrevoked commanders/responders. Being online is not required.
+function requireAssignee(ctx: Ctx, who: Identity) {
+  if (ctx.db.agentIdentity.identity.find(who)) throw new SenderError('NEMOTRON cannot be assigned human work');
+  const user = ctx.db.user.identity.find(who);
+  if (!user) throw new SenderError('assignee must be a registered teammate');
+  if (isRevoked(ctx, who)) throw new SenderError('assignee is revoked');
+  if (user.role !== 'commander' && user.role !== 'responder') throw new SenderError('assignee must be a commander or responder');
+}
+
+// Human-created task. The agent keeps its own createTask; this endpoint never writes a NEMOTRON label.
+export const createHumanTask = spacetimedb.reducer({ incidentId: t.u64(), text: t.string(), assigneeRole: t.string() }, (ctx, args) => {
+  requireRole(ctx, ['commander', 'responder']);
+  const inc = ctx.db.incident.id.find(args.incidentId);
+  if (!inc) throw new SenderError('incident not found');
+  if (inc.status === 'closed') throw new SenderError('incident is closed; its tasks are read-only');
+  const text = cleanText('task', args.text, 1, 1000);
+  const assigneeRole = oneOf('intended role', args.assigneeRole, ['commander', 'responder'] as const);
+  const createdBy = ctx.sender.toHexString();
+  const row = ctx.db.task.insert({ id: 0n, incidentId: inc.id, text, assigneeRole, createdBy, createdAt: ctx.timestamp });
+  appendAudit(ctx, 'task.create', { id: row.id, text, assigneeRole, sender: createdBy }, inc.id);
+});
+
+export const claimTask = spacetimedb.reducer({ taskId: t.u64(), expectedVersion: t.u64() }, (ctx, args) => {
+  requireRole(ctx, ['commander', 'responder']);
+  const { task: row, stored, current } = taskForChange(ctx, args.taskId, args.expectedVersion);
+  if (current.status === 'done') throw new SenderError('task is done; reopen it first');
+  if (current.assignee) throw new SenderError(current.assignee.isEqual(ctx.sender) ? 'task is already yours' : 'task is assigned to someone else');
+  const version = current.version + 1n;
+  saveTaskState(ctx, stored, { ...current, assignee: ctx.sender, version, updatedBy: ctx.sender, updatedAt: ctx.timestamp });
+  appendAudit(ctx, 'task.claim', { id: row.id, version }, row.incidentId);
+});
+
+export const assignTask = spacetimedb.reducer({ taskId: t.u64(), assignee: t.option(t.identity()), expectedVersion: t.u64() }, (ctx, args) => {
+  requireRole(ctx, ['commander']);
+  const { task: row, stored, current } = taskForChange(ctx, args.taskId, args.expectedVersion);
+  if (current.status === 'done') throw new SenderError('task is done; reopen it first');
+  const next = args.assignee ?? undefined;
+  if (next) requireAssignee(ctx, next);
+  if (next ? current.assignee?.isEqual(next) : !current.assignee) throw new SenderError('assignment unchanged');
+  const version = current.version + 1n;
+  saveTaskState(ctx, stored, { ...current, assignee: next, version, updatedBy: ctx.sender, updatedAt: ctx.timestamp });
+  appendAudit(ctx, next ? 'task.assign' : 'task.unassign',
+    { id: row.id, from: current.assignee?.toHexString() ?? null, to: next?.toHexString() ?? null, version }, row.incidentId);
+});
+
+export const updateTaskStatus = spacetimedb.reducer({ taskId: t.u64(), status: t.string(), note: t.string(), expectedVersion: t.u64() }, (ctx, args) => {
+  const me = requireRole(ctx, ['commander', 'responder']);
+  const { task: row, stored, current } = taskForChange(ctx, args.taskId, args.expectedVersion);
+  const to = oneOf('status', args.status, TASK_STATUSES);
+  const from = current.status as TaskStatus;
+  if (to === from) throw new SenderError(`task is already ${to.replace('_', ' ')}`);
+  if (from === 'done' && to !== 'open') throw new SenderError('reopen a done task before changing it');
+  const mine = !!current.assignee && current.assignee.isEqual(ctx.sender);
+  if (!mine && me.role !== 'commander') {
+    throw new SenderError(current.assignee ? 'only the assignee or a commander can update this task' : 'claim the task before updating it');
+  }
+  const reopening = from === 'done', done = to === 'done';
+  const note = cleanText('note', args.note, to === 'blocked' || done || reopening ? 3 : 0, 1000);
+  const version = current.version + 1n;
+  saveTaskState(ctx, stored, { ...current, status: to, note, version, updatedBy: ctx.sender, updatedAt: ctx.timestamp,
+    completedBy: done ? ctx.sender : undefined, completedAt: done ? ctx.timestamp : undefined });
+  const action = reopening ? 'task.reopen' : done ? 'task.complete' : to === 'blocked' ? 'task.block'
+    : to === 'in_progress' ? (from === 'blocked' ? 'task.unblock' : 'task.start') : 'task.status';
+  appendAudit(ctx, action, {
+    id: row.id, from, to, note, version,
+    // Reopening keeps the earlier completion in the chained history; the live row only shows the current state.
+    previousCompletion: reopening ? { by: current.completedBy?.toHexString() ?? null, at: current.completedAt?.microsSinceUnixEpoch ?? null, note: current.note } : undefined,
+  }, row.incidentId);
+});
+
+// Signed-in, unrevoked humans with a session row see task progress; observers get status and assignee only.
+// Views cannot read the clock, so (as for every view here) a lapsed session drops out at the 60 s sweep.
+export const taskProgress = spacetimedb.view({ name: 'task_progress', public: true }, t.array(taskState.rowType), ctx => {
+  const me = ctx.db.user.identity.find(ctx.sender);
+  if (!me || !ctx.db.session.identity.find(ctx.sender) || ctx.db.revokedIdentity.identity.find(ctx.sender)) return [];
+  const rows = [...ctx.db.taskState.iter()];
+  return me.role === 'observer' ? rows.map(r => ({ ...r, note: '' })) : rows;
 });
 
 const ChainVerification = t.object('ChainVerification', {
@@ -887,7 +1004,14 @@ export const getRecord = spacetimedb.procedure({ incidentId: t.u64() }, t.string
         at: external.lastAnchorAt?.microsSinceUnixEpoch, externalRef: external.externalRef, independentlyVerified: external.anchorOk === true },
       audit: events.map(e => ({ seq: e.seq, action: e.action, actor: e.actor, createdAt: e.createdAt.microsSinceUnixEpoch,
         payloadJson: restricted ? '[restricted]' : e.payloadJson, prevHash: e.prevHash, eventHash: e.eventHash })),
-      tasks: [...tx.db.task.incidentId.filter(row.id)].map(r => ({ id: r.id, text: r.text, assigneeRole: r.assigneeRole, createdBy: r.createdBy })),
+      // Progress fields are additive (schemaVersion stays 1); tasks with no progress row export as open/unassigned.
+      tasks: [...tx.db.task.incidentId.filter(row.id)].map(r => {
+        const p = tx.db.taskState.taskId.find(r.id);
+        return { id: r.id, text: r.text, assigneeRole: r.assigneeRole, createdBy: r.createdBy, createdAt: r.createdAt.microsSinceUnixEpoch,
+          status: p?.status ?? 'open', assignee: p?.assignee?.toHexString() ?? null, version: p?.version ?? 0n,
+          completedBy: p?.completedBy?.toHexString() ?? null, completedAt: p?.completedAt?.microsSinceUnixEpoch ?? null,
+          note: restricted ? '[restricted]' : (p?.note ?? '') };
+      }),
       evidence: restricted ? [] : [...tx.db.evidence.incidentId.filter(row.id)].map(r => ({ id: r.id, text: r.text, submittedBy: r.submittedBy.toHexString(), createdAt: r.createdAt.microsSinceUnixEpoch })),
       conflicts: restricted ? [] : [...tx.db.conflict.incidentId.filter(row.id)].map(r => ({ id: r.id, evidenceIdA: r.evidenceIdA, evidenceIdB: r.evidenceIdB, reason: r.reason })),
       investigations: restricted ? [] : [...tx.db.agentRun.incidentId.filter(row.id)].map(r => ({ id: r.id, modelId: r.modelId, mode: r.mode, status: r.status,

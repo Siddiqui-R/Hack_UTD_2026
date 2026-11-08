@@ -6,7 +6,9 @@ export interface RecordSnapshot {
   auditHead: { seq: string; hash: string };
   anchoredCheckpoint: null | { seq: string; headHash: string; at: string; externalRef: string; independentlyVerified: boolean };
   audit: { seq: string; action: string; actor: string; createdAt: string; payloadJson: string; prevHash: string; eventHash: string }[];
-  tasks: { id: string; text: string; assigneeRole: string; createdBy: string }[];
+  // Progress fields are additive; older snapshots omit them (treat as open and unassigned).
+  tasks: { id: string; text: string; assigneeRole: string; createdBy: string; createdAt?: string; status?: string; assignee?: string | null;
+    version?: string; completedBy?: string | null; completedAt?: string | null; note?: string }[];
   evidence: { id: string; text: string; submittedBy: string; createdAt: string }[];
   conflicts: { id: string; evidenceIdA: string; evidenceIdB: string; reason: string }[];
   investigations: { id: string; modelId: string; mode: string; status: string; summary: string; previousSummary: string; latencyMs: string }[];

@@ -21,8 +21,16 @@ export default async function handler(request,response) {
   if(snapshot.schemaVersion!==1||String(snapshot.incident?.id)!==incidentId)return response.status(502).json({error:'Invalid module snapshot'});
   const rendered=await fetch(renderer,{method:'POST',headers:{'content-type':'application/json',...(process.env.PDF_RENDERER_TOKEN?{authorization:`Bearer ${process.env.PDF_RENDERER_TOKEN}`}:{})},body:JSON.stringify(snapshot),signal:AbortSignal.timeout(20000)});
   if(!rendered.ok||!rendered.headers.get('content-type')?.includes('application/pdf'))return response.status(502).json({error:'PDF renderer did not return a PDF'});
-  const pdf=Buffer.from(await rendered.arrayBuffer());
-  if(pdf.length>4*1024*1024)return response.status(502).json({error:'PDF exceeds download size limit'});
+  // Enforce the 4 MiB cap while reading, not after buffering the whole reply.
+  const limit=4*1024*1024,declared=Number(rendered.headers.get('content-length'));
+  if(Number.isFinite(declared)&&declared>limit)return response.status(502).json({error:'PDF exceeds download size limit'});
+  const chunks=[];let size=0;
+  for await(const chunk of rendered.body??[]){
+   size+=chunk.length;
+   if(size>limit){await rendered.body.cancel().catch(()=>{});return response.status(502).json({error:'PDF exceeds download size limit'});}
+   chunks.push(chunk);
+  }
+  const pdf=Buffer.concat(chunks);
   response.setHeader('Content-Type','application/pdf');response.setHeader('Content-Disposition',`attachment; filename="BLACKBOX-INC-${incidentId}.pdf"`);return response.status(200).send(pdf);
  }catch{return response.status(502).json({error:'PDF export could not be completed'});}
 }
