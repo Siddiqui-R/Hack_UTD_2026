@@ -124,3 +124,10 @@ No SpacetimeDB token is sent to the renderer. A same-origin route is preferred. 
 The app's Export PDF button is disabled until configured; Download JSON is available now.
 RABEET: render actual anchoredCheckpoint.headHash, independent verification status and snapshot timestamp;
 never label auditHead.hash as externally anchored unless it actually matches a checkpoint.
+
+## Scope/chat integration
+getScope({incidentId}) now returns {incidentId,available:true,items:[{id,asset,dataType,state,confidence,records,note}]};
+IDs/counts decimal strings. Existing tool signature unchanged. Observers denied; agents restricted to enrolment.
+Scope mutations are human-only and audited; updateScopeItem uses expectedUpdatedAt. RECORD snapshot.scope is populated.
+Messages are private and exposed through a session-gated messages view; UI subscribes by selected incident ID.
+Human workspace incident-access policy remains unchanged; no cross-workspace membership model introduced.

@@ -3,6 +3,7 @@ import { useReducer, useTable } from 'spacetimedb/react';
 import { reducers, tables } from '../module_bindings';
 import type { Incident, TeamMember } from '../module_bindings/types';
 import { Chip } from './Chip';
+import { ScopePane } from './ScopePane';
 import { useRun } from './Toast';
 import { CONTAINMENT, CONTAINMENT_TONE, SEVERITIES, SEVERITY_TONE, STATUSES, STATUS_TONE, typeLabel } from '../lib/vocab';
 import { fmtUtc, tsToDate } from '../lib/format';
@@ -106,10 +107,7 @@ export function IncidentDetail({ incident, team, canWrite }: { incident: Inciden
         </form>
       </div>
 
-      <div className="flex flex-col gap-2 border-b border-line px-6 py-4">
-        <span className="label">Scope</span>
-        <p className="text-text-2">No scope items recorded.</p>
-      </div>
+      <ScopePane key={incident.id.toString()} incidentId={incident.id} canWrite={canWrite} />
       <div className="flex flex-col gap-2 px-6 py-4">
         <span className="label">Tasks</span>
         {incidentTasks.length === 0 ? <p className="text-text-2">No tasks assigned.</p> : incidentTasks.map(task => (

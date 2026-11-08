@@ -159,7 +159,14 @@ const agentStep = table({ name: 'agent_step' }, {
   id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), runId: t.u64().index('btree'),
   kind: t.string(), name: t.string(), inputJson: t.string(), outputJson: t.string(), createdAt: t.timestamp(),
 });
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep }, { env: {
+const message = table({ name: 'message' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), sender: t.identity(), text: t.string(), createdAt: t.timestamp(),
+});
+const scopeItem = table({ name: 'scope_item' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), asset: t.string(), dataType: t.string(),
+  state: t.string(), confidence: t.string(), records: t.u64(), note: t.string(), updatedAt: t.timestamp(),
+});
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep, message, scopeItem }, { env: {
   ANCHOR_URL: t.option(t.string()), ANCHOR_WRITE_TOKEN: t.option(t.string()),
   ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
 } });
@@ -588,7 +595,7 @@ export const getScope = spacetimedb.procedure({ incidentId: t.u64() }, t.string(
   if (human?.role === 'observer') throw new SenderError('observer cannot read scope');
   if (agent && agent.incidentId !== args.incidentId) throw new SenderError('agent incident mismatch');
   if (!tx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
-  return canonicalJson({ incidentId: args.incidentId, available: false, items: [], reason: 'Scope storage arrives in slice 6' });
+  return canonicalJson({ incidentId: args.incidentId, available: true, items: [...tx.db.scopeItem.incidentId.filter(args.incidentId)].map(r => ({id:r.id,asset:r.asset,dataType:r.dataType,state:r.state,confidence:r.confidence,records:r.records,note:r.note})) });
 }));
 export const evidenceRecords = spacetimedb.procedure({ incidentId: t.u64() }, t.string(), (ctx, args) => ctx.withTx(tx => {
   const { agent, human } = requireReader(tx);
@@ -829,7 +836,7 @@ export const getRecord = spacetimedb.procedure({ incidentId: t.u64() }, t.string
       conflicts: restricted ? [] : [...tx.db.conflict.incidentId.filter(row.id)].map(r => ({ id: r.id, evidenceIdA: r.evidenceIdA, evidenceIdB: r.evidenceIdB, reason: r.reason })),
       investigations: restricted ? [] : [...tx.db.agentRun.incidentId.filter(row.id)].map(r => ({ id: r.id, modelId: r.modelId, mode: r.mode, status: r.status,
         summary: r.summary, previousSummary: r.previousSummary, latencyMs: r.latencyMs })),
-      scope: [], // filled when slice 6 lands
+      scope: restricted ? [] : [...tx.db.scopeItem.incidentId.filter(row.id)].map(r => ({ id:r.id,asset:r.asset,dataType:r.dataType,state:r.state,confidence:r.confidence,records:r.records,note:r.note })),
     });
   });
 });
@@ -842,3 +849,40 @@ export const inspectAuditEvent = spacetimedb.procedure({ seq: t.u64() }, t.strin
     payloadJson: row.payloadJson, prevHash: row.prevHash, createdAt: row.createdAt.microsSinceUnixEpoch }) + row.prevHash);
   return canonicalJson({ ...row, actor: row.actor, createdAt: row.createdAt.microsSinceUnixEpoch, storedHash: row.eventHash, recomputedHash });
 }));
+
+export const sendMessage = spacetimedb.reducer({ incidentId: t.u64(), text: t.string() }, (ctx, args) => {
+  requireRole(ctx, ['commander','responder']);
+  if (!ctx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
+  const text=cleanText('message',args.text,1,4000);
+  const row=ctx.db.message.insert({id:0n,incidentId:args.incidentId,sender:ctx.sender,text,createdAt:ctx.timestamp});
+  appendAudit(ctx,'message.send',{id:row.id,text},args.incidentId);
+});
+export const messages = spacetimedb.view({public:true},t.array(message.rowType),ctx=>{
+  const allowed=!!ctx.db.user.identity.find(ctx.sender)&&!!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.message.where(r=>allowed?r.id.gt(0n):r.id.eq(0n));
+});
+export const addScopeItem = spacetimedb.reducer({incidentId:t.u64(),asset:t.string(),dataType:t.string(),state:t.string(),confidence:t.string(),records:t.u64(),note:t.string()},(ctx,args)=>{
+  requireRole(ctx,['commander','responder']);
+  if(!ctx.db.incident.id.find(args.incidentId))throw new SenderError('incident not found');
+  const asset=cleanText('asset',args.asset,1,160),dataType=cleanText('data type',args.dataType,1,160);
+  const state=oneOf('state',args.state,['unknown','compromised','exfiltrated','unaffected']);
+  const confidence=oneOf('confidence',args.confidence,['unconfirmed','likely','confirmed']);
+  const note=cleanText('note',args.note,0,2000);
+  const row=ctx.db.scopeItem.insert({id:0n,incidentId:args.incidentId,asset,dataType,state,confidence,records:args.records,note,updatedAt:ctx.timestamp});
+  appendAudit(ctx,'scope.add',{id:row.id,asset,dataType,state,confidence,records:args.records,note},args.incidentId);
+});
+export const updateScopeItem = spacetimedb.reducer({scopeId:t.u64(),state:t.string(),confidence:t.string(),records:t.u64(),expectedUpdatedAt:t.timestamp()},(ctx,args)=>{
+  requireRole(ctx,['commander','responder']);
+  const row=ctx.db.scopeItem.id.find(args.scopeId);
+  if(!row)throw new SenderError('scope item not found');
+  if(row.updatedAt.microsSinceUnixEpoch!==args.expectedUpdatedAt.microsSinceUnixEpoch)throw new SenderError('scope item changed; review latest values');
+  const state=oneOf('state',args.state,['unknown','compromised','exfiltrated','unaffected']);
+  const confidence=oneOf('confidence',args.confidence,['unconfirmed','likely','confirmed']);
+  ctx.db.scopeItem.id.update({...row,state,confidence,records:args.records,updatedAt:ctx.timestamp});
+  appendAudit(ctx,'scope.update',{id:row.id,from:{state:row.state,confidence:row.confidence,records:row.records},to:{state,confidence,records:args.records}},row.incidentId);
+});
+export const scopeItems = spacetimedb.view({public:true},t.array(scopeItem.rowType),ctx=>{
+  const me=ctx.db.user.identity.find(ctx.sender);
+  const allowed=!!me&&me.role!=='observer'&&!!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.scopeItem.where(r=>allowed?r.id.gt(0n):r.id.eq(0n));
+});

@@ -34,6 +34,7 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AddScopeItemReducer from "./add_scope_item_reducer";
 import BeginAgentRunReducer from "./begin_agent_run_reducer";
 import CancelAgentRunReducer from "./cancel_agent_run_reducer";
 import CreateIncidentReducer from "./create_incident_reducer";
@@ -47,12 +48,14 @@ import RecordAgentStepReducer from "./record_agent_step_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
 import RequestAgentRunReducer from "./request_agent_run_reducer";
 import RevokeSessionReducer from "./revoke_session_reducer";
+import SendMessageReducer from "./send_message_reducer";
 import SetRoleReducer from "./set_role_reducer";
 import StartAnchoringReducer from "./start_anchoring_reducer";
 import SubmitEvidenceReducer from "./submit_evidence_reducer";
 import TouchSessionReducer from "./touch_session_reducer";
 import UnrevokeSessionReducer from "./unrevoke_session_reducer";
 import UpdateIncidentReducer from "./update_incident_reducer";
+import UpdateScopeItemReducer from "./update_scope_item_reducer";
 import UpdateSeverityReducer from "./update_severity_reducer";
 
 // Import all procedure arg schemas
@@ -71,6 +74,8 @@ import InvestigationConflictsRow from "./investigation_conflicts_table";
 import InvestigationEvidenceRow from "./investigation_evidence_table";
 import InvestigationRunsRow from "./investigation_runs_table";
 import InvestigationStepsRow from "./investigation_steps_table";
+import MessagesRow from "./messages_table";
+import ScopeItemsRow from "./scope_items_table";
 import TasksRow from "./tasks_table";
 import TeamRow from "./team_table";
 
@@ -113,6 +118,20 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, InvestigationStepsRow),
+  messages: __table({
+    name: 'messages',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MessagesRow),
+  scopeItems: __table({
+    name: 'scope_items',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, ScopeItemsRow),
   tasks: __table({
     name: 'tasks',
     indexes: [
@@ -131,6 +150,7 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("add_scope_item", AddScopeItemReducer),
   __reducerSchema("begin_agent_run", BeginAgentRunReducer),
   __reducerSchema("cancel_agent_run", CancelAgentRunReducer),
   __reducerSchema("create_incident", CreateIncidentReducer),
@@ -144,12 +164,14 @@ const reducersSchema = __reducers(
   __reducerSchema("redeem_invite", RedeemInviteReducer),
   __reducerSchema("request_agent_run", RequestAgentRunReducer),
   __reducerSchema("revoke_session", RevokeSessionReducer),
+  __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("set_role", SetRoleReducer),
   __reducerSchema("start_anchoring", StartAnchoringReducer),
   __reducerSchema("submit_evidence", SubmitEvidenceReducer),
   __reducerSchema("touch_session", TouchSessionReducer),
   __reducerSchema("unrevoke_session", UnrevokeSessionReducer),
   __reducerSchema("update_incident", UpdateIncidentReducer),
+  __reducerSchema("update_scope_item", UpdateScopeItemReducer),
   __reducerSchema("update_severity", UpdateSeverityReducer),
 );
 

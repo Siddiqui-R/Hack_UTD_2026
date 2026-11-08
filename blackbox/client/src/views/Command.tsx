@@ -6,7 +6,7 @@ import { Chrome } from '../components/Chrome';
 import { IncidentList } from '../components/IncidentList';
 import { IncidentForm } from '../components/IncidentForm';
 import { IncidentDetail } from '../components/IncidentDetail';
-import { TeamPane } from '../components/TeamPane';
+import { Collaboration } from '../components/Collaboration';
 import { Investigate } from './Investigate';
 import { RecordView } from './Record';
 
@@ -89,7 +89,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
             </p>
           )}
         </main>
-        <TeamPane team={team} me={me} />
+        <Collaboration incident={selected} team={team} me={me} />
         </>}
       </div>
     </div>

@@ -6,6 +6,7 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AddScopeItemReducer from "../add_scope_item_reducer";
 import BeginAgentRunReducer from "../begin_agent_run_reducer";
 import CancelAgentRunReducer from "../cancel_agent_run_reducer";
 import CreateIncidentReducer from "../create_incident_reducer";
@@ -19,14 +20,17 @@ import RecordAgentStepReducer from "../record_agent_step_reducer";
 import RedeemInviteReducer from "../redeem_invite_reducer";
 import RequestAgentRunReducer from "../request_agent_run_reducer";
 import RevokeSessionReducer from "../revoke_session_reducer";
+import SendMessageReducer from "../send_message_reducer";
 import SetRoleReducer from "../set_role_reducer";
 import StartAnchoringReducer from "../start_anchoring_reducer";
 import SubmitEvidenceReducer from "../submit_evidence_reducer";
 import TouchSessionReducer from "../touch_session_reducer";
 import UnrevokeSessionReducer from "../unrevoke_session_reducer";
 import UpdateIncidentReducer from "../update_incident_reducer";
+import UpdateScopeItemReducer from "../update_scope_item_reducer";
 import UpdateSeverityReducer from "../update_severity_reducer";
 
+export type AddScopeItemParams = __Infer<typeof AddScopeItemReducer>;
 export type BeginAgentRunParams = __Infer<typeof BeginAgentRunReducer>;
 export type CancelAgentRunParams = __Infer<typeof CancelAgentRunReducer>;
 export type CreateIncidentParams = __Infer<typeof CreateIncidentReducer>;
@@ -40,11 +44,13 @@ export type RecordAgentStepParams = __Infer<typeof RecordAgentStepReducer>;
 export type RedeemInviteParams = __Infer<typeof RedeemInviteReducer>;
 export type RequestAgentRunParams = __Infer<typeof RequestAgentRunReducer>;
 export type RevokeSessionParams = __Infer<typeof RevokeSessionReducer>;
+export type SendMessageParams = __Infer<typeof SendMessageReducer>;
 export type SetRoleParams = __Infer<typeof SetRoleReducer>;
 export type StartAnchoringParams = __Infer<typeof StartAnchoringReducer>;
 export type SubmitEvidenceParams = __Infer<typeof SubmitEvidenceReducer>;
 export type TouchSessionParams = __Infer<typeof TouchSessionReducer>;
 export type UnrevokeSessionParams = __Infer<typeof UnrevokeSessionReducer>;
 export type UpdateIncidentParams = __Infer<typeof UpdateIncidentReducer>;
+export type UpdateScopeItemParams = __Infer<typeof UpdateScopeItemReducer>;
 export type UpdateSeverityParams = __Infer<typeof UpdateSeverityReducer>;
 

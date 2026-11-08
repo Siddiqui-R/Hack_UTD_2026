@@ -174,6 +174,18 @@ export const InviteCode = __t.object("InviteCode", {
 });
 export type InviteCode = __Infer<typeof InviteCode>;
 
+export const Message = __t.object("Message", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  sender: __t.identity(),
+  text: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type Message = __Infer<typeof Message>;
+
+export const Messages = __t.object("Messages", {});
+export type Messages = __Infer<typeof Messages>;
+
 export const Owner = __t.object("Owner", {
   id: __t.u32(),
   identity: __t.identity(),
@@ -186,6 +198,22 @@ export const RevokedIdentity = __t.object("RevokedIdentity", {
   revokedAt: __t.timestamp(),
 });
 export type RevokedIdentity = __Infer<typeof RevokedIdentity>;
+
+export const ScopeItem = __t.object("ScopeItem", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  asset: __t.string(),
+  dataType: __t.string(),
+  state: __t.string(),
+  confidence: __t.string(),
+  records: __t.u64(),
+  note: __t.string(),
+  updatedAt: __t.timestamp(),
+});
+export type ScopeItem = __Infer<typeof ScopeItem>;
+
+export const ScopeItems = __t.object("ScopeItems", {});
+export type ScopeItems = __Infer<typeof ScopeItems>;
 
 export const Session = __t.object("Session", {
   identity: __t.identity(),

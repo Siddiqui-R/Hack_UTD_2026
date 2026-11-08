@@ -62,8 +62,8 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 | 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [x] |
 | 3.5 | Agent contract: tables, reducers, reads, generated bindings | agent privilege escalation and incident escape | [x] |
 | 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [x] |
-| 5 | Real-time chat | cross-incident message leakage | [ ] |
-| 6 | Scope items | observer reading scope | [ ] |
+| 5 | Real-time chat | cross-incident message leakage | [x] |
+| 6 | Scope items | observer reading scope | [x] |
 | 7 | Agent service, read-only tools (`searchIncidents`, `getScope`) | injection payloads | [ ] |
 | 8 | Agent write tools (`createTask`, `updateSeverity`, `flagConflict`) | NEMOTRON escalating itself / self-approving | [ ] |
 | 9 | External anchor + `anchorOk` + anchor-mismatch UI | rewrite the whole chain | [ ] |
@@ -250,3 +250,10 @@ SLICE 12 module/UI milestone — RECORD timeline, server-generated export snapsh
   PDF is visibly disabled until connected, not claimed complete. Client/module typecheck and codegen pass.
   Self-critique: no client hashing, timeline dim/focus only on a real broken seq, snapshot time shown, unanchored
   export remains explicit. Attack this: observer export redaction, PDF anchoring claims and snapshot consistency.
+
+SLICES 5 + 6 implementation — selected-incident subscribed chat in TEAM/CHAT right pane, audit on sends,
+  observer read-only. Scope asset/data type/state/confidence/record count/note intake and version-checked
+  updates; observer view returns no rows. getScope now returns available:true with real items; agent remains
+  enrolled-incident restricted. RECORD/PDF snapshot includes permitted scope. Module/client typechecks pass.
+  Existing workspace-wide human incident access is unchanged (no membership redesign); Rabeet owns validation.
+  Attack this: chat incident filters, observer scope denial, stale scope edits, agent scope context.
