@@ -21,3 +21,6 @@ Thumbs.db
 
 # per-developer SpacetimeDB config (random db name)
 spacetime.local.json
+
+# demo 2 recovery record (original value of an in-flight audit edit)
+attack/.tamper-recovery.json

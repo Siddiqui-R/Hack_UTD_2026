@@ -5,7 +5,7 @@
 //   http://127.0.0.1:4400  attacker console
 // Never touches Maincloud: refuses unless both the attacks and the client point at 127.0.0.1:3000.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
@@ -49,6 +49,19 @@ const code = lib.randomCode();
 const b = lib.ownerCall('issue_bootstrap_invite', code);
 if (!b.ok) { console.error(`could not mint a commander code: ${b.out.trim().split('\n').pop()}`); process.exit(1); }
 
+// One named incident for the tamper demo, so the judges' RECORD view sits on the record that gets edited.
+const STAGE_TITLE = 'Ransomware on payroll hosts (stage)';
+const findStage = async () => (await lib.sql(lib.owner(), `SELECT id, title FROM incident WHERE title = '${STAGE_TITLE}'`)).rows?.[0];
+let stage = await findStage();
+if (!stage) {
+  const cmd = await lib.getCommander();
+  const w = await lib.write(cmd, STAGE_TITLE, { systems: 'payroll-07, fs01' });
+  if (!w.ok) { console.error(`could not create the stage incident: ${w.error}`); process.exit(1); }
+  stage = await findStage();
+  await lib.call(cmd, 'submit_evidence', [stage.id, 'EDR alert: payroll-07 is encrypting files on \\\\fs01\\payroll']);
+}
+const recovery = (() => { try { return JSON.parse(readFileSync(new URL('../attack/.tamper-recovery.json', import.meta.url), 'utf8')); } catch { return null; } })();
+
 const children = [];
 const start = (name, cmd, args, opts) => {
   const c = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts });
@@ -64,7 +77,9 @@ start('client', process.execPath, [vite, '--port', String(CLIENT_PORT), '--stric
   // Real env vars beat the client's .env files in Vite, so this window cannot drift to blackbox or Maincloud.
   env: { ...process.env, VITE_STDB_URI: 'ws://127.0.0.1:3000', VITE_STDB_DB: DB },
 });
-start('console', process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], { cwd: root });
+start('console', process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
+  cwd: root, env: { ...process.env, TAMPER_INCIDENT: String(stage.id), TAMPER_INCIDENT_TITLE: STAGE_TITLE },
+});
 
 let stopping = false;
 function shutdown(code = 0) {
@@ -79,5 +94,7 @@ console.log(`
   BLACKBOX (judges' window)  http://127.0.0.1:${CLIENT_PORT}
   COMMANDER CODE             ${code.slice(0, 4)}-${code.slice(4)}   (single use, 30 min)
   ATTACKER CONSOLE           http://127.0.0.1:4400
+  TAMPER TARGET              INC-${stage.id} ${STAGE_TITLE}: open it in BLACKBOX, RECORD tab, before attack 2
   Ctrl+C stops both.
 `);
+if (recovery) console.log(`  ! DEMO EDIT PENDING: record #${recovery.seq} is still edited. Press RESTORE DEMO EDIT in the console first.\n`);

@@ -431,3 +431,32 @@ FIX(demo 2, owner-approved while Rabeet unavailable) — `attack/demo/2-tamper.m
   judges' window at :5180): INTEGRITY BROKEN · RECORD #53 for ~4.1 s, then CHAIN VERIFIED; A2a/A2b/A2c all PASS.
   Demo rehearsals get ~4 s longer per run.
   Attack this: kill the demo process during the hold (row stays edited until restored by hand or a re-run's repair).
+
+ATTACK CONSOLE HARDENING (review items 1-4, plus 5's readability) — attacker/ + attack/demo/2-tamper.mjs (owner-approved).
+  1 Recovery: demo 2 writes attack/.tamper-recovery.json (gitignored: db, seq, incident, original, tampered) BEFORE the
+    edit and deletes it only after the row holds its original value AND the full chain verifies. New export recover()
+    undoes exactly that edit (refuses a row in any other state). Console: RESTORE DEMO EDIT; attack 2 is locked while
+    an edit is pending; stage.mjs warns at launch. Bridge no longer kills runs when the browser disconnects: runs are
+    detached, /events replays the current run on reconnect, then marks `live`. RESET renamed CLEAR CONSOLE (screen only).
+  2 Outcomes per attack: ACCESS DENIED · TAMPER DETECTED → RESTORED · FORBIDDEN ACTIONS DENIED · SERVICE CONTINUED →
+    RESYNCED, each with pinned factual lines (e.g. RECORD #112 ALTERED / BLACKBOX DETECTED HASH MISMATCH / ORIGINAL VALUE
+    RESTORED · CHAIN VERIFIED). Copy says the owner's edit succeeds and is detected, not prevented.
+  3 Verdicts are decided once, in the bridge: success needs exit 0, a result block, every expected check ID present and
+    PASS, and for demo 2 no pending recovery. Otherwise DEFENCE FAILED (any VULN), ERROR (killed/non-zero/no results)
+    or INCOMPLETE (SKIP or missing check). A dropped stream never produces a verdict; only the bridge's `done` does.
+  4 Shared target: stage.mjs creates/reuses INC-n "Ransomware on payroll hosts (stage)"; TAMPER_INCIDENT makes demo 2
+    edit a record of that incident. Console header names DB, server and target incident; phase strip EDITING →
+    DETECTION CHECK → RESTORING → VERIFIED. Presenter hold: under the console (ATTACK_EVENTS=1) demo 2 holds the
+    detected edit until RESTORE NOW or 30 s (TAMPER_HOLD_MAX_MS); CLI keeps the timed 4 s hold. RUN ALL auto-releases.
+  5 Lighter scanlines/vignette, no flicker or page shake, brighter ordinary output; real output kept under the pin.
+  Bridge also: POSTs only (GET /run gone), x-blackbox-console header required (cross-origin pages can't trigger runs;
+    verified a fetch from :5180 was refused), Host allow-list against DNS rebinding, guardTarget() on start.
+  Verified on the stage: hard-killed the runner mid-hold -> ERROR verdict, record kept, row still edited, attack 2
+    locked; RESTORE DEMO EDIT -> restored, 114 rows verified, file gone. Console refresh mid-hold reconnected with
+    RESTORE NOW and the bridge-clock countdown; release -> VERIFIED. 30 s auto-restore worked. Judges' window on INC-9 ·
+    RECORD showed #112 as nothing_happened with stored vs recomputed hash and the red band, then green. Manually broken
+    other row -> INCOMPLETE ("already broken at seq 5"), row restored, chain 165 rows ok. Individual 1-4 and RUN ALL
+    4/4 held. `node attack/run.mjs --demo` still 16 held / 0 failed.
+  Attack this: kill the bridge (not the runner) mid-hold, two console tabs pressing RESTORE NOW/RESTORE at once,
+    a tampered or hand-edited .tamper-recovery.json (restore must refuse anything but the recorded seq/value),
+    cross-origin POST with the header via a crafted page (preflight must fail), demo 2 with TAMPER_INCIDENT unknown.

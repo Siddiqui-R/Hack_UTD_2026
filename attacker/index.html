@@ -6,105 +6,119 @@
 <title>RED TEAM // BLACKBOX</title>
 <style>
 :root{
-  --void:#050607; --panel:#0A0E0C; --phosphor:#39FF88; --phos-dim:#1E8A4C;
-  --blood:#FF2D3D; --amber:#FFB020; --dim:#24302A; --text:#B8D9C4;
+  --void:#050607; --panel:#0A0E0C; --phosphor:#39FF88; --phos-dim:#4FA874;
+  --blood:#FF3D4C; --amber:#FFB020; --dim:#24302A; --text:#D2EADB; --bright:#F2FFF6;
   --mono: "JetBrains Mono","IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--void);color:var(--text);font-family:var(--mono);overflow:hidden}
 body{display:grid;grid-template-rows:auto 1fr;font-size:15px;letter-spacing:.02em}
 
-/* CRT overlay */
+/* CRT overlay, kept light so output reads across a table */
 body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
-  background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px)}
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:51;
-  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.75) 100%)}
-.flicker{animation:flick 6s infinite steps(1)}
-@keyframes flick{0%,97%,100%{opacity:1}97.5%{opacity:.86}98%{opacity:1}98.6%{opacity:.9}}
+  background:radial-gradient(ellipse at center,transparent 70%,rgba(0,0,0,.4) 100%)}
 
-/* header */
-header{display:flex;align-items:center;gap:28px;padding:14px 28px;border-bottom:1px solid var(--dim);background:var(--panel)}
-.brand{color:var(--blood);font-weight:700;letter-spacing:.3em;font-size:14px;text-shadow:0 0 8px rgba(255,45,61,.5)}
+header{display:flex;align-items:center;gap:24px;padding:12px 28px;border-bottom:1px solid var(--dim);background:var(--panel);flex-wrap:wrap}
+.brand{color:var(--blood);font-weight:700;letter-spacing:.3em;font-size:14px}
 .target{color:var(--phos-dim);font-size:13px}
-.target b{color:var(--phosphor);font-weight:500}
+.target b{color:var(--phosphor);font-weight:600}
 .link{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--phosphor)}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--phosphor);box-shadow:0 0 10px var(--phosphor);animation:pulse 1.6s infinite}
-@keyframes pulse{50%{opacity:.35}}
+.link.lost{color:var(--amber)}
+.dot{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
 .clock{color:var(--phos-dim);font-size:13px}
 
-/* main grid */
 main{display:grid;grid-template-columns:minmax(380px,34%) 1fr;min-height:0}
 .left{border-right:1px solid var(--dim);display:flex;flex-direction:column;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
-.label{font-size:11px;letter-spacing:.28em;color:var(--phos-dim);padding:22px 28px 12px;text-transform:uppercase}
+.label{font-size:11px;letter-spacing:.28em;color:var(--phos-dim);padding:20px 28px 10px;text-transform:uppercase}
 
-/* vectors */
 .vectors{display:flex;flex-direction:column;gap:10px;padding:0 28px}
 .vec{all:unset;cursor:pointer;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:14px;
-  padding:16px 18px;border:1px solid var(--dim);background:linear-gradient(90deg,rgba(57,255,136,.03),transparent);
-  transition:border-color .15s,background .15s,transform .15s;position:relative;overflow:hidden}
-.vec:hover:not([disabled]){border-color:var(--phosphor);background:rgba(57,255,136,.06);transform:translateX(4px)}
-.vec:hover:not([disabled]) .num{color:var(--void);background:var(--phosphor);box-shadow:0 0 14px var(--phosphor)}
+  padding:14px 18px;border:1px solid var(--dim);transition:border-color .15s,background .15s;position:relative;overflow:hidden}
+.vec:hover:not([disabled]){border-color:var(--phosphor);background:rgba(57,255,136,.06)}
+.vec:hover:not([disabled]) .num{color:var(--void);background:var(--phosphor)}
 .vec[disabled]{cursor:not-allowed;opacity:.45}
 .vec.running{border-color:var(--amber);opacity:1}
 .vec.running::after{content:"";position:absolute;left:0;bottom:0;height:2px;background:var(--amber);animation:sweep 1.1s linear infinite}
 @keyframes sweep{from{width:0}to{width:100%}}
 .num{width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--phosphor);color:var(--phosphor);font-weight:700;font-size:18px;transition:.15s}
-.vt{font-size:15px;color:#E6FFF0;font-weight:600;letter-spacing:.04em}
-.vs{font-size:12px;color:var(--phos-dim);margin-top:4px}
-.state{font-size:11px;letter-spacing:.18em;color:var(--phos-dim)}
+.vt{font-size:15px;color:var(--bright);font-weight:600;letter-spacing:.04em}
+.vs{font-size:12px;color:var(--phos-dim);margin-top:3px}
+.say{font-size:11px;color:var(--amber);margin-top:5px;letter-spacing:.02em}
+.state{font-size:11px;letter-spacing:.14em;color:var(--phos-dim);text-align:right;max-width:120px}
 
-.controls{display:flex;gap:10px;padding:16px 28px}
-.ctl{all:unset;cursor:pointer;flex:1;text-align:center;padding:12px;border:1px solid var(--blood);color:var(--blood);
-  font-size:13px;letter-spacing:.26em;font-weight:700;transition:.15s}
-.ctl:hover{background:var(--blood);color:var(--void);box-shadow:0 0 18px rgba(255,45,61,.5)}
+.controls{display:flex;gap:10px;padding:16px 28px 0}
+.ctl{all:unset;cursor:pointer;flex:1;text-align:center;padding:11px;border:1px solid var(--blood);color:var(--blood);
+  font-size:12px;letter-spacing:.22em;font-weight:700;transition:.15s}
+.ctl:hover:not([disabled]){background:var(--blood);color:var(--void)}
+.ctl[disabled]{opacity:.4;cursor:not-allowed}
 .ctl.ghost{border-color:var(--dim);color:var(--phos-dim)}
-.ctl.ghost:hover{background:var(--dim);color:var(--text);box-shadow:none}
+.ctl.ghost:hover:not([disabled]){background:var(--dim);color:var(--text)}
+.ctl.amber{border-color:var(--amber);color:var(--amber)}
+.ctl.amber:hover:not([disabled]){background:var(--amber);color:var(--void)}
 
-/* objectives */
-.objectives{padding:0 28px 22px;display:flex;flex-direction:column;gap:8px;margin-top:auto}
-.obj{display:grid;grid-template-columns:1fr auto;align-items:center;padding:12px 14px;border:1px solid var(--dim);position:relative}
-.on{font-size:14px;color:#E6FFF0}
+.recovery{margin:14px 28px 0;padding:12px 14px;border:1px solid var(--amber);background:rgba(255,176,32,.07);display:none}
+.recovery.show{display:block}
+.recovery p{font-size:13px;color:var(--amber);margin-bottom:10px;line-height:1.5}
+
+.objectives{padding:0 28px 22px;display:flex;flex-direction:column;gap:8px}
+.obj{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--dim)}
+.on{font-size:14px;color:var(--bright)}
 .od{font-size:11px;color:var(--phos-dim);margin-top:3px}
-.ov{font-size:12px;letter-spacing:.2em;font-weight:700;color:var(--phos-dim)}
-.obj.blocked{border-color:rgba(255,45,61,.55);background:rgba(255,45,61,.05)}
-.obj.blocked .on{color:#ff9aa2;text-decoration:line-through;text-decoration-color:var(--blood)}
-.obj.blocked .ov{color:var(--blood);text-shadow:0 0 10px rgba(255,45,61,.6)}
+.ov{font-size:12px;letter-spacing:.12em;font-weight:700;color:var(--phos-dim);text-align:right}
+.obj.held{border-color:rgba(255,61,76,.55);background:rgba(255,61,76,.05)}
+.obj.held .ov{color:var(--blood)}
 .obj.breached{border-color:var(--phosphor);background:rgba(57,255,136,.06)}
 .obj.breached .ov{color:var(--phosphor)}
-.obj.fault .ov{color:var(--amber)}
-.score{padding:0 28px 22px;font-size:13px;color:var(--phos-dim);letter-spacing:.14em}
-.score b{color:var(--blood);font-size:22px;letter-spacing:0}
+.obj.incomplete .ov,.obj.error .ov{color:var(--amber)}
+.obj.incomplete,.obj.error{border-color:rgba(255,176,32,.5)}
 
-/* terminal */
 .right{display:flex;flex-direction:column;min-height:0;position:relative}
-.term{flex:1;overflow-y:auto;padding:22px 32px 40px;font-size:15px;line-height:1.65;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
+.phases{display:none;align-items:center;gap:8px;padding:14px 32px;border-bottom:1px solid var(--dim);flex-wrap:wrap}
+.phases.show{display:flex}
+.ph{font-size:13px;letter-spacing:.14em;color:#3E5A49;font-weight:700}
+.ph.done{color:var(--phos-dim)}
+.ph.now{color:var(--amber)}
+.ph.bad{color:var(--blood)}
+.arrow{color:#3E5A49}
+.hold{margin-left:auto;display:none;align-items:center;gap:12px;font-size:13px;color:var(--amber)}
+.hold.show{display:flex}
+.hold .ctl{flex:none;padding:9px 16px}
+
+.pinned{display:none;padding:18px 32px;border-bottom:1px solid var(--dim)}
+.pinned.show{display:block}
+.pinned .pl{font-size:12px;letter-spacing:.24em;font-weight:700;margin-bottom:8px}
+.pinned .pf{font-size:clamp(17px,1.7vw,24px);font-weight:700;line-height:1.45;color:var(--bright)}
+.pinned.held .pl{color:var(--blood)}
+.pinned.held{background:rgba(255,61,76,.06)}
+.pinned.live .pl{color:var(--amber)}
+.pinned.incomplete .pl,.pinned.error .pl{color:var(--amber)}
+.pinned.incomplete,.pinned.error{background:rgba(255,176,32,.06)}
+.pinned.breached .pl{color:var(--phosphor)}
+
+.term{flex:1;overflow-y:auto;padding:18px 32px 40px;font-size:15px;line-height:1.6;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
 .ln{white-space:pre-wrap;word-break:break-word;color:var(--text)}
 .ln.cmd{color:var(--phosphor)}
-.ln.sys{color:var(--phos-dim)}
-.ln.pass{color:var(--blood);font-weight:700}
+.ln.info{color:var(--phos-dim)}
+.ln.pass{color:#FF8A94;font-weight:700}
 .ln.vuln{color:var(--phosphor);font-weight:700}
-.ln.err{color:var(--amber)}
-.ln.head{color:#E6FFF0;font-weight:700;margin-top:14px;letter-spacing:.06em}
-.caret{display:inline-block;width:10px;height:1.1em;background:var(--phosphor);vertical-align:text-bottom;animation:blink 1s steps(1) infinite;margin-left:2px}
-@keyframes blink{50%{opacity:0}}
+.ln.err{color:var(--amber);font-weight:700}
+.ln.head{color:var(--bright);font-weight:700;margin-top:12px;letter-spacing:.06em}
+.ln.phase{color:var(--amber);font-weight:700}
 
-/* stamp */
 .stamp{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:20}
-.stamp span{font-size:clamp(64px,10vw,150px);font-weight:800;letter-spacing:.12em;color:var(--blood);
-  border:6px solid var(--blood);padding:6px 34px;transform:rotate(-8deg);opacity:0;
-  text-shadow:4px 0 rgba(0,200,255,.55),-4px 0 rgba(255,0,80,.6),0 0 30px rgba(255,45,61,.6)}
-.flash{position:fixed;inset:0;background:var(--blood);pointer-events:none;opacity:0;z-index:40}
+.stamp span{font-size:clamp(56px,8vw,120px);font-weight:800;letter-spacing:.1em;color:var(--blood);
+  border:6px solid var(--blood);padding:6px 30px;transform:rotate(-6deg);opacity:0;background:rgba(5,6,7,.7)}
 
-@media (prefers-reduced-motion: reduce){
-  *{animation:none!important;transition:none!important}
-}
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
-<body class="flicker">
+<body>
 <header>
   <div class="brand">▲ RED TEAM</div>
-  <div class="target">TARGET <b>BLACKBOX</b> · local demo instance</div>
-  <div class="link"><span class="dot"></span><span id="linkTxt">ARMED</span></div>
+  <div class="target" id="target">TARGET …</div>
+  <div class="link" id="link"><span class="dot"></span><span id="linkTxt">CONNECTING</span></div>
   <div class="clock" id="clock"></div>
 </header>
 
@@ -113,149 +127,223 @@ main{display:grid;grid-template-columns:minmax(380px,34%) 1fr;min-height:0}
     <div class="label">Attack vectors</div>
     <div class="vectors" id="vectors"></div>
     <div class="controls">
-      <button class="ctl" id="runAll">RUN ALL</button>
-      <button class="ctl ghost" id="reset">RESET</button>
+      <button class="ctl ghost" id="runAll" title="Rehearsal: runs 1-4 back to back">RUN ALL</button>
+      <button class="ctl ghost" id="clear" title="Clears the screen only; does not touch the database">CLEAR CONSOLE</button>
     </div>
-    <div class="label">Objectives</div>
+    <div class="recovery" id="recovery">
+      <p id="recoveryTxt"></p>
+      <button class="ctl amber" id="restore" style="display:block">RESTORE DEMO EDIT</button>
+    </div>
+    <div class="label">Outcomes</div>
     <div class="objectives" id="objectives"></div>
-    <div class="score" id="score">OBJECTIVES BLOCKED <b>0</b> / 4</div>
   </section>
 
   <section class="right">
-    <div class="label">Live output</div>
+    <div class="phases" id="phases">
+      <span class="ph" data-p="EDITING">EDITING</span><span class="arrow">→</span>
+      <span class="ph" data-p="DETECTION CHECK">DETECTION CHECK</span><span class="arrow">→</span>
+      <span class="ph" data-p="RESTORING">RESTORING</span><span class="arrow">→</span>
+      <span class="ph" data-p="VERIFIED">VERIFIED</span>
+      <div class="hold" id="hold"><span id="holdTxt"></span><button class="ctl amber" id="release">RESTORE NOW</button></div>
+    </div>
+    <div class="pinned" id="pinned"><div class="pl" id="pinLabel"></div><div class="pf" id="pinFacts"></div></div>
     <div class="term" id="term"></div>
-    <div class="stamp"><span id="stamp">DENIED</span></div>
+    <div class="stamp"><span id="stamp"></span></div>
   </section>
 </main>
-<div class="flash" id="flash"></div>
 
 <script>
-const VECTORS = [
-  { n:1, title:'SESSION REPLAY',   sub:'reuse a responder token after it expires', obj:'Responder credentials', od:'act as a real team member' },
-  { n:2, title:'RECORD TAMPER',    sub:'rewrite the audit log as database owner',  obj:'Audit log integrity',    od:'quietly rewrite incident history' },
-  { n:3, title:'PROMPT INJECTION', sub:'hide instructions inside uploaded evidence', obj:'Agent control',        od:'make the AI follow attacker orders' },
-  { n:4, title:'NETWORK CUT',      sub:'take one responder device offline',         obj:'Availability',           od:'blind the response team' },
-];
+const VECTORS = {
+  1: { title:'SESSION REPLAY',   sub:'replay a responder token after its session ends', say:'“We simulate session expiry here.”', obj:'Responder credentials', od:'act as a real team member' },
+  2: { title:'RECORD TAMPER',    sub:'edit an audit record as the database owner', say:'“This local stage demonstrates chain tamper detection; independent anchoring runs in the deployed system.”', obj:'Audit log integrity', od:'quietly rewrite incident history' },
+  3: { title:'PROMPT INJECTION', sub:'hide instructions inside uploaded evidence', say:'“This injection segment tests the server’s restrictions even if the model obeys.”', obj:'Agent control', od:'make the AI follow attacker orders' },
+  4: { title:'NETWORK CUT',      sub:'take one responder device offline', say:'“This disconnects a real client connection.”', obj:'Availability', od:'blind the response team' },
+};
+const PHASES = ['EDITING', 'DETECTION CHECK', 'RESTORING', 'VERIFIED'];
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
 const term = $('term');
-let running = false;
+let state = { target: null, recovery: null, busy: false, run: null };
+let current = null;          // { n, id } of the run on screen
+let waiters = [];            // RUN ALL waits on done events
+let runAll = false, holdTimer = null;
+const outcomes = {};         // n -> verdict, per page session
 
-// build UI
-for (const v of VECTORS) {
+for (const [n, v] of Object.entries(VECTORS)) {
   const b = document.createElement('button');
-  b.className = 'vec'; b.id = 'v' + v.n;
-  b.innerHTML = `<div class="num">${v.n}</div><div><div class="vt">${v.title}</div><div class="vs">${v.sub}</div></div><div class="state" id="s${v.n}">READY</div>`;
-  b.onclick = () => run(v.n);
+  b.className = 'vec'; b.id = 'v' + n;
+  b.innerHTML = `<div class="num">${n}</div><div><div class="vt">${v.title}</div><div class="vs">${v.sub}</div><div class="say">${v.say}</div></div><div class="state" id="s${n}">READY</div>`;
+  b.onclick = () => start(n);
   $('vectors').append(b);
   const o = document.createElement('div');
-  o.className = 'obj'; o.id = 'o' + v.n;
-  o.innerHTML = `<div><div class="on">${v.obj}</div><div class="od">${v.od}</div></div><div class="ov" id="ov${v.n}">○ UNKNOWN</div>`;
+  o.className = 'obj'; o.id = 'o' + n;
+  o.innerHTML = `<div><div class="on">${v.obj}</div><div class="od">${v.od}</div></div><div class="ov" id="ov${n}">○ NOT RUN</div>`;
   $('objectives').append(o);
 }
-
 setInterval(() => $('clock').textContent = new Date().toISOString().slice(11,19) + 'Z', 1000);
 
 function line(text, cls = '') {
   const d = document.createElement('div');
   d.className = 'ln ' + cls; d.textContent = text;
-  term.append(d); term.scrollTop = term.scrollHeight;
-  if (!reduce) d.animate([{opacity:0, transform:'translateX(-6px)'},{opacity:1, transform:'none'}], {duration:160, easing:'ease-out'});
+  const atBottom = term.scrollHeight - term.scrollTop - term.clientHeight < 60;
+  term.append(d); if (atBottom) term.scrollTop = term.scrollHeight;
   return d;
-}
-async function typeLine(text, cls) {
-  const d = line('', cls);
-  if (reduce) { d.textContent = text; return; }
-  for (let i = 0; i <= text.length; i += 2) { d.textContent = text.slice(0, i); await new Promise(r => setTimeout(r, 12)); }
-  d.textContent = text;
 }
 function classify(t) {
   if (/^\s*PASS\b/.test(t)) return 'pass';
   if (/^\s*VULN\b/.test(t)) return 'vuln';
   if (/^\s*(ERROR|SKIP)\b|REFUSING/.test(t)) return 'err';
   if (/^>/.test(t)) return 'head';
-  return 'sys';
+  if (/INFO Connecting/.test(t)) return 'info';
+  return '';
 }
-function pretty(t) {
-  return t.replace(/^\s*PASS\s+/, '  ✕ BLOCKED  ').replace(/^\s*VULN\s+/, '  ✓ BREACHED ');
+
+function renderTarget() {
+  const t = state.target; if (!t) return;
+  const inc = t.incidentId ? ` · TAMPER TARGET <b>INC-${t.incidentId}</b>${t.incidentTitle ? ` ${esc(t.incidentTitle)}` : ''} → RECORD tab` : '';
+  $('target').innerHTML = `TARGET <b>${esc(t.db)}</b> on ${esc(t.server)}${inc}`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+
+function renderControls() {
+  const busy = state.busy;
+  document.querySelectorAll('.vec').forEach(b => b.disabled = busy && b.id !== 'v' + current?.n);
+  $('runAll').disabled = busy; $('clear').disabled = busy;
+  const r = state.recovery;
+  $('recovery').classList.toggle('show', !!r);
+  if (r) $('recoveryTxt').textContent = `DEMO EDIT PENDING · record #${r.seq} (INC-${r.incidentId}) holds "${r.tampered}"; original "${r.original}". Attack 2 is locked until it is restored.`;
+  $('restore').disabled = busy;
+  $('v2').disabled = $('v2').disabled || !!r;
+}
+
+function setPhase(name) {
+  const strip = $('phases'); strip.classList.add('show');
+  const at = PHASES.indexOf(name === 'DETECTED' ? 'DETECTION CHECK' : name === 'RESTORE FAILED' ? 'RESTORING' : name);
+  strip.querySelectorAll('.ph').forEach((el, i) => {
+    el.className = 'ph' + (i < at ? ' done' : i === at ? (name === 'RESTORE FAILED' ? ' bad' : name === 'VERIFIED' ? ' done' : ' now') : '');
+  });
+}
+function pin(kind, label, facts) {
+  const p = $('pinned'); p.className = 'pinned show ' + kind;
+  $('pinLabel').textContent = label;
+  $('pinFacts').innerHTML = facts.map(esc).join('<br>');
+}
+function hold(until) {   // epoch ms of the automatic restore, or 0 to hide
+  clearInterval(holdTimer);
+  if (!until) { $('hold').classList.remove('show'); return; }
+  $('hold').classList.add('show');
+  const tick = () => {
+    const s = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    $('holdTxt').textContent = `DETECTED · holding · auto-restore in ${s}s`;
+    if (s === 0) clearInterval(holdTimer);
+  };
+  tick(); holdTimer = setInterval(tick, 250);
 }
 
 function stamp(text, color) {
   if (reduce) return;
   const s = $('stamp'); s.textContent = text; s.style.color = color; s.style.borderColor = color;
   s.animate([
-    {opacity:0, transform:'rotate(-8deg) scale(2.2)', filter:'blur(6px)'},
-    {opacity:1, transform:'rotate(-8deg) scale(.94)', filter:'blur(0)', offset:.35},
-    {opacity:1, transform:'rotate(-8deg) scale(1)', offset:.75},
-    {opacity:0, transform:'rotate(-8deg) scale(1)'}
-  ], {duration:1300, easing:'cubic-bezier(.2,.9,.3,1.2)'});
-  $('flash').animate([{opacity:.22},{opacity:0}], {duration:380});
-  document.body.animate([
-    {transform:'translate(0,0)'},{transform:'translate(-7px,2px)'},{transform:'translate(6px,-2px)'},
-    {transform:'translate(-4px,1px)'},{transform:'translate(0,0)'}
-  ], {duration:300});
+    { opacity:0, transform:'rotate(-6deg) scale(1.8)' },
+    { opacity:1, transform:'rotate(-6deg) scale(.96)', offset:.3 },
+    { opacity:1, transform:'rotate(-6deg) scale(1)', offset:.8 },
+    { opacity:0, transform:'rotate(-6deg) scale(1)' }
+  ], { duration:1400, easing:'cubic-bezier(.2,.9,.3,1.2)' });
 }
 
-function resolve(n, results) {
-  const o = $('o' + n), ov = $('ov' + n), st = $('s' + n);
-  o.classList.remove('blocked','breached','fault');
-  const vuln = results.some(r => r.outcome === 'VULN');
-  const err  = results.some(r => r.outcome === 'ERROR');
-  const pass = results.filter(r => r.outcome === 'PASS').length;
-  if (vuln)       { o.classList.add('breached'); ov.textContent = '✓ BREACHED'; st.textContent = 'SUCCEEDED'; stamp('BREACHED', 'var(--phosphor)'); }
-  else if (err || !pass) { o.classList.add('fault'); ov.textContent = '! FAULT';  st.textContent = 'FAULT'; }
-  else            { o.classList.add('blocked'); ov.textContent = '✕ BLOCKED'; st.textContent = 'DENIED'; stamp('DENIED', 'var(--blood)'); }
-  if (!reduce) o.animate([{transform:'scale(1.04)'},{transform:'scale(1)'}], {duration:260});
-  $('score').innerHTML = `OBJECTIVES BLOCKED <b>${document.querySelectorAll('.obj.blocked').length}</b> / 4`;
-}
-
-function run(n) {
-  if (running) return Promise.resolve();
-  running = true;
-  document.querySelectorAll('.vec').forEach(b => b.disabled = true);
-  const btn = $('v' + n); btn.disabled = false; btn.classList.add('running');
-  $('s' + n).textContent = 'RUNNING'; $('linkTxt').textContent = 'ENGAGED';
-  const v = VECTORS[n-1];
-  return new Promise(async done => {
-    await typeLine(`$ ./attack --vector ${n} --target blackbox    # ${v.title}`, 'cmd');
-    let results = [];
-    const es = new EventSource('/run/' + n);
-    es.addEventListener('line', e => { const t = JSON.parse(e.data); line(pretty(t), classify(t)); });
-    es.addEventListener('result', e => { results = JSON.parse(e.data); });
-    es.addEventListener('done', () => { es.close(); finish(); });
-    es.onerror = () => { es.close(); line('  connection to local bridge lost', 'err'); finish(); };
-    function finish() {
-      btn.classList.remove('running');
-      resolve(n, results);
-      document.querySelectorAll('.vec').forEach(b => b.disabled = false);
-      $('linkTxt').textContent = 'ARMED';
-      running = false; done();
-    }
-  });
-}
-
-$('runAll').onclick = async () => {
-  if (running) return;
-  for (const v of VECTORS) { await run(v.n); await new Promise(r => setTimeout(r, 1200)); }
-  const blocked = document.querySelectorAll('.obj.blocked').length;
-  await typeLine(`\n== ${blocked}/4 objectives blocked ==`, blocked === 4 ? 'pass' : 'vuln');
-};
-$('reset').onclick = () => {
-  if (running) return;
-  term.innerHTML = '';
-  for (const v of VECTORS) {
-    $('o' + v.n).className = 'obj'; $('ov' + v.n).textContent = '○ UNKNOWN'; $('s' + v.n).textContent = 'READY';
+const COLORS = { held:'var(--blood)', breached:'var(--phosphor)', incomplete:'var(--amber)', error:'var(--amber)' };
+function showVerdict(n, v, animate) {
+  if (n !== 'restore') {
+    outcomes[n] = v;
+    const o = $('o' + n); o.className = 'obj ' + v.kind;
+    $('ov' + n).textContent = v.label; $('s' + n).textContent = v.kind === 'held' ? 'HELD' : v.label;
   }
-  $('score').innerHTML = 'OBJECTIVES BLOCKED <b>0</b> / 4';
-  boot();
-};
-
-async function boot() {
-  for (const t of ['initializing red-team console…', 'loading vectors from attack/demo/ … 4 found', 'target locked: BLACKBOX (local demo instance)', 'ready.'])
-    await typeLine(t, 'sys');
-  const c = document.createElement('span'); c.className = 'caret'; term.lastChild.append(c);
+  pin(v.kind, v.label, v.facts);
+  if (animate) stamp(v.stamp, COLORS[v.kind]);
 }
-boot();
+
+function onPhase(p, live) {
+  setPhase(p.phase);
+  line(`  [${p.phase}${p.seq ? ` · record #${p.seq}` : ''}]`, 'phase');
+  if (p.phase === 'EDITING') pin('live', 'IN PROGRESS', [`RECORD #${p.seq} (INC-${p.incidentId}) ALTERED BY THE DATABASE OWNER`, `action "${p.original}" → "${p.tampered}"`]);
+  if (p.phase === 'DETECTED') {
+    pin('live', 'DETECTED · HOLDING', [`RECORD #${p.seq} ALTERED`, `BLACKBOX DETECTED HASH MISMATCH${p.module ? ' · MODULE AGREES' : ''}`, 'restore when the judges have seen the red band']);
+    // A replay after a refresh still gets the control while the run is live; the countdown uses the bridge's clock.
+    if (p.holdMaxMs && (live || state.busy)) hold(p.t + p.holdMaxMs);
+    if (live && runAll) setTimeout(() => post('/release'), 5000); // rehearsal: release on its own
+  }
+  if (p.phase === 'RESTORING') hold(0);
+}
+
+// One stream for the page's life. On every (re)connect the bridge replays the run, so redraw from scratch.
+function connect() {
+  const es = new EventSource('/events');
+  let replaying = true;
+  es.addEventListener('reset', e => {
+    state = JSON.parse(e.data); replaying = true;
+    renderTarget(); renderControls();
+    $('link').classList.remove('lost'); $('linkTxt').textContent = state.busy ? 'ENGAGED' : 'ARMED';
+    if (state.run) { term.innerHTML = ''; $('phases').classList.remove('show'); $('pinned').className = 'pinned'; hold(0); }
+  });
+  es.addEventListener('live', () => { replaying = false; });
+  es.addEventListener('start', e => {
+    const { n, id } = JSON.parse(e.data);
+    current = { n, id }; state.busy = true;
+    document.querySelectorAll('.vec').forEach(b => b.classList.remove('running'));
+    if (n !== 'restore') { $('v' + n).classList.add('running'); $('s' + n).textContent = 'RUNNING'; }
+    if (n === '2' || n === 'restore') $('phases').classList.add('show'); else $('phases').classList.remove('show');
+    $('pinned').className = 'pinned'; hold(0);
+    line(n === 'restore' ? '$ restore the demo edit' : `$ ./attack --vector ${n} --target ${state.target?.db ?? 'blackbox'}    # ${VECTORS[n].title}`, 'cmd');
+    $('linkTxt').textContent = 'ENGAGED'; renderControls();
+  });
+  es.addEventListener('line', e => { const t = JSON.parse(e.data); line(t, classify(t)); });
+  es.addEventListener('phase', e => onPhase(JSON.parse(e.data), !replaying));
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    state.busy = false; state.recovery = d.recovery;
+    hold(0);
+    document.querySelectorAll('.vec').forEach(b => b.classList.remove('running'));
+    if (current) showVerdict(current.n, d.verdict, !replaying);
+    line(`  == ${d.verdict.label} ==`, d.verdict.kind === 'held' ? 'pass' : d.verdict.kind === 'breached' ? 'vuln' : 'err');
+    $('linkTxt').textContent = 'ARMED'; renderControls();
+    const w = waiters; waiters = []; w.forEach(f => f(d.verdict));
+  });
+  es.onerror = () => { $('link').classList.add('lost'); $('linkTxt').textContent = 'LINK LOST · RECONNECTING'; };
+}
+
+async function post(path) {
+  const r = await fetch(path, { method:'POST', headers:{ 'x-blackbox-console':'1' } }).catch(() => null);
+  if (!r) { line('  bridge unreachable', 'err'); return false; }
+  if (!r.ok) { line(`  ${(await r.json().catch(() => ({}))).error ?? r.status}`, 'err'); return false; }
+  return true;
+}
+function start(n) {
+  if (state.busy) return Promise.resolve(null);
+  const done = new Promise(res => waiters.push(res));
+  return post('/run/' + n).then(ok => ok ? done : (waiters = waiters.filter(w => w !== done), null));
+}
+
+$('release').onclick = () => post('/release');
+$('restore').onclick = () => post('/restore');
+$('runAll').onclick = async () => {
+  if (state.busy) return;
+  runAll = true;
+  for (const n of ['1','2','3','4']) {
+    const v = await start(n);
+    if (!v || v.kind !== 'held') { line(`  RUN ALL stopped at vector ${n}`, 'err'); break; }
+    await new Promise(r => setTimeout(r, 1200));
+  }
+  runAll = false;
+  const held = Object.values(outcomes).filter(v => v.kind === 'held').length;
+  line(`\n== ${held}/4 defences held ==`, held === 4 ? 'pass' : 'err');
+};
+$('clear').onclick = () => {
+  if (state.busy) return;
+  term.innerHTML = ''; $('phases').classList.remove('show'); $('pinned').className = 'pinned';
+  for (const n of Object.keys(VECTORS)) { $('o' + n).className = 'obj'; $('ov' + n).textContent = '○ NOT RUN'; $('s' + n).textContent = 'READY'; delete outcomes[n]; }
+  line('console cleared (database untouched)', 'info');
+};
+connect();
 </script>
 </body>
 </html>
