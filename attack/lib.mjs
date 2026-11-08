@@ -47,6 +47,9 @@ export async function call(who, reducer, args = []) {
 // Timestamp argument in SpacetimeDB's JSON format.
 export const ts = (ms = Date.now()) => ({ __timestamp_micros_since_unix_epoch__: Math.round(ms * 1000) });
 
+// A timestamp column as returned by SQL ([micros] or {__timestamp…}) → reducer argument form.
+export const tsArg = v => ({ __timestamp_micros_since_unix_epoch__: Array.isArray(v) ? v[0] : (v?.__timestamp_micros_since_unix_epoch__ ?? v) });
+
 // The standard "try to write something" call: a valid create_incident (slice 3+).
 export function write(who, title = 'atk write', over = {}) {
   const a = { title, type: 'ransomware', severity: 'high', detectedAt: ts(Date.now() - 60_000), systems: 'fin-db-02', containment: 'none', ...over };
@@ -109,9 +112,11 @@ let ownerWho;
 export function owner() {
   if (ownerWho) return ownerWho;
   const r = spawnSync('spacetime', ['login', 'show', '--token'], { encoding: 'utf8' });
-  const token = ((r.stdout ?? '') + (r.stderr ?? '')).match(/eyJ[\w-]+\.[\w-]+\.[\w-]+/)?.[0];
+  const out = (r.stdout ?? '') + (r.stderr ?? '');
+  const token = out.match(/eyJ[\w-]+\.[\w-]+\.[\w-]+/)?.[0];
   if (!token) throw new Error('could not read owner token from spacetime CLI');
-  return (ownerWho = { token });
+  const hex = out.match(/logged in as ([0-9a-f]{64})/i)?.[1];
+  return (ownerWho = { token, identity: hex ? `0x${hex}` : undefined });
 }
 
 // Independent re-implementation of the module's canonicalJson + chain formula, used to

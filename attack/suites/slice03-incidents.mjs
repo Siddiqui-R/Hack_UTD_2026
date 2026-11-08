@@ -1,10 +1,11 @@
 // Slice 3: incidents, structured intake, update.
-import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, write, ts, auditRows, runTag } from '../lib.mjs';
+import { newIdentity, call, sql, ownerSql, record, expectDenied, signIn, getCommander, write, ts, tsArg, auditRows, runTag } from '../lib.mjs';
 
 export const slice = 3;
 export const title = 'Incidents';
 
-const upd = (who, id, s) => call(who, 'update_incident', [id, s.severity, s.status, s.containment, s.systems]);
+// update_incident takes the version the caller saw (expectedUpdatedAt) as its last argument.
+const upd = (who, id, s) => call(who, 'update_incident', [id, s.severity, s.status, s.containment, s.systems, s.version]);
 
 export async function run() {
   const cmd = await getCommander();
@@ -13,7 +14,7 @@ export async function run() {
   const find = async (who, t) => (await sql(who, `SELECT * FROM incidents WHERE title = '${t}'`)).rows[0];
   const inc = await find(cmd, `atk-inc-${runTag}`);
   if (!inc) return record('I0', 'commander can create + read an incident', 'VULN', probe.error || 'not visible');
-  const base = { severity: inc.severity, status: inc.status, containment: inc.containment_status, systems: inc.systems_affected };
+  const base = { severity: inc.severity, status: inc.status, containment: inc.containment_status, systems: inc.systems_affected, version: tsArg(inc.updated_at) };
 
   // --- Who can read / write -----------------------------------------------------------
   const obs = await signIn('observer');

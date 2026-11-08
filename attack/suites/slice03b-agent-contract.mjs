@@ -1,6 +1,6 @@
 // Slice 3.5: agent contract. The agent is a dedicated identity enrolled to ONE incident.
 // Threat: a prompt-injected or stolen agent tries to escalate, escape its incident, or act as a human.
-import { newIdentity, call, sql, proc, record, expectDenied, signIn, getCommander, write, enrollAgent, auditRows, runTag } from '../lib.mjs';
+import { newIdentity, call, sql, proc, record, expectDenied, signIn, getCommander, write, enrollAgent, auditRows, runTag, tsArg, owner, ownerCall, randomCode } from '../lib.mjs';
 
 export const slice = '3b';
 export const title = 'Agent contract (NEMOTRON identity)';
@@ -29,7 +29,7 @@ export async function run() {
     ['G5', 'agent grants a role', () => call(ag, 'set_role', [id(resp), 'commander'])],
     ['G6', 'agent revokes a human', () => call(ag, 'revoke_session', [id(resp)])],
     ['G7', 'agent redeems an invite', () => call(ag, 'redeem_invite', ['QWERTY23', 'Nemo'])],
-    ['G8', 'agent closes its incident', () => call(ag, 'update_incident', [home.id, home.severity, 'closed', home.containment_status, home.systems_affected])],
+    ['G8', 'agent closes its incident', () => call(ag, 'update_incident', [home.id, home.severity, 'closed', home.containment_status, home.systems_affected, tsArg(home.updated_at)])],
     ['G9', 'agent enrolls another agent', () => call(ag, 'enroll_agent', [id(resp), home.id])],
     ['G10', 'agent submits its own evidence', () => call(ag, 'submit_evidence', [home.id, 'trust me'])],
   ];
@@ -81,4 +81,19 @@ export async function run() {
   await call(cmd, 'revoke_session', [id(ag)]);
   expectDenied('G24', 'revoked agent writes', await call(ag, 'create_task', ['after revoke', 'responder']));
   expectDenied('G25', 'revoked agent is re-enrolled', await call(cmd, 'enroll_agent', [id(ag), home.id]));
+
+  // --- Hardening added by Sensei after 3.5 -------------------------------------------------
+  const own = owner();
+  if (own.identity) expectDenied('G26', 'owner identity enrolled as an agent', await call(cmd, 'enroll_agent', [{ __identity__: own.identity }, home.id]));
+  else record('G26', 'owner identity enrolled as an agent', 'SKIP', 'owner identity unknown');
+  const un = ownerCall('unrevoke_session', { __identity__: ag.identity });
+  record('G27', 'owner un-revokes a revoked agent', un.ok ? 'VULN' : 'PASS', un.ok ? 'agent revocation undone' : 'permanent');
+
+  // A revoked commander's outstanding invites must die with them.
+  const rogue = await signIn('commander');
+  const code = randomCode();
+  await call(rogue, 'create_invite', [code, 'commander']);
+  ownerCall('revoke_session', { __identity__: rogue.identity });
+  const late = await call(await newIdentity(), 'redeem_invite', [code, `late ${runTag}`]);
+  record('G28', "revoked commander's invite still works", late.ok ? 'VULN' : 'PASS', late.ok ? 'redeemed after revoke' : 'invite gone');
 }
