@@ -113,3 +113,9 @@ input, select, textarea, button { font: inherit; color: inherit; }
   .code-char, .code-shake, .scanlines { animation: none !important; }
   * { transition: none !important; }
 }
+
+/* DESIGN §6.2: integrity rupture, one 400ms wash; static red band is the fallback. */
+@keyframes integrity-wash { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.integrity-wash { position: absolute; inset: 0; background: var(--color-critical); opacity: 0.08;
+  transform-origin: left; animation: integrity-wash 400ms ease-out both; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .integrity-wash { animation: none; } }

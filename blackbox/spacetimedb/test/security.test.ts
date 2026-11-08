@@ -75,8 +75,38 @@ describe('BLACKBOX security', () => {
     expect(test.db.user.identity.find(id(first))?.role).toBe('commander');
   });
 
-  it.todo('5. verifyChain ok on a clean 20-row chain (slice 4)');
-  it.todo('6. verifyChain reports the correct brokenAt after a row edit (slice 4)');
+  it('5. verifyChain ok on a clean 20-row chain', () => {
+    const { test, tx, commander } = setup();
+    while (test.db.audit.count() < 20n) tx(commander, ctx => mod.createIncident(ctx, {
+      title: 'Chain check', incidentType: 'ransomware', severity: 'high',
+      detectedAt: test.clock.now(), systemsAffected: 'FS-1', containmentStatus: 'none',
+    }));
+    expect(mod.verifyChain(test.procedureContext(commander), {})).toEqual({
+      ok: true, checked: 20n, brokenAt: undefined, reason: 'internally consistent; no independent anchor',
+    });
+    expect(test.db.audit.count()).toBe(20n);
+  });
+  it('6. verifyChain detects edits, gaps, deleted tails and corrupt heads, then recovers after repair', () => {
+    const { test, tx, commander } = setup();
+    const verify = () => mod.verifyChain(test.procedureContext(commander), {});
+    const rows = [...test.db.audit.iter()].sort((a, b) => Number(a.seq - b.seq));
+    const row = rows[2];
+    tx(commander, ctx => ctx.db.audit.seq.update({ ...row, payloadJson: '{"tampered":true}' }));
+    expect(verify()).toMatchObject({ ok: false, checked: row.seq - 1n, brokenAt: row.seq, reason: 'event hash mismatch' });
+    tx(commander, ctx => ctx.db.audit.seq.update(row));
+    tx(commander, ctx => ctx.db.audit.seq.delete(row.seq));
+    expect(verify()).toMatchObject({ ok: false, brokenAt: row.seq, reason: 'sequence gap or invalid sequence' });
+    tx(commander, ctx => ctx.db.audit.insert(row));
+    const last = rows[rows.length - 1];
+    tx(commander, ctx => ctx.db.audit.seq.delete(last.seq));
+    expect(verify()).toMatchObject({ ok: false, brokenAt: last.seq, reason: 'chain head sequence mismatch' });
+    tx(commander, ctx => ctx.db.audit.insert(last));
+    const head = test.db.chainHead.id.find(0)!;
+    tx(commander, ctx => ctx.db.chainHead.id.update({ ...head, headHash: '0'.repeat(64) }));
+    expect(verify()).toMatchObject({ ok: false, brokenAt: head.seq, reason: 'chain head hash mismatch' });
+    tx(commander, ctx => ctx.db.chainHead.id.update(head));
+    expect(verify().ok).toBe(true);
+  });
   it.todo('7. destructive action with one approver stays pending (slice 10)');
 
   // 8 (partial until slice 8 adds the NEMOTRON actor): a non-commander cannot grant a role.

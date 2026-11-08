@@ -577,3 +577,35 @@ export const tasks = spacetimedb.view({ public: true }, t.array(task.rowType), c
   const allowed = !!ctx.db.user.identity.find(ctx.sender) && !!ctx.db.session.identity.find(ctx.sender);
   return ctx.from.task.where(row => allowed ? row.id.gt(0n) : row.id.eq(0n));
 });
+
+const ChainVerification = t.object('ChainVerification', {
+  ok: t.bool(), checked: t.u64(), brokenAt: t.option(t.u64()), reason: t.string(),
+});
+
+// Callable from SDK, HTTP and module tests. Read-only; hash formula matches appendAudit exactly.
+// This proves internal consistency only. Independent checkpoints are slice 9.
+export const verifyChain = spacetimedb.procedure(ChainVerification, ctx => ctx.withTx(tx => {
+  requireReader(tx);
+  const rows = [...tx.db.audit.iter()].sort((a, b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0);
+  let previous = GENESIS_HASH;
+  let expected = 1n;
+  let checked = 0n;
+  const broken = (brokenAt: bigint, reason: string) => ({ ok: false, checked, brokenAt, reason });
+  for (const row of rows) {
+    if (row.seq !== expected) return broken(expected, 'sequence gap or invalid sequence');
+    if (row.prevHash !== previous) return broken(row.seq, 'previous hash mismatch');
+    const actual = sha256Hex(canonicalJson({
+      seq: row.seq, incidentId: row.incidentId, actor: row.actor, action: row.action,
+      payloadJson: row.payloadJson, prevHash: row.prevHash, createdAt: row.createdAt.microsSinceUnixEpoch,
+    }) + row.prevHash);
+    if (actual !== row.eventHash) return broken(row.seq, 'event hash mismatch');
+    previous = row.eventHash;
+    expected++;
+    checked++;
+  }
+  const head = tx.db.chainHead.id.find(0);
+  if (!head && checked !== 0n) return broken(expected - 1n, 'chain head missing');
+  if (head && head.seq !== checked) return broken(head.seq > checked ? expected : head.seq, 'chain head sequence mismatch');
+  if (head && head.headHash !== previous) return broken(head.seq, 'chain head hash mismatch');
+  return { ok: true, checked, brokenAt: undefined, reason: 'internally consistent; no independent anchor' };
+}));

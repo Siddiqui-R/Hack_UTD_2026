@@ -37,6 +37,14 @@ export const ChainHead = __t.object("ChainHead", {
 });
 export type ChainHead = __Infer<typeof ChainHead>;
 
+export const ChainVerification = __t.object("ChainVerification", {
+  ok: __t.bool(),
+  checked: __t.u64(),
+  brokenAt: __t.option(__t.u64()),
+  reason: __t.string(),
+});
+export type ChainVerification = __Infer<typeof ChainVerification>;
+
 export const Conflict = __t.object("Conflict", {
   id: __t.u64(),
   incidentId: __t.u64(),

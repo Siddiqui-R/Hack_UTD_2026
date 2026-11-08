@@ -53,6 +53,7 @@ import UpdateSeverityReducer from "./update_severity_reducer";
 import * as EvidenceRecordsProcedure from "./evidence_records_procedure";
 import * as GetScopeProcedure from "./get_scope_procedure";
 import * as SearchIncidentsProcedure from "./search_incidents_procedure";
+import * as VerifyChainProcedure from "./verify_chain_procedure";
 
 // Import all table schema definitions
 import IncidentsRow from "./incidents_table";
@@ -109,6 +110,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("evidence_records", EvidenceRecordsProcedure.params, EvidenceRecordsProcedure.returnType),
   __procedureSchema("get_scope", GetScopeProcedure.params, GetScopeProcedure.returnType),
   __procedureSchema("search_incidents", SearchIncidentsProcedure.params, SearchIncidentsProcedure.returnType),
+  __procedureSchema("verify_chain", VerifyChainProcedure.params, VerifyChainProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

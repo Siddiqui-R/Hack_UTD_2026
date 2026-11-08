@@ -68,3 +68,21 @@ afterwards. live-hardening.mjs consumes the ignored agent-logs/live-fixture.json
 
 After merging Rabeet security/service work: updateSeverity is raise-only for agents; any downgrade requires a human update.
 Observers cannot read evidenceRecords. Raw evidence keeps hidden characters as evidence (Rabeet strict=false rule preserved).
+
+## Slice 4: chain verification
+conn.procedures.verifyChain() returns {ok:boolean, checked:bigint, brokenAt:bigint|undefined, reason:string}.
+Exported procedure verifyChain is directly callable in module tests as mod.verifyChain(test.procedureContext(auth), {}).
+It requires an unrevoked, unexpired human or enrolled-agent session and never extends it or writes audit data.
+Checks every stored event hash using the unchanged appendAudit formula, contiguous sequence/previous links,
+then verifies the persisted chain head (including tail removal and missing/corrupt head).
+checked counts fully verified rows before the failure; brokenAt identifies the first bad/missing sequence.
+A clean result says internally consistent; it does NOT claim independent anchoring or rule out a full rewrite.
+
+HTTP call endpoint: POST /v1/database/blackbox/call/verify_chain with body []. Its raw SATS JSON product is
+[ok,checked,option,reason], where option=[0,seq] for Some and [1,[]] for None. Generated SDK decodes this to
+the named object automatically. Tests/scripts using raw HTTP must decode the product.
+
+UI polls every 2 seconds without overlap; green is cleared on disconnect or verification failure.
+Green label explicitly says UNANCHORED; failures show record number/reason in a full-width red band.
+Independent external anchor and anchor mismatch remain slice 9. Detailed RECORD timeline remains slice 12.
+Live tamper/repair script: node blackbox/spacetimedb/scripts/live-chain.mjs (local only; finally restores edits).

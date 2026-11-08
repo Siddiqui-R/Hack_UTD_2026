@@ -49,7 +49,7 @@ export function Command({ me, team }: { me: TeamMember; team: readonly TeamMembe
   const selected = incidents.find(i => i.id === selectedId);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-[1120px] flex-col">
       <Chrome active={creating ? undefined : selected} me={me} team={team} linkUp={isActive} />
       <div className="grid min-h-0 flex-1 grid-cols-[280px_1fr_320px]">
         <IncidentList

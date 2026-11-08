@@ -60,7 +60,7 @@ Codes: 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, dash/space/case ignored.
 | 2 | Invite codes → real session identity → role | replay, reuse, expiry, forged code | [x] |
 | 3 | Incident create/read + structured form + COMMAND shell | observer writing, missing audit rows | [x] |
 | 3.5 | Agent contract: tables, reducers, reads, generated bindings | agent privilege escalation and incident escape | [x] |
-| 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [ ] |
+| 4 | Audit chain + `verifyChain` + status bar | row edits, canonicalJson, seq gaps | [x] |
 | 5 | Real-time chat | cross-incident message leakage | [ ] |
 | 6 | Scope items | observer reading scope | [ ] |
 | 7 | Agent service, read-only tools (`searchIncidents`, `getScope`) | injection payloads | [ ] |
@@ -200,3 +200,20 @@ SLICE 3.5 LIVE + SECURITY FIXES — DONE. No database reset. Existing local serv
   now denied; G22 observer raw evidence denied. Rabeet raw-evidence lenient text rule retained. Live hardening
   checks re-run successfully on the merged/published module; npm test 4 pass/4 todo. No reset, no NVIDIA calls.
   Attack this: G19 downgrade, G22 evidence read, owner-agent enrolment and permanent agent revocation.
+
+SLICE 4 — callable verifyChain + tamper detection + real status bar. DONE.
+  verifyChain returns {ok,checked,brokenAt,reason}; exported registered procedure callable in tests, SDK and HTTP.
+  Hash formula unchanged. Checks event hashes, sequence/prev links, missing tail, missing/corrupt head.
+  No audit mutation or session extension on verification. Authentication/session/revocation enforced.
+  UI polls at 2s (no overlap), clears stale green on errors/disconnect, shows CHAIN VERIFIED + UNANCHORED,
+  or full-width red INTEGRITY BROKEN with correct record/reason. Single 400ms wash; reduced-motion fallback.
+  Live: clean chain (96), edit test audit row #97 -> brokenAt97/hash mismatch, restore -> clean97;
+  head hash corruption -> detected, restored. Browser showed verified99 -> broken97 -> verified99 automatically.
+  No reset; original incident and all prior rows retained; test mutations restored. No NVIDIA calls (5/40).
+  Checks: unit suite 6 pass / 2 todo (max8 preserved), module typecheck/build, regenerated bindings, client build.
+  Self-critique: fixed chrome overlap/wrapping and zero-width detail pane in narrow views (horizontal-scroll fallback).
+  RABEET: use AGENT_CONTRACT.md for verifyChain HTTP product decoding; update_incident version arg remains mandatory.
+  P1 procedure-denial transport cost is a known performance item; denial semantics retained. No independent anchor
+  yet: full chain rewrites remain undetectable without slice9. Record timeline/diff remains slice12.
+  Attack this: edit an audit payload/prev hash, delete a middle/tail row, corrupt/delete chain_head; verify correct
+  brokenAt and automatic UI recovery after repair; expired/revoked verifier; stale green after disconnect.

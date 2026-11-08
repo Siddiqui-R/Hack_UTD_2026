@@ -366,3 +366,11 @@ Only what the sources actually state is recorded; where only an abstract was rea
   with single use and a 30-minute expiry, online guessing is not practical. Answer to
   give a judge: "~40 bits of entropy plus single-use, 30-minute expiry; we deliberately
   did not rely on a rate limit."
+
+### Slice 4 self-critique
+
+Reviewed the live verified, broken (#97) and repaired states against §§2/10. Fixed overlapping chrome text
+and the collapsed center pane at narrow widths: keep the 44px header on one line and retain a 1120px
+console with horizontal scrolling as the fallback. Quiet green explicitly says UNANCHORED; the red band
+names the broken record/reason. The single integrity wash has a static reduced-motion fallback.
+No anchor-mismatch treatment is shown before slice 9; RECORD-focused hash diff belongs to slice 12.
