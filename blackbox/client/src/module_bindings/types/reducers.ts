@@ -17,6 +17,7 @@ import RevokeSessionReducer from "../revoke_session_reducer";
 import SetRoleReducer from "../set_role_reducer";
 import SubmitEvidenceReducer from "../submit_evidence_reducer";
 import TouchSessionReducer from "../touch_session_reducer";
+import UnrevokeSessionReducer from "../unrevoke_session_reducer";
 import UpdateIncidentReducer from "../update_incident_reducer";
 import UpdateSeverityReducer from "../update_severity_reducer";
 
@@ -31,6 +32,7 @@ export type RevokeSessionParams = __Infer<typeof RevokeSessionReducer>;
 export type SetRoleParams = __Infer<typeof SetRoleReducer>;
 export type SubmitEvidenceParams = __Infer<typeof SubmitEvidenceReducer>;
 export type TouchSessionParams = __Infer<typeof TouchSessionReducer>;
+export type UnrevokeSessionParams = __Infer<typeof UnrevokeSessionReducer>;
 export type UpdateIncidentParams = __Infer<typeof UpdateIncidentReducer>;
 export type UpdateSeverityParams = __Infer<typeof UpdateSeverityReducer>;
 

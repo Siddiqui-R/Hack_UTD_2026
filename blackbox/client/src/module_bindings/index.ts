@@ -45,6 +45,7 @@ import RevokeSessionReducer from "./revoke_session_reducer";
 import SetRoleReducer from "./set_role_reducer";
 import SubmitEvidenceReducer from "./submit_evidence_reducer";
 import TouchSessionReducer from "./touch_session_reducer";
+import UnrevokeSessionReducer from "./unrevoke_session_reducer";
 import UpdateIncidentReducer from "./update_incident_reducer";
 import UpdateSeverityReducer from "./update_severity_reducer";
 
@@ -98,6 +99,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_role", SetRoleReducer),
   __reducerSchema("submit_evidence", SubmitEvidenceReducer),
   __reducerSchema("touch_session", TouchSessionReducer),
+  __reducerSchema("unrevoke_session", UnrevokeSessionReducer),
   __reducerSchema("update_incident", UpdateIncidentReducer),
   __reducerSchema("update_severity", UpdateSeverityReducer),
 );
