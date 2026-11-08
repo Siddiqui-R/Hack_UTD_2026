@@ -1,0 +1,4 @@
+.env*
+*.md
+server.mjs
+node_modules

@@ -2,6 +2,14 @@
   "name": "blackbox-pdf",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.mjs" },
-  "engines": { "node": ">=22" }
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "153.0.0",
+    "puppeteer-core": "25.11.0"
+  }
 }

@@ -1,6 +1,19 @@
 # RECORD PDF endpoint
 
-Run `cd pdf && npm start` with Node 22+ and installed Chrome, Chromium or Edge. No npm packages are required.
+## Hosted (production)
+Deployed as its own Vercel project `rabeet1/blackbox-pdf` at **`https://blackbox-pdf.vercel.app/api/record`**
+(`/api/health` for liveness). The client project's server-only `PDF_RENDERER_URL` points there and both projects hold
+the same `PDF_RENDERER_TOKEN` as a sensitive variable (local copy only in the gitignored root `.env.pdf-renderer`).
+`api/record.mjs` prints the same HTML as `render.mjs` with `@sparticuz/chromium@153.0.0` + `puppeteer-core@25.11.0`
+(pinned pair, installed with `npm install --before=2026-10-24`). It refuses every request until a 32+ character token is
+configured, checks it before reading the body, caps snapshots at 2 MiB and PDFs at 4 MiB, and aborts every page request.
+Measured: 3.7 s cold, 0.4 s warm, against the adapter's 20 s. This project is not Git-connected: redeploy changes with
+`cd pdf && npx vercel@65.2.0 deploy --prod --scope rabeet1`.
+Limitation: the serverless Chromium ships only Latin-script fonts, so CJK, Arabic and symbol characters print as empty
+boxes (they are not silently dropped). The RECORD view and JSON export keep the exact text.
+
+## Local
+Run `cd pdf && npm start` with Node 22+ and installed Chrome, Chromium or Edge. `npm start` uses no npm packages.
 Set `PDF_BROWSER_PATH` when the browser is not at a standard path. The service binds to loopback port 4400;
 override `PDF_HOST`/`PDF_PORT` for hosting. `GET /health` checks HTTP availability.
 

@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/record.mjs": {
+      "maxDuration": 30,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    }
+  }
+}
