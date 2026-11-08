@@ -165,3 +165,10 @@ SLICE 3.5 — agent module contract DONE (see AGENT_CONTRACT.md).
   RABEET: pull, read AGENT_CONTRACT.md, build only in your owned folders. Do not use a human token for the service.
   Attack this: enrolled agent calls permission reducers; cross-incident severity/conflict/read; revoked agent
   writes; expired agent session; forged actor via calls (no actor parameter accepted).
+
+Post-pull verification: merged Rabeet's security suite (31338e3) before pushing slice 3.5.
+  Installed existing locked module dev dependencies; full module typecheck and client build pass.
+  npm test: 4 passed, 4 todo. Responder-close regression now passes.
+  Rabeet's section is preserved. attack/fixes.patch targets slice 3 and does not apply cleanly after 3.5;
+  remaining findings (duress visibility, commander lockout and other hardening) require adaptation, not blind apply.
+  Attack this: re-run agent privilege checks against 82f7628; remaining findings are not claimed fixed.
