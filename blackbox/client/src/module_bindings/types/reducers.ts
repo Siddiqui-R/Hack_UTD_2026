@@ -6,13 +6,18 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import BeginAgentRunReducer from "../begin_agent_run_reducer";
+import CancelAgentRunReducer from "../cancel_agent_run_reducer";
 import CreateIncidentReducer from "../create_incident_reducer";
 import CreateInviteReducer from "../create_invite_reducer";
 import CreateTaskReducer from "../create_task_reducer";
 import EnrollAgentReducer from "../enroll_agent_reducer";
+import FinishAgentRunReducer from "../finish_agent_run_reducer";
 import FlagConflictReducer from "../flag_conflict_reducer";
 import IssueBootstrapInviteReducer from "../issue_bootstrap_invite_reducer";
+import RecordAgentStepReducer from "../record_agent_step_reducer";
 import RedeemInviteReducer from "../redeem_invite_reducer";
+import RequestAgentRunReducer from "../request_agent_run_reducer";
 import RevokeSessionReducer from "../revoke_session_reducer";
 import SetRoleReducer from "../set_role_reducer";
 import StartAnchoringReducer from "../start_anchoring_reducer";
@@ -22,13 +27,18 @@ import UnrevokeSessionReducer from "../unrevoke_session_reducer";
 import UpdateIncidentReducer from "../update_incident_reducer";
 import UpdateSeverityReducer from "../update_severity_reducer";
 
+export type BeginAgentRunParams = __Infer<typeof BeginAgentRunReducer>;
+export type CancelAgentRunParams = __Infer<typeof CancelAgentRunReducer>;
 export type CreateIncidentParams = __Infer<typeof CreateIncidentReducer>;
 export type CreateInviteParams = __Infer<typeof CreateInviteReducer>;
 export type CreateTaskParams = __Infer<typeof CreateTaskReducer>;
 export type EnrollAgentParams = __Infer<typeof EnrollAgentReducer>;
+export type FinishAgentRunParams = __Infer<typeof FinishAgentRunReducer>;
 export type FlagConflictParams = __Infer<typeof FlagConflictReducer>;
 export type IssueBootstrapInviteParams = __Infer<typeof IssueBootstrapInviteReducer>;
+export type RecordAgentStepParams = __Infer<typeof RecordAgentStepReducer>;
 export type RedeemInviteParams = __Infer<typeof RedeemInviteReducer>;
+export type RequestAgentRunParams = __Infer<typeof RequestAgentRunReducer>;
 export type RevokeSessionParams = __Infer<typeof RevokeSessionReducer>;
 export type SetRoleParams = __Infer<typeof SetRoleReducer>;
 export type StartAnchoringParams = __Infer<typeof StartAnchoringReducer>;

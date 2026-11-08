@@ -149,7 +149,17 @@ const anchor = table({ name: 'anchor' }, {
   id: t.u32().primaryKey(), seq: t.u64(), headHash: t.string(), externalRef: t.string(),
   anchoredAt: t.timestamp(), status: t.string(),
 });
-const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor }, { env: {
+const agentRun = table({ name: 'agent_run' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), requestedBy: t.identity(),
+  tier: t.string(), mode: t.string(), modelId: t.string(), status: t.string(), requestedAt: t.timestamp(),
+  worker: t.option(t.identity()), startedAt: t.option(t.timestamp()), finishedAt: t.option(t.timestamp()),
+  latencyMs: t.u64(), summary: t.string(), previousSummary: t.string(),
+});
+const agentStep = table({ name: 'agent_step' }, {
+  id: t.u64().primaryKey().autoInc(), incidentId: t.u64().index('btree'), runId: t.u64().index('btree'),
+  kind: t.string(), name: t.string(), inputJson: t.string(), outputJson: t.string(), createdAt: t.timestamp(),
+});
+const spacetimedb = schema({ user, session, revokedIdentity, inviteCode, owner, audit, chainHead, sessionSweep, incident, agentIdentity, task, evidence, conflict, anchorJob, anchor, agentRun, agentStep }, { env: {
   ANCHOR_URL: t.option(t.string()), ANCHOR_WRITE_TOKEN: t.option(t.string()),
   ANCHOR_READ_TOKEN: t.option(t.string()), ANCHOR_INDEPENDENT: t.option(t.string()),
 } });
@@ -711,4 +721,81 @@ export const verifyIntegrity = spacetimedb.procedure(IntegrityVerification, ctx 
   const anchor = checkExternalAnchor(ctx);
   // Re-authorize and recheck after network I/O: never return data after a concurrent revoke.
   return ctx.withTx(tx => { requireReader(tx); return { chain: chain.ok ? checkChain(tx) : chain, anchor }; });
+});
+
+export const requestAgentRun = spacetimedb.reducer({ incidentId: t.u64(), tier: t.string(), mode: t.string() }, (ctx, args) => {
+  requireRole(ctx, ['commander', 'responder']);
+  if (!ctx.db.incident.id.find(args.incidentId)) throw new SenderError('incident not found');
+  const tier = oneOf('tier', args.tier, ['fast','deep']);
+  const mode = oneOf('mode', args.mode, ['mock','replay']); // UI never silently spends live credits.
+  if ([...ctx.db.agentRun.incidentId.filter(args.incidentId)].some(r => r.status === 'queued' || r.status === 'running')) throw new SenderError('investigation already queued or running');
+  const modelId = tier === 'deep' ? 'nvidia/nemotron-3-ultra-550b-a55b' : 'nvidia/nemotron-3.5-lightning-30b-a3b';
+  const row = ctx.db.agentRun.insert({ id: 0n, incidentId: args.incidentId, requestedBy: ctx.sender, tier, mode, modelId,
+    status: 'queued', requestedAt: ctx.timestamp, worker: undefined, startedAt: undefined, finishedAt: undefined,
+    latencyMs: 0n, summary: '', previousSummary: '' });
+  appendAudit(ctx, 'agent.request', { runId: row.id, tier, mode }, args.incidentId);
+});
+export const nextAgentRun = spacetimedb.procedure(t.string(), ctx => ctx.withTx(tx => {
+  const { agent } = requireReader(tx);
+  if (!agent) throw new SenderError('agent identity required');
+  const row = [...tx.db.agentRun.incidentId.filter(agent.incidentId)].filter(r => r.status === 'queued').sort((a,b) => a.id < b.id ? -1 : 1)[0];
+  return canonicalJson(row ? { runId: row.id, incidentId: row.incidentId, tier: row.tier, mode: row.mode, modelId: row.modelId } : null);
+}));
+export const beginAgentRun = spacetimedb.reducer({ runId: t.u64(), modelId: t.string() }, (ctx, args) => {
+  const agent = requireAgent(ctx);
+  const row = ctx.db.agentRun.id.find(args.runId);
+  if (!row || row.incidentId !== agent.incidentId || row.status !== 'queued') throw new SenderError('queued run in enrolled incident required');
+  if ([...ctx.db.agentRun.incidentId.filter(agent.incidentId)].some(r => r.status === 'running')) throw new SenderError('worker already running');
+  const modelId = cleanText('model', args.modelId, 1, 160);
+  ctx.db.agentRun.id.update({ ...row, modelId, status: 'running', worker: ctx.sender, startedAt: ctx.timestamp });
+  appendAudit(ctx, 'agent.begin', { runId: row.id, mode: row.mode, modelId }, row.incidentId, 'NEMOTRON');
+});
+// Diagnostic trace only: authorization/session checked; no business action or audit row.
+export const recordAgentStep = spacetimedb.reducer({ kind: t.string(), name: t.string(), inputJson: t.string(), outputJson: t.string() }, (ctx, args) => {
+  const agent = requireAgent(ctx);
+  const run = [...ctx.db.agentRun.incidentId.filter(agent.incidentId)].find(r => r.status === 'running' && r.worker?.isEqual(ctx.sender));
+  if (!run) throw new SenderError('begin a queued run before recording trace');
+  const kind = oneOf('kind', args.kind, ['call','result','revision','error','summary']);
+  const name = cleanText('step name', args.name, 1, 160);
+  if (args.inputJson.length > 32000 || args.outputJson.length > 32000) throw new SenderError('step exceeds 32000 chars');
+  JSON.parse(args.inputJson || 'null'); JSON.parse(args.outputJson || 'null');
+  ctx.db.agentStep.insert({ id: 0n, incidentId: agent.incidentId, runId: run.id, kind, name,
+    inputJson: args.inputJson || 'null', outputJson: args.outputJson || 'null', createdAt: ctx.timestamp });
+});
+export const finishAgentRun = spacetimedb.reducer({ runId: t.u64(), summary: t.string(), failed: t.bool() }, (ctx, args) => {
+  const agent = requireAgent(ctx);
+  const row = ctx.db.agentRun.id.find(args.runId);
+  if (!row || row.incidentId !== agent.incidentId || row.status !== 'running' || !row.worker?.isEqual(ctx.sender)) throw new SenderError('own running investigation required');
+  const summary = cleanText('summary', args.summary, 1, 16000, false);
+  const previous = [...ctx.db.agentRun.incidentId.filter(agent.incidentId)].filter(r => r.id < row.id && r.status === 'completed').sort((a,b) => a.id > b.id ? -1 : 1)[0];
+  const latencyMs = row.startedAt ? (ctx.timestamp.microsSinceUnixEpoch - row.startedAt.microsSinceUnixEpoch) / 1000n : 0n;
+  ctx.db.agentRun.id.update({ ...row, summary, previousSummary: previous?.summary ?? '', latencyMs, finishedAt: ctx.timestamp, status: args.failed ? 'failed' : 'completed' });
+  appendAudit(ctx, 'agent.finish', { runId: row.id, failed: args.failed, modelId: row.modelId, latencyMs, summary }, row.incidentId, 'NEMOTRON');
+});
+export const cancelAgentRun = spacetimedb.reducer({ runId: t.u64() }, (ctx, args) => {
+  requireRole(ctx, ['commander']);
+  const row = ctx.db.agentRun.id.find(args.runId);
+  if (!row || !['queued','running'].includes(row.status)) throw new SenderError('active run required');
+  ctx.db.agentRun.id.update({ ...row, status: 'cancelled', finishedAt: ctx.timestamp });
+  appendAudit(ctx, 'agent.cancel', { runId: row.id }, row.incidentId);
+});
+export const investigationRuns = spacetimedb.view({ public: true }, t.array(agentRun.rowType), ctx => {
+  const me = ctx.db.user.identity.find(ctx.sender);
+  const allowed = !!me && me.role !== 'observer' && !!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.agentRun.where(r => allowed ? r.id.gt(0n) : r.id.eq(0n));
+});
+export const investigationSteps = spacetimedb.view({ public: true }, t.array(agentStep.rowType), ctx => {
+  const me = ctx.db.user.identity.find(ctx.sender);
+  const allowed = !!me && me.role !== 'observer' && !!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.agentStep.where(r => allowed ? r.id.gt(0n) : r.id.eq(0n));
+});
+export const investigationEvidence = spacetimedb.view({ public: true }, t.array(evidence.rowType), ctx => {
+  const me = ctx.db.user.identity.find(ctx.sender);
+  const allowed = !!me && me.role !== 'observer' && !!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.evidence.where(r => allowed ? r.id.gt(0n) : r.id.eq(0n));
+});
+export const investigationConflicts = spacetimedb.view({ public: true }, t.array(conflict.rowType), ctx => {
+  const me = ctx.db.user.identity.find(ctx.sender);
+  const allowed = !!me && me.role !== 'observer' && !!ctx.db.session.identity.find(ctx.sender);
+  return ctx.from.conflict.where(r => allowed ? r.id.gt(0n) : r.id.eq(0n));
 });

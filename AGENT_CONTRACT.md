@@ -95,3 +95,17 @@ Owner startAnchoring starts 60-second scheduled HTTP checkpoints; immediate jobs
 Configure optional module env ANCHOR_URL/ANCHOR_WRITE_TOKEN/ANCHOR_READ_TOKEN/ANCHOR_INDEPENDENT via publishing.
 The standalone append-only store is in blackbox/spacetimedb/anchor-store, to deploy under independent credentials.
 No external deployment/key supplied yet; UI stays honestly UNANCHORED. No NVIDIA calls.
+
+## INVESTIGATE queue and trace (slice 11) — Rabeet integration
+UI requests requestAgentRun({incidentId,tier:'fast'|'deep',mode:'mock'|'replay'}); no live-credit button.
+Worker polls nextAgentRun() -> JSON null or {runId,incidentId,tier,mode,modelId}.
+Claim with beginAgentRun({runId,modelId: actual model ID}); one running run per enrolled incident.
+Call requested recordAgentStep({kind,name,inputJson,outputJson}) for each call/result/revision/error/summary.
+Both JSON arguments must be serialized JSON (or empty for null); 32000 chars each. Context/run inferred from
+the authenticated service identity. Trace is diagnostic and deliberately unaudited, like keep-alive.
+Complete finishAgentRun({runId,summary,failed}); latency measured server-side; previous completed summary retained.
+Human commander cancelAgentRun({runId}) releases a stuck queue. Business reducers still audit exactly once.
+New private agent_run/agent_step tables and session-gated investigationRuns/Steps/Evidence/Conflicts views.
+Observers receive none of this sensitive evidence/trace. Existing tool signatures unchanged.
+RABEET: wire your service to poll/claim/record/finish; this queue does not invoke or fork your tool loop.
+Honor mode and tier in each request. Mock/replay badges are always visibly labelled, including Deep Analysis.

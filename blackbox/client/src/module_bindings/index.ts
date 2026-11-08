@@ -34,13 +34,18 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import BeginAgentRunReducer from "./begin_agent_run_reducer";
+import CancelAgentRunReducer from "./cancel_agent_run_reducer";
 import CreateIncidentReducer from "./create_incident_reducer";
 import CreateInviteReducer from "./create_invite_reducer";
 import CreateTaskReducer from "./create_task_reducer";
 import EnrollAgentReducer from "./enroll_agent_reducer";
+import FinishAgentRunReducer from "./finish_agent_run_reducer";
 import FlagConflictReducer from "./flag_conflict_reducer";
 import IssueBootstrapInviteReducer from "./issue_bootstrap_invite_reducer";
+import RecordAgentStepReducer from "./record_agent_step_reducer";
 import RedeemInviteReducer from "./redeem_invite_reducer";
+import RequestAgentRunReducer from "./request_agent_run_reducer";
 import RevokeSessionReducer from "./revoke_session_reducer";
 import SetRoleReducer from "./set_role_reducer";
 import StartAnchoringReducer from "./start_anchoring_reducer";
@@ -53,12 +58,17 @@ import UpdateSeverityReducer from "./update_severity_reducer";
 // Import all procedure arg schemas
 import * as EvidenceRecordsProcedure from "./evidence_records_procedure";
 import * as GetScopeProcedure from "./get_scope_procedure";
+import * as NextAgentRunProcedure from "./next_agent_run_procedure";
 import * as SearchIncidentsProcedure from "./search_incidents_procedure";
 import * as VerifyChainProcedure from "./verify_chain_procedure";
 import * as VerifyIntegrityProcedure from "./verify_integrity_procedure";
 
 // Import all table schema definitions
 import IncidentsRow from "./incidents_table";
+import InvestigationConflictsRow from "./investigation_conflicts_table";
+import InvestigationEvidenceRow from "./investigation_evidence_table";
+import InvestigationRunsRow from "./investigation_runs_table";
+import InvestigationStepsRow from "./investigation_steps_table";
 import TasksRow from "./tasks_table";
 import TeamRow from "./team_table";
 
@@ -73,6 +83,34 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, IncidentsRow),
+  investigationConflicts: __table({
+    name: 'investigation_conflicts',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, InvestigationConflictsRow),
+  investigationEvidence: __table({
+    name: 'investigation_evidence',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, InvestigationEvidenceRow),
+  investigationRuns: __table({
+    name: 'investigation_runs',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, InvestigationRunsRow),
+  investigationSteps: __table({
+    name: 'investigation_steps',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, InvestigationStepsRow),
   tasks: __table({
     name: 'tasks',
     indexes: [
@@ -91,13 +129,18 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("begin_agent_run", BeginAgentRunReducer),
+  __reducerSchema("cancel_agent_run", CancelAgentRunReducer),
   __reducerSchema("create_incident", CreateIncidentReducer),
   __reducerSchema("create_invite", CreateInviteReducer),
   __reducerSchema("create_task", CreateTaskReducer),
   __reducerSchema("enroll_agent", EnrollAgentReducer),
+  __reducerSchema("finish_agent_run", FinishAgentRunReducer),
   __reducerSchema("flag_conflict", FlagConflictReducer),
   __reducerSchema("issue_bootstrap_invite", IssueBootstrapInviteReducer),
+  __reducerSchema("record_agent_step", RecordAgentStepReducer),
   __reducerSchema("redeem_invite", RedeemInviteReducer),
+  __reducerSchema("request_agent_run", RequestAgentRunReducer),
   __reducerSchema("revoke_session", RevokeSessionReducer),
   __reducerSchema("set_role", SetRoleReducer),
   __reducerSchema("start_anchoring", StartAnchoringReducer),
@@ -112,6 +155,7 @@ const reducersSchema = __reducers(
 const proceduresSchema = __procedures(
   __procedureSchema("evidence_records", EvidenceRecordsProcedure.params, EvidenceRecordsProcedure.returnType),
   __procedureSchema("get_scope", GetScopeProcedure.params, GetScopeProcedure.returnType),
+  __procedureSchema("next_agent_run", NextAgentRunProcedure.params, NextAgentRunProcedure.returnType),
   __procedureSchema("search_incidents", SearchIncidentsProcedure.params, SearchIncidentsProcedure.returnType),
   __procedureSchema("verify_chain", VerifyChainProcedure.params, VerifyChainProcedure.returnType),
   __procedureSchema("verify_integrity", VerifyIntegrityProcedure.params, VerifyIntegrityProcedure.returnType),

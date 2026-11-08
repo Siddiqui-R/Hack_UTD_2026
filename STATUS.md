@@ -227,3 +227,9 @@ SLICE 9 implementation milestone — scheduled checkpoint writer, immutable exte
   Local store is explicitly LOCAL; missing/unreachable store does not show anchored green. Basic module/client
   typechecks and code generation pass. Rabeet retains security validation. Attack this: rewrite checkpointed
   history, immutable-store conflicts, outage labels and scheduled checkpoint durability.
+
+SLICE 11 module milestone — request/claim/finish/cancel run queue plus requested record_agent_step(kind,name,
+  inputJson,outputJson), private agent_run/agent_step and protected investigation read views. Types/codegen pass.
+  RABEET: poll next_agent_run, begin_agent_run(runId,actualModelId), stream record_agent_step, finish_agent_run.
+  Queue mode is mock/replay only; no NVIDIA calls. UI wiring follows. Attack this: trace privacy, worker context,
+  concurrent claims, cancellation and step/run attribution.

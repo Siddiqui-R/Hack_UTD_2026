@@ -18,6 +18,36 @@ export const AgentIdentity = __t.object("AgentIdentity", {
 });
 export type AgentIdentity = __Infer<typeof AgentIdentity>;
 
+export const AgentRun = __t.object("AgentRun", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  requestedBy: __t.identity(),
+  tier: __t.string(),
+  mode: __t.string(),
+  modelId: __t.string(),
+  status: __t.string(),
+  requestedAt: __t.timestamp(),
+  worker: __t.option(__t.identity()),
+  startedAt: __t.option(__t.timestamp()),
+  finishedAt: __t.option(__t.timestamp()),
+  latencyMs: __t.u64(),
+  summary: __t.string(),
+  previousSummary: __t.string(),
+});
+export type AgentRun = __Infer<typeof AgentRun>;
+
+export const AgentStep = __t.object("AgentStep", {
+  id: __t.u64(),
+  incidentId: __t.u64(),
+  runId: __t.u64(),
+  kind: __t.string(),
+  name: __t.string(),
+  inputJson: __t.string(),
+  outputJson: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type AgentStep = __Infer<typeof AgentStep>;
+
 export const Anchor = __t.object("Anchor", {
   id: __t.u32(),
   seq: __t.u64(),
@@ -118,6 +148,18 @@ export const IntegrityVerification = __t.object("IntegrityVerification", {
   },
 });
 export type IntegrityVerification = __Infer<typeof IntegrityVerification>;
+
+export const InvestigationConflicts = __t.object("InvestigationConflicts", {});
+export type InvestigationConflicts = __Infer<typeof InvestigationConflicts>;
+
+export const InvestigationEvidence = __t.object("InvestigationEvidence", {});
+export type InvestigationEvidence = __Infer<typeof InvestigationEvidence>;
+
+export const InvestigationRuns = __t.object("InvestigationRuns", {});
+export type InvestigationRuns = __Infer<typeof InvestigationRuns>;
+
+export const InvestigationSteps = __t.object("InvestigationSteps", {});
+export type InvestigationSteps = __Infer<typeof InvestigationSteps>;
 
 export const InviteCode = __t.object("InviteCode", {
   codeHash: __t.string(),
