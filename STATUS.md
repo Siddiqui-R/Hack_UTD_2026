@@ -4,37 +4,43 @@ Rabeet: read this to know what is ready to attack. Newest entries at the bottom 
 
 ## FROM RABEET (security). Agent: read this before starting each slice
 <!-- Rabeet's section. Rabeet rewrites it after testing each push; please don't edit it. Reply in the Log or on issue #2. -->
-Updated 2026-11-07 19:45 · tested through `8550679` (slice 4) · **attacks 98/98 held** · demo 5/5 held (2 skipped) · tests 6/8 pass, 2 todo
+Updated 2026-11-07 19:44 CT · module/client tested through `277030e` plus worker/PDF integration.
+**246 live regression checks held, 0 VULN/errors · unit tests 8/8 · module/client typechecks + client production build pass.**
+Demo: 5 held / 2 skipped (model injection and browser-offline demos remain unfinished). No data reset.
 
-**Slice 4 verified, nothing open from it.** `verify_chain` refuses outsiders, revoked and expired sessions; agrees with my
-independent verifier on a clean chain; writes no audit rows; names the exact seq for an edited payload, a rewritten actor,
-a broken prev_hash link and a corrupt chain_head; all restored afterwards (`attack/suites/slice04-verify-chain.mjs`, K1–K10).
-**Demo attack 2** now also checks your `verifyChain` names the same row as mine (drives the red bar). Thanks for tests #5/#6.
+**Worker connected:** `cd agent && npm run worker` (or `worker:once`). Poll/claim/trace/finish via existing contract;
+mock/replay only, respects tier, publishes call/result/revision/summary/error, carries previous conclusion and stops
+on refused trace. Verified actual mock worker, explicitly synthetic replay transport fixture, missing/wrong-tier
+recording failure, duplicate-process lock and cancellation before next tool write. No real/golden replay fabricated.
+Per-identity local process lock reduces duplicate workers; it does not replace the Q1 server fix below.
 
-**Your hardening verified:** G19 (agent raise-only), G22 (observer evidence), I12 (`expectedUpdatedAt`), owner can't be
-enrolled as agent, agent revocation permanent, revoked commander's invites die: all hold. Attack helper updated for
-`expectedUpdatedAt`. Mock agent run still passes against your module.
+**PDF connected locally:** `cd pdf && npm start`; POST RecordSnapshot v1 to `http://127.0.0.1:4400/record.pdf`.
+Ignored client `.env.local` sets VITE_PDF_URL to that endpoint; Vite confirms it is served. Existing export hook unchanged.
+No new packages: installed Chromium/Chrome/Edge prints escaped HTML to PDF. Human + observer PDFs generated,
+text-extracted and visually rendered with Windows PDF APIs: pagination, hashes, Unicode and redaction checked.
+Reports distinguish actual external checkpoint hash from current head and disclose later uncheckpointed tails.
+No token forwarding, snapshot logging or external asset loading. Deploy renderer with Chromium and exact-origin access
+controls before configuring a production VITE_PDF_URL. Browser automation host unavailable: no UI-click claim.
 
-**Only open item: P1 LOW.** A procedure that throws reports "fatal error" and costs ~5× a normal call (~29 ms vs ~6 ms).
-Return `canonicalJson({ error })` for expected denials in the read procedures. Low priority; do after slice 4.
+**OPEN, module/client owner fixes requested on issue #2:**
+- **A1 HIGH when independent anchoring is configured:** verifyIntegrity returns stale anchorOk=true if the owner
+  fully rewrites/recomputes the chain after external comparison but before the final transaction. Deterministic
+  optional probe: in spacetimedb set BLACKBOX_PROBE_ANCHOR_RACE=1 and npm test (test 6 currently fails, true vs false).
+  getRecord uses the same split comparison/snapshot pattern. Compare fetched checkpoint history inside the final
+  transaction that verifies/builds the snapshot. No public API change required. Normal npm test is 8/8; probe is separate.
+- **Q1 MED:** cancelled old worker traces can attach to a newly claimed run on the same identity. Reproducer:
+  `node attack/probes/run-attribution.mjs` (currently exits 1, confirmed; both runs cleaned up). Coordinate an expected
+  runId argument on recordAgentStep before changing it. Strict atomic tool cancellation also needs server run guards.
+- **P1 LOW:** expected procedure denials still surface as fatal module errors; malformed trace JSON does too.
 
-**Agreed scope:** 3.5 agent stubs → 4 verifyChain + bar → 9 anchor → 11 (one conflict flow) → 12 RECORD. If time: 5, 6, 10.
-**Cut: 13** (TOTP, duress PIN, presets; one hard-coded seed).
+**No module/client source or schema edits; no contract changes.** Generated bindings were regenerated and verified,
+then line-ending-only churn restored. Only owned tests changed under spacetimedb/. Root handoff files remain untracked.
+**NVIDIA:** zero live calls used; hosted budget remains the known 5/40 (carry any higher machine totals forward).
+Worker never falls back to live. Standalone live calls reserve budget before provider requests; absent counter starts at 5.
 
-**Rules for upcoming slices** (each one has an attack waiting):
-- Never use `ctx.random` / `ctx.newUuidV4` for secrets: they're seeded from `ctx.timestamp` only, which is stored in `audit`.
-- Every new mutating reducer: `requireRole` first, exactly one `appendAudit`, and reject `NEMOTRON` on permission/role/approval/delete.
-- Slice 4: export `verifyChain` callable from tests and return `{ ok, checked, brokenAt, reason }`; don't change the hash formula
-  (`attack/lib.mjs` recomputes it independently).
-- Keep the "Attack this:" line on every slice. Tell me before changing reducer names/args or the `team`/`audit`/`session`/`incident` shapes.
-
-**Agent service landed (`agent/`, see `agent/README.md`):** mock/live/replay against your 3.5 contract. Mock run verified:
-task + conflict + severity rows written, 3 audit rows as NEMOTRON. `npm run dev:setup` seeds a local incident and enrolls it.
-Note: installed `ai@7` uses **`isStepCount`** (HANDOFF's `stepCountIs` no longer exists).
-**For slice 11 (INVESTIGATE) I need a place to stream steps:** an agent-only `record_agent_step(kind, name, inputJson, outputJson)`
-reducer + `agent_step` table (incident-scoped, read via a session-gated view; no audit row, it's a trace, not an action). I'll call it per step.
-
-**Waiting on you:** OK for Playwright + promptfoo as dev deps in `attack/` · live-call count (of 40) · NVIDIA key for my `.env`.
+**Waiting on owner:** A1 fix; agreement on Q1 runId signature; independent anchor hosting/secrets. No independence claim
+until deployed. Local checkpoint store auth/immutable-same-seq/history/restart tests pass; independent deployment not verified.
+**Attack this:** optional A1 race and Q1 stale-run probes, then rerun all 246 checks after coordinated fixes.
 
 ## How to run locally
 

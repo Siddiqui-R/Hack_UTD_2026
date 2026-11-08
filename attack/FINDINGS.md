@@ -3,12 +3,17 @@
 Reproduce with `cd attack && npm run attack` (local server only). Unit tests: `cd blackbox/spacetimedb && npm test`.
 Fix code for anything open: `FIXES.md`.
 
-**Status @ `8550679` (slice 4):** 98 attacks, **98 held**, 0 succeeded · unit tests 6 pass, 2 todo.
+**Status @ `277030e` + worker/PDF integration:** **246 live regression checks held**, 0 succeeded/errors;
+unit tests **8/8**, module/client typechecks + client production build pass; demo **5 held / 2 skipped**.
+Two separate targeted probes below reproduce open module gaps; they are not included in the 246 passing checks.
+Zero live NVIDIA calls. Published locally with deletion disabled; original data retained.
 
 ## Open
 
 | ID | Severity | Finding | Suggested fix |
 |---|---|---|---|
+| A1 | HIGH (configured independent anchoring) | `verifyIntegrity` compares external history in one transaction, then only checks internal consistency in the final transaction. A full owner rewrite between them returns `chain.ok=true` and stale `anchorOk=true`. Deterministically reproduced with the harness commit hook; `getRecord` has the same comparison/snapshot split. | Fetch/validate external history outside transactions, then compare every checkpoint in the same final transaction as chain verification/snapshot. Owner notified on issue #2. Reproduce: `BLACKBOX_PROBE_ANCHOR_RACE=1 npm test` in the module (PowerShell: set `$env:BLACKBOX_PROBE_ANCHOR_RACE='1'` first). Optional test 6 currently fails, expected false / actual true. |
+| Q1 | MED | `recordAgentStep` infers the current run. After cancelling A and claiming B with the same identity, a delayed A trace is accepted as B. Confirmed by `node attack/probes/run-attribution.mjs` (exits 1, cleans up). | Coordinate an expected `runId` reducer argument before changing callers. Existing worker now enforces one local process per identity and awaits trace acceptance before actions; this is mitigation, not a server fix across machines. Atomic cancellation of in-flight writes needs server guards too. |
 | P1 | LOW | A procedure that rejects its caller is reported as "The module instance encountered a **fatal error**", and costs ~29 ms against ~6 ms for a normal call. A throw inside a procedure appears to tear down the module instance, so any signed-in user can make the server do ~5× work per call. | In the read procedures, return `canonicalJson({ error })` instead of throwing for expected denials. |
 
 ## Fixed (applied to the module by Rabeet at the user's request, re-verified)
@@ -28,6 +33,11 @@ Fix code for anything open: `FIXES.md`.
 | I12 | Stale `update_incident` silently reverted other fields | Sensei: mandatory `expectedUpdatedAt` (last HTTP arg); stale writes rejected |
 
 ## Held, by slice
+- **5/6:** human-only chat/scope mutations, private base tables, incident chat filters, observer read-only chat/no scope, expired/revoked sessions, agent scope restriction, exactly-one audit/zero on denial, real getScope data and stale scope updates.
+- **9:** separate local checkpoint process: split credentials, authorization, idempotency, immutable same-sequence hashes, monotonic sequence, full history, out-of-range rejection and restart durability. Independent hosting and full live external anchoring remain unverified. See A1 before claiming independent security.
+- **10:** requester/duplicate/agent/observer rejection; two distinct eligible human reviewers; revoked approvals stop counting; stale incident rejection; cancellation; one audit per success; request expiry tested using harness clock and a live reviewer session.
+- **11:** request mode/tier validation, incident/worker isolation, claim race, trace privacy/JSON validation, completion, actual mock worker, explicitly synthetic replay transport fixture, missing/wrong-model recording failure, prior conclusion preservation, duplicate local worker lock, cancellation before next action and unchanged NVIDIA counter. See Q1 for remaining server attribution gap.
+- **12/PDF:** human snapshot data/redaction/cross-incident evidence, independent hash-inspector comparison; renderer origin/token/size/shape checks, escaped Unicode evidence, observer redaction, actual PDF bytes, honest separate checkpoint/current-head reporting. PDFs visually verified; UI automation was unavailable.
 - **1 (15):** unregistered write/role · private `user` · `team` empty for outsiders · no self-registration · observer write/promote/demote · bogus role · commander self-change · duress hidden from the coerced user · commanders still see it.
 - **2 (13):** bootstrap owner-only · responder can't mint commander invites · external sweep · forged/replayed/raced codes · uniform errors · online brute force ~38,000 h per code · expired token can't write or read.
 - **2b (18):** revoke rules · revoked token can't write/read/redeem · code not burned · no un-revoke via set_role · audit private, seq 1..N, links, **independent hash recompute**, chain_head, exactly 1 row per mutation, 0 per failure.
@@ -38,7 +48,7 @@ Fix code for anything open: `FIXES.md`.
 - **4 (10):** `verify_chain` refuses outsiders, revoked and expired sessions · matches the independent verifier on a clean chain · writes no audit rows · names the exact seq for an edited payload, rewritten actor, broken prev_hash and corrupt chain_head · clean again after repair.
 
 ## Notes, not bugs yet
-- **Pitch honesty until slice 9:** an owner who rewrites a row *and* recomputes later hashes passes verification. Say "tamper-evident within the database".
+- **Pitch honesty:** independent anchoring is not configured here. An owner who rewrites rows and recomputes all hashes can pass internal verification. Say "tamper-evident within the database" until an independent deployment is verified; fix A1 before stronger claims.
 - **NEMOTRON attribution = "an identity a commander enrolled"**, not proof it's the model. A commander could enroll a script. Fine for the demo; don't claim cryptographic proof.
 - Failed redeems leave no audit trace (rollback). `init` isn't audited.
 - Every signed-in user sees every incident (invites aren't incident-scoped yet).

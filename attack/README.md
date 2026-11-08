@@ -21,3 +21,21 @@ Output per check: **PASS** = defense held · **VULN** = attack succeeded · **SK
 - `suites/sliceNN-*.mjs` — one file per slice, added as each slice lands.
 - `demo/1..4-*.mjs` — on-stage attacks (replay, tamper, injection, network cut).
 - `FINDINGS.md` — what got through, per slice.
+
+The full suite now includes chat/scope, checkpoint-store restart durability, closure approvals, actual child queue
+workers and real PDF generation. It needs the existing agent packages and an installed Chrome/Chromium/Edge browser
+for the PDF checks, with PDF_BROWSER_PATH when needed. It makes no model calls. Replay transport is exercised with
+an explicitly labelled synthetic fixture; this is not a golden transcript from a real model run.
+
+Open module findings are separately reproducible (see FINDINGS.md), so a passing regression run does not close them:
+
+```powershell
+node attack/probes/run-attribution.mjs # from repo root: Q1, exits 1 while vulnerable
+cd blackbox/spacetimedb
+$env:BLACKBOX_PROBE_ANCHOR_RACE='1'
+npm test                             # A1: test 6 fails while vulnerable
+Remove-Item Env:BLACKBOX_PROBE_ANCHOR_RACE
+```
+
+The unconfigured/local anchor is not an independently deployed checkpoint. Injection and offline browser demo
+scripts are still skipped; they are not claimed verified by mock worker tests.
