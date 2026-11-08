@@ -176,44 +176,59 @@ describe('BLACKBOX security', () => {
       }
     }
   });
-  it('7. closure needs two distinct non-requester humans; one approver stays pending', () => {
+  // Rule since a769de9: the requester (while a live commander) counts as the first of two distinct humans.
+  it('7. closure needs two distinct humans; requester counts only while live; one approver alone stays pending', () => {
     const { test, tx, commander, responder, observer } = setup();
-    tx(commander, ctx => mod.createIncident(ctx, {
-      title: 'Closure review', incidentType: 'ransomware', severity: 'high',
-      detectedAt: test.clock.now(), systemsAffected: 'DB-1', containmentStatus: 'none',
-    }));
-    const inc = [...test.db.incident.iter()][0];
-    tx(commander, ctx => mod.requestClosure(ctx, { incidentId: inc.id, reason: 'Contained', expectedUpdatedAt: inc.updatedAt }));
-    const request = [...test.db.closureRequest.iter()][0];
-    const approve = (auth: TestAuth) => tx(auth, ctx => mod.approveClosure(ctx, { requestId: request.id }));
-    expect(() => approve(commander)).toThrow('requester cannot approve');
-    expect(() => approve(observer)).toThrow('not permitted');
-    approve(responder);
-    expect(test.db.closureRequest.id.find(request.id)?.status).toBe('pending');
-    expect(test.db.incident.id.find(inc.id)?.status).toBe('triage');
-    expect(() => approve(responder)).toThrow('already approved');
     tx(commander, ctx => mod.createInvite(ctx, { code: CODES.extra, role: 'responder' }));
     const reviewer = as('second-reviewer');
     tx(reviewer, ctx => mod.redeemInvite(ctx, { code: CODES.extra, displayName: 'reviewer' }));
-    approve(reviewer);
-    expect(test.db.closureRequest.id.find(request.id)?.status).toBe('approved');
-    expect(test.db.incident.id.find(inc.id)?.status).toBe('closed');
-    tx(commander, ctx => mod.createIncident(ctx, {
-      title: 'Expired closure request', incidentType: 'ransomware', severity: 'high',
-      detectedAt: test.clock.now(), systemsAffected: 'DB-2', containmentStatus: 'none',
-    }));
-    const fresh = [...test.db.incident.iter()].find(r => r.id !== inc.id)!;
-    tx(commander, ctx => mod.requestClosure(ctx, { incidentId:fresh.id, reason:'Expiry check', expectedUpdatedAt:fresh.updatedAt }));
-    const late = [...test.db.closureRequest.iter()].find(r => r.id !== request.id)!;
-    test.clock.advance(TimeDuration.fromMillis(31 * 60 * 1000));
-    // Give the reviewer a live session so this exercises REQUEST expiry, not session expiry.
-    const reviewerId = test.viewContext(reviewer).sender;
-    tx(reviewer, ctx => {
-      const session = ctx.db.session.identity.find(reviewerId);
-      ctx.db.session.identity.update({ ...session, expiresAt:new Timestamp(ctx.timestamp.microsSinceUnixEpoch + 60_000_000n) });
-    });
-    expect(() => tx(reviewer, ctx => mod.approveClosure(ctx, { requestId:late.id }))).toThrow('live pending closure request required');
-    expect(test.db.closureRequest.id.find(late.id)?.status).toBe('pending');
+    const incident = (title: string, systemsAffected: string) => {
+      tx(commander, ctx => mod.createIncident(ctx, {
+        title, incidentType: 'ransomware', severity: 'high',
+        detectedAt: test.clock.now(), systemsAffected, containmentStatus: 'none',
+      }));
+      return [...test.db.incident.iter()].find(r => r.title === title)!;
+    };
+    const requestFor = (inc: ReturnType<typeof incident>) => {
+      tx(commander, ctx => mod.requestClosure(ctx, { incidentId: inc.id, reason: 'Contained', expectedUpdatedAt: inc.updatedAt }));
+      return [...test.db.closureRequest.iter()].find(r => r.incidentId === inc.id)!;
+    };
+    const approve = (auth: TestAuth, requestId: bigint) => tx(auth, ctx => mod.approveClosure(ctx, { requestId }));
+    const status = (requestId: bigint, incidentId: bigint) =>
+      [test.db.closureRequest.id.find(requestId)?.status, test.db.incident.id.find(incidentId)?.status];
+    // Keep a reviewer's session live after the clock moves, so only the property under test changes.
+    const refresh = (auth: TestAuth) => {
+      const me = test.viewContext(auth).sender;
+      tx(auth, ctx => {
+        const session = ctx.db.session.identity.find(me);
+        ctx.db.session.identity.update({ ...session, expiresAt: new Timestamp(ctx.timestamp.microsSinceUnixEpoch + 60_000_000n) });
+      });
+    };
+
+    // Requester alone stays pending; requester + one other live human closes.
+    const inc = incident('Closure review', 'DB-1'), request = requestFor(inc);
+    expect(status(request.id, inc.id)).toEqual(['pending', 'triage']);
+    expect(() => approve(commander, request.id)).toThrow(/requester/);
+    expect(() => approve(observer, request.id)).toThrow('not permitted');
+    approve(responder, request.id);
+    expect(status(request.id, inc.id)).toEqual(['approved', 'closed']);
+
+    // A requester whose session lapsed no longer counts: one approver stays pending, a second distinct one closes.
+    const lapsed = incident('Requester lapsed', 'DB-2'), lapsedReq = requestFor(lapsed);
+    const late = incident('Expired closure request', 'DB-3'), lateReq = requestFor(late);
+    test.clock.advance(TimeDuration.fromMillis(16 * 60 * 1000)); // commander session (15 min) lapses, requests (30 min) live
+    refresh(responder); refresh(reviewer);
+    approve(responder, lapsedReq.id);
+    expect(status(lapsedReq.id, lapsed.id)).toEqual(['pending', 'triage']);
+    expect(() => approve(responder, lapsedReq.id)).toThrow('already approved');
+    approve(reviewer, lapsedReq.id);
+    expect(status(lapsedReq.id, lapsed.id)).toEqual(['approved', 'closed']);
+
+    // An expired request cannot be approved, even by a live reviewer.
+    test.clock.advance(TimeDuration.fromMillis(15 * 60 * 1000));
+    refresh(reviewer);
+    expect(() => approve(reviewer, lateReq.id)).toThrow('live pending closure request required');
+    expect(test.db.closureRequest.id.find(lateReq.id)?.status).toBe('pending');
   });
 
   // 8 (partial until slice 8 adds the NEMOTRON actor): a non-commander cannot grant a role.
