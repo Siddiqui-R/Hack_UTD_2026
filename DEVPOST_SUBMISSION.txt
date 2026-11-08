@@ -1,0 +1,78 @@
+PROJECT NAME
+BLACKBOX
+
+ELEVATOR PITCH
+When ransomware takes down your trusted tools, BLACKBOX gives responders an independent command center with live coordination, a tamper-evident incident record, and a tool-using Nemotron agent.
+
+PROJECT STORY — paste the following into Devpost's story field
+
+## Inspiration
+During a cyber incident, the tools a company normally relies on can become part of the problem. Email, internal chat, and corporate sign-in may all depend on systems the response team can no longer trust.
+
+We built BLACKBOX around one question: where does the response team coordinate when its usual environment is compromised? Inspired by the Winstead challenge, we focused on the work after an incident is discovered: organizing people, documenting decisions, tracking affected data, and preserving a record of what happened.
+
+## What it does
+BLACKBOX is an incident command center designed to run separately from the affected company's environment. Responders join with single-use invite codes instead of corporate SSO. Commander, responder, and observer roles control what they can see and do, with expiring sessions and revocation enforced by the backend.
+
+Teams share incident updates and chat in real time, collect evidence, and track affected assets and data with confidence levels. Closing an incident takes two different people: the commander who requests it and one other eligible reviewer. The agent can never approve.
+
+The INVESTIGATE workspace connects to a service built to use NVIDIA Nemotron through five tools: searchIncidents, getScope, createTask, updateSeverity, and flagConflict. It can turn evidence into response tasks and flag contradictory findings. Its dedicated identity is limited to an enrolled incident, cannot manage access or close incidents, and can only raise severity. The UI exposes tool steps and preserves revised conclusions. Mock and replay modes are explicitly labeled; a mock run is not presented as a live model run.
+
+The RECORD workspace provides an audit timeline, hash inspection, and JSON/PDF reporting. Audit events form a server-generated SHA-256 hash chain. A separate checkpoint service stores historical head hashes so verification can compare the database against an independently stored checkpoint. The interface distinguishes a verified chain from an unanchored, unavailable, or mismatched checkpoint.
+
+BLACKBOX provides a coordination channel that does not depend on the compromised environment. It does not make a compromised endpoint trustworthy.
+
+## How we built it
+We used React, TypeScript, Vite, and Tailwind CSS for the interface. SpacetimeDB handles the core backend, database, real-time subscriptions, authorization checks, incident workflows, and audit writes. Keeping permissions and audit generation in server-side reducers means a modified client cannot simply bypass the UI's restrictions.
+
+Our Node.js agent service uses the Vercel AI SDK, Zod tool schemas, and an OpenAI-compatible NVIDIA endpoint for Nemotron. Evidence is treated as untrusted input, while server-side permissions limit the actions the agent can perform regardless of its instructions. A queue worker publishes tool traces and checks cancellation before subsequent actions.
+
+The checkpoint service runs separately from SpacetimeDB with durable storage and separate read/write credentials. A separately deployed PDF service renders escaped report content through Chromium and keeps the external checkpoint hash separate from the current database head.
+
+## Challenges we ran into
+The hardest problem was defining what our security claims actually mean. A hash chain can reveal edits, but a database owner who rewrites every event and recomputes the hashes can produce another internally consistent chain. That led us to external checkpoints and explicit verification states.
+
+Real-time collaboration also creates races: stale incident edits, revoked reviewers, duplicate worker claims, and cancellations during an investigation. We added version checks, live authorization checks, and adversarial probes instead of relying on disabled buttons.
+
+Agent integration brought another boundary: displaying an agent label does not prove a model performed the action. We keep service identity, actual model metadata, and mock/replay mode visible rather than treating attribution as cryptographic proof.
+
+## Accomplishments that we're proud of
+We built a working workflow, deployed on SpacetimeDB Maincloud and Vercel, spanning incident coordination, scoped agent tools, audit verification, external checkpoint integration, and PDF report export.
+
+Our recorded validation includes 421 regression checks passing on ten consecutive runs, eight passing unit tests, and 16 demo checks passing across ten consecutive rehearsals. These checks cover permission boundaries, session revocation, tamper detection, approval rules, worker behavior, and report redaction. Separate targeted probes still identify open issues; passing regressions are not a claim that the system is vulnerability-free.
+
+## What we learned
+Security boundaries need to be enforced where state changes happen. Client controls improve usability, but server checks determine who can act. We also learned to distinguish internal consistency from independent evidence, and to make uncertainty visible in both the interface and the demo.
+
+## What's next for BLACKBOX
+We want to verify the hosted agent worker end to end; capture a real Nemotron investigation for a reproducible demo; and validate the complete hosted checkpoint flow independently. Next security work includes binding every tool action and trace atomically to its run, strengthening cancellation enforcement, adding incident-specific human membership, and addressing remaining findings in the local checkpoint store and development toolchain.
+
+BUILT WITH — enter as separate Devpost tags
+TypeScript
+React
+Vite
+Tailwind CSS
+SpacetimeDB
+Node.js
+NVIDIA Nemotron
+NVIDIA NIM
+Vercel AI SDK
+Zod
+SHA-256
+Chromium
+Cloudflare Workers
+Cloudflare D1
+
+LINKS
+Source code: https://github.com/Siddiqui-R/Hack_UTD_2026
+Live demo: https://blackbox-utd2026.vercel.app
+Video demo: add the team's uploaded demo video URL.
+
+SUBMISSION NOTES — not part of the project story
+Intended sponsor tracks from the team brief: Winstead, NVIDIA, SpacetimeDB. Match these to the actual options in Devpost.
+The pitch above is under Devpost's 200-character limit; the project name is under its 60-character limit.
+No browser fields were changed or saved: both the browser access host and native computer-use connection were unavailable.
+The content reflects the repository's implementation and recorded validation, not fresh tests performed while preparing this submission.
+Repository is public (checked 2026-11-08 08:30), as the SpacetimeDB track requires.
+Add a project thumbnail and screenshots from the running app. No live frontend URL, video URL, or media asset was verified during this task.
+Update the final paragraph if the outstanding deployment and live-model steps are completed before submission.
